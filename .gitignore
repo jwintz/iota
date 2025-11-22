@@ -1,0 +1,56 @@
+# Emacs
+*~
+\#*\#
+.\#*
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyo
+*.so
+*.dll
+*.dylib
+
+# Package archives
+*.tar
+*.tar.gz
+*.zip
+
+# Testing
+.cask/
+.ert-runner/
+
+# Build artifacts
+dist/
+build/
+
+# Backups
+*~
+*.bak
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Local configuration
+.dir-locals.el
+.envrc
+
+# MELPA
+*-pkg.el
+*-autoloads.el
+
+# AI
+AGENTS.md
+TODO.md
