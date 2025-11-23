@@ -22,6 +22,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'subr-x)
 
 ;;; Segment Protocol
 

@@ -24,6 +24,12 @@
 (require 'iota-segment)
 (require 'iota-theme)
 
+(defvar battery-status-function)
+(defvar flycheck-current-errors)
+(declare-function flycheck-count-errors "flycheck")
+(declare-function vc-git-mode-line-string "vc-git")
+(declare-function vc-git-working-revision "vc-git")
+
 ;;; Buffer Information Segments
 
 (defun iota-segment-buffer-name ()

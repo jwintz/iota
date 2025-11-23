@@ -77,94 +77,94 @@ Slots:
 
 ;;; Color Interpolation
 
-(defun iota-animate-lerp (a b t)
-  "Linear interpolation between A and B at T (0.0-1.0)."
-  (+ a (* t (- b a))))
+(defun iota-animate-lerp (a b time)
+  "Linear interpolation between A and B at TIME (0.0-1.0)."
+  (+ a (* time (- b a))))
 
-(defun iota-animate-color-lerp (color1 color2 t)
-  "Interpolate between COLOR1 and COLOR2 at T (0.0-1.0).
+(defun iota-animate-color-lerp (color1 color2 time)
+  "Interpolate between COLOR1 and COLOR2 at TIME (0.0-1.0).
 Returns a hex color string."
   (condition-case nil
       (let* ((rgb1 (color-name-to-rgb color1))
              (rgb2 (color-name-to-rgb color2))
-             (r (iota-animate-lerp (nth 0 rgb1) (nth 0 rgb2) t))
-             (g (iota-animate-lerp (nth 1 rgb1) (nth 1 rgb2) t))
-             (b (iota-animate-lerp (nth 2 rgb1) (nth 2 rgb2) t)))
+             (r (iota-animate-lerp (nth 0 rgb1) (nth 0 rgb2) time))
+             (g (iota-animate-lerp (nth 1 rgb1) (nth 1 rgb2) time))
+             (b (iota-animate-lerp (nth 2 rgb1) (nth 2 rgb2) time)))
         (color-rgb-to-hex r g b 2))
     (error color2)))
 
-(defun iota-animate-hsl-lerp (color1 color2 t)
-  "Interpolate between COLOR1 and COLOR2 in HSL space at T.
+(defun iota-animate-hsl-lerp (color1 color2 time)
+  "Interpolate between COLOR1 and COLOR2 in HSL space at TIME.
 Often produces more natural color transitions than RGB."
   (let* ((rgb1 (color-name-to-rgb color1))
          (rgb2 (color-name-to-rgb color2))
          (hsl1 (apply #'color-rgb-to-hsl rgb1))
          (hsl2 (apply #'color-rgb-to-hsl rgb2))
-         (h (iota-animate-lerp (nth 0 hsl1) (nth 0 hsl2) t))
-         (s (iota-animate-lerp (nth 1 hsl1) (nth 1 hsl2) t))
-         (l (iota-animate-lerp (nth 2 hsl1) (nth 2 hsl2) t))
+         (h (iota-animate-lerp (nth 0 hsl1) (nth 0 hsl2) time))
+         (s (iota-animate-lerp (nth 1 hsl1) (nth 1 hsl2) time))
+         (l (iota-animate-lerp (nth 2 hsl1) (nth 2 hsl2) time))
          (rgb (color-hsl-to-rgb h s l)))
     (apply #'color-rgb-to-hex (append rgb '(2)))))
 
 ;;; Easing Functions
 
-(defun iota-animate-ease-linear (t)
+(defun iota-animate-ease-linear (time)
   "Linear easing (no acceleration)."
-  t)
+  time)
 
-(defun iota-animate-ease-in-quad (t)
+(defun iota-animate-ease-in-quad (time)
   "Quadratic ease-in (accelerate from zero)."
-  (* t t))
+  (* time time))
 
-(defun iota-animate-ease-out-quad (t)
+(defun iota-animate-ease-out-quad (time)
   "Quadratic ease-out (decelerate to zero)."
-  (- (* t (- t 2))))
+  (- (* time (- time 2))))
 
-(defun iota-animate-ease-in-out-quad (t)
+(defun iota-animate-ease-in-out-quad (time)
   "Quadratic ease-in-out (accelerate then decelerate)."
-  (if (< t 0.5)
-      (* 2 t t)
-    (+ (* -2 t t) (* 4 t) -1)))
+  (if (< time 0.5)
+      (* 2 time time)
+    (+ (* -2 time time) (* 4 time) -1)))
 
-(defun iota-animate-ease-in-cubic (t)
+(defun iota-animate-ease-in-cubic (time)
   "Cubic ease-in."
-  (* t t t))
+  (* time time time))
 
-(defun iota-animate-ease-out-cubic (t)
+(defun iota-animate-ease-out-cubic (time)
   "Cubic ease-out."
-  (let ((f (- t 1)))
+  (let ((f (- time 1)))
     (+ (* f f f) 1)))
 
-(defun iota-animate-ease-in-out-cubic (t)
+(defun iota-animate-ease-in-out-cubic (time)
   "Cubic ease-in-out."
-  (if (< t 0.5)
-      (* 4 t t t)
-    (let ((f (- (* 2 t) 2)))
+  (if (< time 0.5)
+      (* 4 time time time)
+    (let ((f (- (* 2 time) 2)))
       (+ (* 0.5 f f f) 1))))
 
-(defun iota-animate-ease-elastic (t)
+(defun iota-animate-ease-elastic (time)
   "Elastic easing (bouncy effect)."
   (cond
-   ((<= t 0) 0)
-   ((>= t 1) 1)
-   (t (* (expt 2 (* -10 t))
-         (sin (* (- (* t 10) 0.75) (/ (* 2 pi) 3)))
+   ((<= time 0) 0)
+   ((>= time 1) 1)
+   (t (* (expt 2 (* -10 time))
+         (sin (* (- (* time 10) 0.75) (/ (* 2 float-pi) 3)))
          0.5
          0.5))))
 
-(defun iota-animate-ease-bounce (t)
+(defun iota-animate-ease-bounce (time)
   "Bounce easing."
   (cond
-   ((< t (/ 1 2.75))
-    (* 7.5625 t t))
-   ((< t (/ 2 2.75))
-    (let ((t2 (- t (/ 1.5 2.75))))
+   ((< time (/ 1 2.75))
+    (* 7.5625 time time))
+   ((< time (/ 2 2.75))
+    (let ((t2 (- time (/ 1.5 2.75))))
       (+ (* 7.5625 t2 t2) 0.75)))
-   ((< t (/ 2.5 2.75))
-    (let ((t2 (- t (/ 2.25 2.75))))
+   ((< time (/ 2.5 2.75))
+    (let ((t2 (- time (/ 2.25 2.75))))
       (+ (* 7.5625 t2 t2) 0.9375)))
    (t
-    (let ((t2 (- t (/ 2.625 2.75))))
+    (let ((t2 (- time (/ 2.625 2.75))))
       (+ (* 7.5625 t2 t2) 0.984375)))))
 
 ;;; Animation Engine

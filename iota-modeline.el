@@ -71,7 +71,7 @@ Can be: minimal, standard, full, or custom."
 (defcustom iota-modeline-custom-segments nil
   "Custom segment list when preset is \\='custom.
 Should be a list of segment structs."
-  :type 'list
+  :type '(repeat sexp)
   :group 'iota-modeline)
 
 (defcustom iota-modeline-update-debounce 0.1
@@ -85,7 +85,7 @@ If nil, inactive windows use default modeline."
   :type 'boolean
   :group 'iota-modeline)
 
-(defcustom iota-modeline-excluded-buffers nil
+(defcustom iota-modeline-excluded-buffers '("\\*Warnings\\*")
   "List of buffer names (strings or regexps) to exclude from IOTA modeline."
   :type '(repeat (choice string regexp))
   :group 'iota-modeline)
@@ -392,7 +392,7 @@ If WINDOW is nil, use selected window."
       (with-current-buffer buffer
         (setq mode-line-format ""
               header-line-format nil))))
-  
+
   ;; Set window parameters for minibuffer windows
   (dolist (frame (frame-list))
     (let ((minibuf-win (minibuffer-window frame)))
