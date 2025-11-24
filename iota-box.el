@@ -53,6 +53,27 @@
     :cross "╋" :t-down "┳" :t-up "┻" :t-right "┣" :t-left "┫")
   "Heavy box-drawing characters.")
 
+(defconst iota-box-chars-heavy-rounded
+  '(:top-left "╭" :top-right "╮"
+    :bottom-left "╰" :bottom-right "╯"
+    :horizontal "━" :vertical "┃"
+    :cross "╋" :t-down "┳" :t-up "┻" :t-right "┣" :t-left "┫")
+  "Heavy rounded box-drawing characters (rounded corners, heavy lines).")
+
+(defconst iota-box-chars-modern-thin
+  '(:top-left "┌" :top-right "┐"
+    :bottom-left "└" :bottom-right "┘"
+    :horizontal "─" :vertical "│"
+    :cross "╪" :t-down "╤" :t-up "╧" :t-right "╞" :t-left "╡")
+  "Modern thin box-drawing characters.")
+
+(defconst iota-box-chars-modern-thick
+  '(:top-left "┏" :top-right "┓"
+    :bottom-left "┗" :bottom-right "┛"
+    :horizontal "━" :vertical "┃"
+    :cross "╋" :t-down "┳" :t-up "┻" :t-right "┣" :t-left "┫")
+  "Modern thick box-drawing characters.")
+
 (defconst iota-box-chars-ascii
   '(:top-left "+" :top-right "+"
     :bottom-left "+" :bottom-right "+"
@@ -64,24 +85,62 @@
 
 (defcustom iota-box-default-style 'rounded
   "Default box drawing style.
-Can be: single, double, rounded, heavy, or ascii."
+Can be: single, double, rounded, heavy, heavy-rounded, 
+modern-thin, modern-thick, or ascii."
   :type '(choice (const :tag "Single line" single)
                  (const :tag "Double line" double)
                  (const :tag "Rounded corners" rounded)
                  (const :tag "Heavy line" heavy)
+                 (const :tag "Heavy rounded" heavy-rounded)
+                 (const :tag "Modern thin" modern-thin)
+                 (const :tag "Modern thick" modern-thick)
                  (const :tag "ASCII (compatibility)" ascii))
+  :group 'iota)
+
+(defcustom iota-box-style-fallback-chain
+  '(heavy-rounded rounded heavy single ascii)
+  "Fallback chain for box styles (in order of preference)."
+  :type '(repeat symbol)
   :group 'iota)
 
 (defun iota-box-get-chars (style)
   "Get box-drawing character set for STYLE.
-STYLE can be: single, double, rounded, heavy, or ascii."
+STYLE can be: single, double, rounded, heavy, heavy-rounded,
+modern-thin, modern-thick, or ascii."
   (pcase style
     ('single iota-box-chars-single)
     ('double iota-box-chars-double)
     ('rounded iota-box-chars-rounded)
     ('heavy iota-box-chars-heavy)
+    ('heavy-rounded iota-box-chars-heavy-rounded)
+    ('modern-thin iota-box-chars-modern-thin)
+    ('modern-thick iota-box-chars-modern-thick)
     ('ascii iota-box-chars-ascii)
     (_ iota-box-chars-rounded)))
+
+(defun iota-box-style-available-p (style)
+  "Check if STYLE characters are displayable in current environment."
+  (let* ((chars (iota-box-get-chars style))
+         (test-chars (list (plist-get chars :top-left)
+                          (plist-get chars :horizontal)
+                          (plist-get chars :vertical))))
+    (cl-every #'char-displayable-p 
+              (mapcar (lambda (s) (string-to-char s)) test-chars))))
+
+(defun iota-box-select-best-style (&optional preferred)
+  "Select best available box style, preferring PREFERRED if available."
+  (or (and preferred 
+           (iota-box-style-available-p preferred)
+           preferred)
+      (cl-find-if #'iota-box-style-available-p
+                  iota-box-style-fallback-chain)
+      'ascii))
+
+(defun iota-box-init-style ()
+  "Initialize box style based on terminal capabilities."
+  (let ((selected (iota-box-select-best-style)))
+    (setq iota-box-default-style selected)
+    (message "IOTA: Using box style '%s'" selected)))
 
 (defun iota-box-char (style char-key)
   "Get specific character CHAR-KEY from STYLE char set.

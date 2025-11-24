@@ -47,6 +47,12 @@
 (require 'iota-logos)
 (require 'iota-window)
 (require 'iota-demo)
+(require 'iota-config)
+(require 'iota-perf)
+
+;; Optional modules
+(require 'iota-theme-transparent)
+;; (require 'iota-element-theme)  ; Still incomplete - causes background issues
 
 ;;; Version
 
@@ -123,9 +129,11 @@
   (mapc (lambda (feature)
           (when (featurep feature)
             (unload-feature feature t)))
-        '(iota-demo iota-window iota-logos iota-splash iota-faces
-          iota-widgets iota-modeline iota-animate iota-segments
-          iota-segment iota-tui iota-theme iota-box iota))
+        '(iota-perf iota-config iota-demo iota-window iota-logos 
+          iota-splash iota-faces iota-widgets iota-modeline 
+          iota-animate iota-segments iota-segment iota-tui 
+          iota-element-theme iota-theme-transparent iota-theme 
+          iota-box iota))
   (require 'iota)
   (iota-modeline-mode 1)
   (message "I O T Λ reloaded"))

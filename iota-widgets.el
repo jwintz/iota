@@ -26,35 +26,66 @@
 
 ;;; Progress Bars
 
-(cl-defun iota-widget-progress-bar (value total &key width style label)
+(defcustom iota-widget-progress-styles
+  '((blocks    "█" "░" "▓")     ; Filled, empty, partial
+    (circles   "●" "○" "◐")
+    (squares   "■" "□" "▪")
+    (arrows    "▶" "▷" "▸")
+    (diamonds  "◆" "◇" "◈")
+    (braille   "⣿" "⠀" "⣤")
+    (line      "─" "┄" "╌")
+    (dots      "•" "·" "∙"))
+  "Progress bar style definitions."
+  :type '(alist :key-type symbol
+                :value-type (list string string string))
+  :group 'iota-widgets)
+
+(cl-defun iota-widget-progress-bar (value total &key width style label show-percent gradient)
   "Render a progress bar.
 
 Arguments:
-  value  Current progress value
-  total  Maximum value
-  :width Width of bar (default 40)
-  :style Style: blocks, line, dots (default blocks)
-  :label Optional label text
+  value          Current progress value
+  total          Maximum value
+  :width         Width of bar (default 40)
+  :style         Style: blocks, circles, squares, arrows, diamonds, braille, line, dots
+  :label         Optional label to show before bar
+  :show-percent  Show percentage (default t)
+  :gradient      List of colors for gradient effect
 
 Returns: String representation of progress bar."
   (let* ((width (or width 40))
          (style (or style 'blocks))
-         (percent (/ (float value) total))
-         (filled (floor (* percent width)))
-         (empty (- width filled))
-         (bar (pcase style
-                ('blocks (concat (make-string filled ?█)
-                                (make-string empty ?░)))
-                ('line (concat (make-string filled ?─)
-                              (make-string empty ?┄)))
-                ('dots (concat (make-string filled ?•)
-                              (make-string empty ?·)))
-                (_ (concat (make-string filled ?#)
-                          (make-string empty ?-)))))
-         (percent-str (format " %.0f%%" (* percent 100))))
-    (if label
-        (format "%s %s%s" label bar percent-str)
-      (concat bar percent-str))))
+         (show-percent (if (null show-percent) t show-percent))
+         (chars (or (alist-get style iota-widget-progress-styles)
+                   (alist-get 'blocks iota-widget-progress-styles)))
+         (filled-char (nth 0 chars))
+         (empty-char (nth 1 chars))
+         (percent (/ (* value 100.0) total))
+         (filled-width (floor (* width (/ percent 100.0))))
+         (empty-width (- width filled-width)))
+    (concat
+     (when label (concat label " "))
+     (if gradient
+         (iota-widget-progress-gradient filled-width empty-width 
+                                       filled-char empty-char gradient)
+       (concat
+        (make-string filled-width (string-to-char filled-char))
+        (make-string empty-width (string-to-char empty-char))))
+     (when show-percent
+       (format " %.0f%%" percent)))))
+
+(defun iota-widget-progress-gradient (filled empty fill-char empty-char colors)
+  "Render gradient progress bar."
+  (let ((gradient-steps (min filled (length colors))))
+    (concat
+     (mapconcat
+      (lambda (i)
+        (propertize (make-string 1 (string-to-char fill-char))
+                   'face `(:foreground ,(nth (min i (1- (length colors))) 
+                                             colors))))
+      (number-sequence 0 (1- filled))
+      "")
+     (make-string empty (string-to-char empty-char)))))
 
 ;;; Tables
 
@@ -347,7 +378,7 @@ HEIGHT determines the number of levels (default 8)."
     (cancel-timer iota-widget--spinner-timer)
     (setq iota-widget--spinner-timer nil)))
 
-;;; Badges
+;;; Badges and Status Indicators
 
 (defun iota-widget-badge (text &optional type)
   "Create a badge with TEXT.
@@ -359,6 +390,38 @@ TYPE can be: success, error, warning, info."
                 (_ 'iota-accent-face))))
     (propertize (format "[ %s ]" text)
                 'face `(:inherit ,face :weight bold))))
+
+(defun iota-widget-status-indicator (status)
+  "Render status indicator for STATUS (success, warning, error, info)."
+  (let ((indicators
+         '((success . ("✓" "#50fa7b"))
+           (warning . ("⚠" "#ffa500"))
+           (error   . ("✗" "#ff5555"))
+           (info    . ("ℹ" "#8be9fd"))
+           (pending . ("○" "#6272a4")))))
+    (when-let ((indicator (alist-get status indicators)))
+      (propertize (car indicator)
+                 'face `(:foreground ,(cadr indicator))
+                 'help-echo (format "Status: %s" status)))))
+
+(defun iota-widget-spinner (frame &optional style)
+  "Return spinner character for animation FRAME.
+STYLE options: braille, dots, line, arc, box"
+  (let ((frames
+         (pcase (or style 'braille)
+           ('braille '("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏"))
+           ('dots    '("⠁" "⠂" "⠄" "⡀" "⢀" "⠠" "⠐" "⠈"))
+           ('line    '("─" "/" "│" "\\"))
+           ('arc     '("◜" "◠" "◝" "◞" "◡" "◟"))
+           ('box     '("◰" "◳" "◲" "◱")))))
+    (nth (mod frame (length frames)) frames)))
+
+(defun iota-widget-bullet ()
+  "Return best available bullet point glyph."
+  (cond
+   ((char-displayable-p ?●) "●")
+   ((char-displayable-p ?■) "■")
+   (t "•")))
 
 (provide 'iota-widgets)
 ;;; iota-widgets.el ends here

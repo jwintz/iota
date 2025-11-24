@@ -364,6 +364,13 @@ If WINDOW is nil, use selected window."
   (set-face-attribute 'mode-line-inactive nil :background 'unspecified)
   (set-face-attribute 'header-line nil :background 'unspecified)
 
+  ;; Enable transparent theme in terminal mode
+  (when (and (not (display-graphic-p))
+             (fboundp 'iota-theme-transparent-mode)
+             (not (and (boundp 'iota-theme-transparent-mode)
+                       iota-theme-transparent-mode)))
+    (iota-theme-transparent-mode 1))
+
   ;; Set up hooks
   (add-hook 'post-command-hook #'iota-modeline--post-command)
   (add-hook 'buffer-list-update-hook #'iota-modeline--buffer-list-update)

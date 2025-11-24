@@ -229,8 +229,9 @@ Tries multiple methods to detect the actual binding."
    ;; Default fallback
    "C-x p"))
 
-(defun iota-splash--insert-key-bindings ()
-  "Insert key bindings section if project.el is available."
+(defun iota-splash--insert-key-bindings (&optional window)
+  "Insert key bindings section if project.el is available.
+WINDOW is the window to use for width calculations (defaults to selected window)."
   (when (and iota-splash-show-key-bindings
              (iota-splash--project-available-p))
     (insert "\n\n\n\n")  ; More vertical space before Quick Actions
@@ -239,7 +240,7 @@ Tries multiple methods to detect the actual binding."
     (let ((header-start (point)))
       (insert (propertize "Quick Actions" 'face 'iota-splash-logo-accent))
       (insert "\n")
-      (let ((fill-column (window-width)))
+      (let ((fill-column (window-width (or window (selected-window)))))
         (center-region header-start (point))))
 
     (insert "\n")
@@ -258,7 +259,7 @@ Tries multiple methods to detect the actual binding."
                                             (+ max-key-width 2 (length (cadr b))))
                                           bindings)))
            ;; Calculate left margin to center the block
-           (left-margin (max 0 (/ (- (window-width) max-line-width) 2))))
+           (left-margin (max 0 (/ (- (window-width (or window (selected-window))) max-line-width) 2))))
       (dolist (binding bindings)
         (let* ((key (car binding))
                (desc (cadr binding))
@@ -331,7 +332,7 @@ This regenerates the entire buffer with proper padding and centering."
                     (let ((fill-column (window-width window)))
                       (center-region logo-start (point))))
 
-                  (iota-splash--insert-key-bindings)
+                  (iota-splash--insert-key-bindings window)
 
                   (let ((hints-start (point)))
                     (iota-splash--insert-hints)

@@ -9,15 +9,40 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
 
 ## Features
 
+### Dual-Theme System
+- **Element Theming**: Dynamic, state-aware colors for IOTA UI components
+  - Adaptive colors based on Emacs state (normal, modified, read-only, recording, etc.)
+  - Smooth color transitions with configurable animation
+  - Modal editing integration (Evil, Meow, etc.)
+- **Syntax Theme Transparency**: Automatic background removal in terminal
+  - Preserves IOTA UI element backgrounds while making syntax transparent
+  - Smart face classification and selective preservation
+  - Terminal capability detection
+
+### Modern Box-Drawing
+- Extended Unicode character sets: single, double, rounded, heavy, heavy-rounded, modern-thin, modern-thick
+- Automatic style fallback based on font/terminal capabilities
+- Monaspace font optimization
+- ASCII fallback for maximum compatibility
+
+### Enhanced Widget Library
+- **Modern Progress Bars**: Multiple styles (blocks, circles, squares, arrows, diamonds, braille)
+- **Status Indicators**: Success, warning, error, info, pending states
+- **Badges**: Rounded, styled badges with custom colors
+- **Spinners**: Animated spinners (braille, dots, line, arc, box styles)
+- **Smart Glyphs**: Automatic glyph selection based on font capabilities
+
 ### Modeline
-- Box-drawing characters (╭─╮ │ ╰─╯) with multiple styles: single, double, rounded, heavy, ASCII
+- Box-drawing characters (╭─╮ │ ╰─╯) with multiple styles
 - Header-line or mode-line positioning
 - Dynamic width calculation
+- Active/inactive window distinction
 
 ### Theme Integration
 - Automatic color extraction from any theme
 - Light/dark detection with luminance calculation
 - WCAG contrast compliance utilities
+- Color manipulation (darken, lighten, blend, saturation)
 
 ### Segments
 - Buffer name, position, major/minor modes
@@ -29,11 +54,20 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
 ### Animations
 - Color transitions (RGB & HSL interpolation)
 - Easing functions (linear, quad, cubic, elastic, bounce)
-- Pulse effects
+- Pulse effects on state changes
+- Configurable duration and intensity
 
-### Widgets
-- Progress bars, tables, dialogs, forms
-- Status banners, sparklines, spinners, badges
+### Configuration Presets
+- **Minimal**: ASCII only (maximum compatibility)
+- **Standard**: Single-line box with square corners (┌─┐)
+- **Modern**: Rounded corners with smooth style (╭─╮)
+- **Cyberpunk**: Heavy lines with bold appearance (┏━┓)
+- **Custom**: Manual configuration
+
+### Performance Monitoring
+- Built-in performance measurement
+- Benchmarking tools for modeline and widgets
+- Operation timing reports
 
 ## Installation
 
@@ -91,21 +125,89 @@ Interactive setup wizard:
 M-x iota-setup
 ```
 
-Feature demo:
+Feature demos:
 ```elisp
-M-x iota-demo
+M-x iota-demo                    ; Main demo interface
+M-x iota-demo-theme-system       ; Theme system showcase
+M-x iota-demo-box-styles         ; Box-drawing styles
+M-x iota-demo-modern-widgets     ; Widget gallery
+M-x iota-demo-all-features       ; Sequential demo
+```
+
+Run tests:
+```elisp
+M-x iota-run-tests               ; Run test suite
+```
+
+Configuration:
+```elisp
+M-x iota-config-choose-preset    ; Interactive preset selection
+M-x iota-config-info             ; View current settings
 ```
 
 ## Configuration
+
+### Quick Configuration with Presets
+
+```elisp
+;; Choose a preset: minimal, standard, modern, cyberpunk, custom
+(setq iota-config-preset 'modern)
+M-x iota-config-choose-preset  ; Interactive preset selection
+M-x iota-config-info           ; View current configuration
+```
+
+### Element Theme System
+
+```elisp
+;; Element theme configuration (utilities available, mode disabled)
+(setq iota-element-theme 'adaptive)                ; 'adaptive, 'spectrum, 'minimal, 'custom
+
+;; Customize state colors (for future use)
+(setq iota-element-color-states
+      '((normal . "#4ade80")      ; Green
+        (modified . "#ffa500")    ; Orange
+        (read-only . "#ff6b6b")   ; Red
+        (recording . "#ff79c6")   ; Pink
+        (search . "#8be9fd")      ; Cyan
+        (error . "#ff5555")       ; Bright red
+        (success . "#50fa7b")))   ; Bright green
+
+;; Note: iota-element-theme-mode is disabled (incomplete implementation)
+;; The color utilities remain available for future development
+```
+
+### Theme Transparency (Terminal)
+
+```elisp
+;; Automatic background removal in terminal
+(setq iota-theme-transparent-in-terminal t)
+
+;; Note: Background preservation disabled for IOTA faces
+;; Only syntax highlighting faces will have backgrounds removed
+;; IOTA UI elements use foreground colors only
+
+;; Check terminal capabilities
+M-x iota-theme-transparent-diagnose
+
+;; Note: iota-theme-transparent-mode available but optional
+;; Most users won't need explicit transparency mode
+```
 
 ### Modeline Options
 
 ```elisp
 (setq iota-modeline-position 'header)              ; 'header, 'mode, or 'both
-(setq iota-modeline-box-style 'rounded)            ; 'single, 'double, 'rounded, 'heavy, 'ascii
+(setq iota-modeline-box-style 'rounded)            ; See box styles below
 (setq iota-modeline-segments-preset 'standard)     ; 'minimal, 'standard, 'full, 'custom
 (setq iota-modeline-update-debounce 0.1)           ; Update debounce (seconds)
 (setq iota-modeline-show-in-inactive nil)          ; Show in inactive windows
+
+;; Box drawing styles (auto-detected based on capabilities)
+;; 'single, 'double, 'rounded, 'heavy, 'heavy-rounded,
+;; 'modern-thin, 'modern-thick, 'ascii
+
+;; Or let IOTA choose the best style
+(setq iota-box-default-style (iota-box-select-best-style 'heavy-rounded))
 ```
 
 ### Window & Splash Options
