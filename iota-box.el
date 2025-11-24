@@ -355,11 +355,11 @@ Returns: String with box decorations."
     
     (setq dividers (sort dividers #'<))
     (setq content-parts (nreverse content-parts))
-    (let ((content-line (concat vert " " (apply #'concat content-parts) " " vert)))
-      ;; Apply face to border characters only, preserving content faces
-      (when face
-        (add-face-text-property 0 (length vert) face nil content-line)
-        (add-face-text-property (- (length content-line) (length vert)) (length content-line) face nil content-line))
+    (let* ((left-border (if face (propertize vert 'face face) vert))
+           (right-border (if face (propertize vert 'face face) vert))
+           (content-line (concat left-border " " (apply #'concat content-parts) " " right-border)))
+      ;; Border faces now explicitly set via propertize above
+      nil
       
       (if compact
           content-line

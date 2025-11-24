@@ -55,16 +55,15 @@ Adapts to current theme via inheritance from vertical-border."
   :group 'iota-faces)
 
 (defface iota-active-box-face
-  '((t :inherit vertical-border))
+  '((t :inherit mode-line))
   "Face for box borders in active window.
-Full brightness. No background.
-Adapts to current theme via inheritance from vertical-border."
+Full brightness. Inherits from mode-line for proper theme adaptation."
   :group 'iota-faces)
 
 (defface iota-inactive-box-face
-  '((t :foreground "grey30"))
-  "Face for box borders and separators in inactive window.
-Dimmed to 30% brightness. No background."
+  '((t :inherit mode-line-inactive))
+  "Face for box borders in inactive window.
+Dimmed appearance. Inherits from mode-line-inactive for proper theme adaptation."
   :group 'iota-faces)
 
 ;;; Accent Faces

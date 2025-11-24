@@ -124,7 +124,8 @@ When enabled, accent elements will fade between active/inactive colors."
   (setq iota-window--active-animations nil))
 
 (defun iota-window--animate-window-modeline (window from to)
-  "Animate WINDOW modeline from FROM color to TO color."
+  "Animate WINDOW modeline from FROM color to TO color.
+Now that modal post-command-hook is removed, animations work smoothly."
   (set-window-parameter window 'iota-animation-face-spec `(:foreground ,from))
   (iota-modeline--update-overlay window)
   (let ((anim-id (iota-animate-start

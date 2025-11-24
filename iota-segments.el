@@ -160,26 +160,50 @@
 
 ;;; VCS Segments
 
-(defun iota-segment--git-status-indicators ()
-  "Get Git status indicators (*, +, ?, ⇡, ⇣, etc.)."
-  (when-let ((default-directory (vc-git-root (or (buffer-file-name) default-directory))))
-    (let ((status "")
-          (upstream nil)
-          (ahead 0)
-          (behind 0))
-      ;; Get upstream tracking info
-      (with-temp-buffer
-        (when (zerop (call-process "git" nil t nil "rev-parse" "--abbrev-ref" "@{upstream}"))
-          (setq upstream (string-trim (buffer-string)))))
+;; VCS Status Caching
+(defvar-local iota-segment--vcs-status-cache nil
+  "Cached VCS status for this buffer.")
 
-      ;; Get ahead/behind counts if we have upstream
-      (when upstream
-        (with-temp-buffer
-          (when (zerop (call-process "git" nil t nil "rev-list" "--left-right" "--count"
-                                     (concat "HEAD..." upstream)))
-            (goto-char (point-min))
-            (when (looking-at "\\([0-9]+\\)\t\\([0-9]+\\)")
-              (setq ahead (string-to-number (match-string 1)))
+(defvar-local iota-segment--vcs-cache-time 0
+  "Time when VCS cache was last updated.")
+
+(defcustom iota-segment-vcs-cache-duration 5
+  "How long to cache VCS status in seconds."
+  :type 'number
+  :group 'iota)
+
+(defun iota-segment--invalidate-vcs-cache ()
+  "Invalidate VCS status cache for current buffer."
+  (setq iota-segment--vcs-status-cache nil
+        iota-segment--vcs-cache-time 0))
+
+(defun iota-segment--git-status-indicators ()
+  "Get Git status indicators (*, +, ?, ⇡, ⇣, etc.) with caching."
+  (let ((current-time (float-time)))
+    ;; Return cached value if still fresh
+    (if (and iota-segment--vcs-status-cache
+             (< (- current-time iota-segment--vcs-cache-time)
+                iota-segment-vcs-cache-duration))
+        iota-segment--vcs-status-cache
+      ;; Otherwise compute and cache
+      (when-let ((default-directory (vc-git-root (or (buffer-file-name) default-directory))))
+        (let ((status "")
+              (upstream nil)
+              (ahead 0)
+              (behind 0))
+          ;; Get upstream tracking info
+          (with-temp-buffer
+            (when (zerop (call-process "git" nil t nil "rev-parse" "--abbrev-ref" "@{upstream}"))
+              (setq upstream (string-trim (buffer-string)))))
+
+          ;; Get ahead/behind counts if we have upstream
+          (when upstream
+            (with-temp-buffer
+              (when (zerop (call-process "git" nil t nil "rev-list" "--left-right" "--count"
+                                         (concat "HEAD..." upstream)))
+                (goto-char (point-min))
+                (when (looking-at "\\([0-9]+\\)\t\\([0-9]+\\)")
+                  (setq ahead (string-to-number (match-string 1)))
               (setq behind (string-to-number (match-string 2)))))))
 
       ;; Check for unstaged, staged, and untracked files
@@ -210,16 +234,19 @@
           (when has-unstaged (setq status (concat status "*")))
           (when has-untracked (setq status (concat status "?")))))
 
-      ;; Add ahead/behind indicators
-      (cond
-       ((and (> ahead 0) (> behind 0))
-        (setq status (concat status "⇕")))
-       ((> ahead 0)
-        (setq status (concat status "⇡" (if (> ahead 1) (number-to-string ahead) ""))))
-       ((> behind 0)
-        (setq status (concat status "⇣" (if (> behind 1) (number-to-string behind) "")))))
+          ;; Add ahead/behind indicators
+          (cond
+           ((and (> ahead 0) (> behind 0))
+            (setq status (concat status "⇕")))
+           ((> ahead 0)
+            (setq status (concat status "⇡" (if (> ahead 1) (number-to-string ahead) ""))))
+           ((> behind 0)
+            (setq status (concat status "⇣" (if (> behind 1) (number-to-string behind) "")))))
 
-      status)))
+          ;; Cache the result
+          (setq iota-segment--vcs-status-cache status
+                iota-segment--vcs-cache-time current-time)
+          status)))))
 
 (defun iota-segment-vcs ()
   "Create comprehensive VCS segment with branch and status.
@@ -391,6 +418,19 @@ Format: ⎇ main*+? where:
         (iota-segment-position)
         (iota-segment-position-percent)
         (iota-segment-time)))
+
+;;; VCS Cache Invalidation Hooks
+
+(defun iota-segment--setup-vcs-hooks ()
+  "Set up hooks to invalidate VCS cache at appropriate times."
+  ;; Invalidate on save - status changed
+  (add-hook 'after-save-hook #'iota-segment--invalidate-vcs-cache nil t)
+  ;; Invalidate on VC operations
+  (add-hook 'vc-checkin-hook #'iota-segment--invalidate-vcs-cache nil t)
+  (add-hook 'vc-after-revert-hook #'iota-segment--invalidate-vcs-cache nil t))
+
+;; Set up hooks when visiting files
+(add-hook 'find-file-hook #'iota-segment--setup-vcs-hooks)
 
 (provide 'iota-segments)
 ;;; iota-segments.el ends here

@@ -74,8 +74,9 @@ Should be a list of segment structs."
   :type '(repeat sexp)
   :group 'iota-modeline)
 
-(defcustom iota-modeline-update-debounce 0.1
-  "Debounce interval for modeline updates in seconds."
+(defcustom iota-modeline-update-debounce 0.05
+  "Debounce interval for modeline updates in seconds.
+Reduced to 50ms to not interfere with 30 FPS animations."
   :type 'float
   :group 'iota-modeline)
 
@@ -111,15 +112,17 @@ If nil, inactive windows use default modeline."
 
 ;;; Modeline Rendering
 
-(defun iota-modeline--render (&optional override-box-face)
-  "Render IOTA modeline format string."
+(defun iota-modeline--render (&optional override-box-face window)
+  "Render IOTA modeline format string for WINDOW.
+If WINDOW is nil, use selected window."
   (if (not (iota-modeline--should-show-p))
       "" ; Return empty string for minibuffer
-    (let* ((current-window (selected-window))
-           (width (window-width current-window))
+    (let* ((target-window (or window (selected-window)))
+           (width (window-width target-window))
            (segments (iota-modeline--get-segments))
            (style iota-modeline-box-style)
-           (box-face (or override-box-face (iota-theme-get-box-face current-window))))
+           (box-face (or override-box-face
+                        (iota-theme-get-box-face target-window))))
       (iota-box-render-single-line
        :left (mapcar #'iota-segment-render
                      (cl-remove-if-not
@@ -182,13 +185,14 @@ If WINDOW is nil, use selected window."
             (when (eq iota-modeline-position 'header)
               ;; Ensure native header line is disabled locally
               (kill-local-variable 'header-line-format)
-              
+
               (let* ((overlay (iota-modeline--ensure-overlay win))
                      (start (window-start win))
+                     ;; Pass window explicitly to ensure correct face
                      (box (with-selected-window win
-                            (iota-modeline--render))))
+                            (iota-modeline--render nil win))))
                 (move-overlay overlay start start (current-buffer))
-                (overlay-put overlay 'before-string 
+                (overlay-put overlay 'before-string
                              (if (string= box "")
                                  ""
                                (concat box "\n")))
@@ -261,11 +265,14 @@ If WINDOW is nil, use selected window."
        ((iota-modeline--should-show-p)
         (when (local-variable-p 'header-line-format)
           (kill-local-variable 'header-line-format))
-        (when (local-variable-p 'mode-line-format)
+        ;; Only kill mode-line-format if not in header position
+        ;; In header position, mode-line is used for the separator line
+        (when (and (local-variable-p 'mode-line-format)
+                   (not (eq iota-modeline-position 'header)))
           (kill-local-variable 'mode-line-format)))
        ((string= (buffer-name) "*Completions*")
         ;; For completions, show a simple separator line
-        (setq-local mode-line-format 
+        (setq-local mode-line-format
                     '(:eval (iota-box-horizontal-line (window-width) 'single 'iota-muted-face))))
        (t
         ;; For other excluded buffers, explicitly set mode-line and header-line to nil
@@ -328,6 +335,22 @@ If WINDOW is nil, use selected window."
   "Handle window size changes."
   (iota-modeline--update))
 
+(defun iota-modeline--update-separator-lines (&optional _frame)
+  "Update mode-line separator for each window based on position.
+Only bottom windows get the separator line."
+  (dolist (window (window-list nil 'no-minibuf))
+    (let ((buffer (window-buffer window)))
+      (when (buffer-live-p buffer)
+        (with-current-buffer buffer
+          (if (window-at-side-p window 'bottom)
+              ;; Bottom window: show separator with proper face
+              (setq-local mode-line-format
+                          `(:eval (iota-box-horizontal-line (window-width)
+                                                            iota-modeline-box-style
+                                                            (iota-theme-get-box-face ,window))))
+            ;; Other windows: no mode-line
+            (setq-local mode-line-format nil)))))))
+
 (defun iota-modeline--setup ()
   "Set up IOTA modeline."
   ;; Save original formats
@@ -343,12 +366,10 @@ If WINDOW is nil, use selected window."
     ('header
      (setq-default header-line-format nil)
      (add-hook 'window-scroll-functions #'iota-modeline--window-scroll)
-     (setq-default mode-line-format
-                   '(:eval (when (and (not (minibufferp))
-                                      (window-at-side-p (selected-window) 'bottom))
-                             (iota-box-horizontal-line (window-width)
-                                                       iota-modeline-box-style
-                                                       (iota-theme-get-box-face))))))
+     ;; Use buffer-local mode-line for separator
+     (add-hook 'window-configuration-change-hook #'iota-modeline--update-separator-lines)
+     (add-hook 'window-size-change-functions #'iota-modeline--update-separator-lines)
+     (iota-modeline--update-separator-lines))
     ('mode
      (setq-default header-line-format nil)
      (setq-default mode-line-format (iota-modeline--format)))
@@ -418,7 +439,9 @@ If WINDOW is nil, use selected window."
   (remove-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
   (remove-hook 'window-scroll-functions #'iota-modeline--window-scroll)
   (remove-hook 'window-size-change-functions #'iota-modeline--window-size-change)
+  (remove-hook 'window-size-change-functions #'iota-modeline--update-separator-lines)
   (remove-hook 'window-configuration-change-hook #'iota-modeline--window-configuration-change)
+  (remove-hook 'window-configuration-change-hook #'iota-modeline--update-separator-lines)
   
   ;; Remove overlay
   (iota-modeline--remove-overlay)

@@ -103,27 +103,22 @@ Does not check window selection - that's handled separately during rendering."
    (t 'normal)))
 
 (defun iota-modal-update-state ()
-  "Update current state and refresh UI if changed.
-Debounced to prevent performance issues."
-  (let ((current-time (float-time))
-        (new-state (iota-modal-detect-state)))
-    ;; Only update if state changed AND enough time has passed
-    (when (and (not (eq new-state iota-modal--current-state))
-               (>= (- current-time iota-modal--last-update-time)
-                   iota-modal--update-debounce))
+  "Update current buffer state by detecting it.
+Called lazily during rendering, not on every command.
+Returns t if state changed."
+  (let ((new-state (iota-modal-detect-state)))
+    (unless (eq new-state iota-modal--current-state)
       (setq iota-modal--current-state new-state
-            iota-modal--last-update-time current-time
             iota-modal--cached-indicator nil)  ; Invalidate cache
-      (iota-modal-refresh-ui))))
+      t)))
 
 (defun iota-modal-refresh-ui ()
   "Refresh UI elements with current theme state.
-Uses lightweight update without clearing caches."
-  ;; Use lightweight update instead of full refresh to avoid lag
-  ;; The segment will re-render automatically with new state colors
-  (when (bound-and-true-p iota-modeline-mode)
-    ;; Don't clear caches - just trigger a redisplay
-    (force-mode-line-update t)))
+No explicit update needed - the modeline's post-command-hook handles it."
+  ;; DO NOTHING - just updating the state is enough
+  ;; The modeline will re-render on its own through its post-command-hook
+  ;; Calling force-mode-line-update here causes double-updates and lag
+  nil)
 
 ;;; Color Transitions
 
@@ -225,12 +220,15 @@ Cached in buffer-local variable to avoid recalculation."
 (defun iota-modal-state-segment ()
   "Create a modeline segment showing current buffer state with color.
 Each buffer maintains its own state. Active windows show colored indicator,
-inactive windows show simple gray character only."
+inactive windows show simple gray character only.
+State is detected lazily during render, not on every command."
   (require 'iota-segment)
   (require 'iota-theme)
   (iota-segment-create
    :id 'modal-state
    :text (lambda ()
+           ;; Update state lazily when rendering (not on every command!)
+           (iota-modal-update-state)
            ;; Check if this window is active using the proper function
            (if (iota-theme-window-active-p)
                ;; Active: use cached colored indicator
@@ -265,19 +263,15 @@ When enabled, automatically adds and displays a colored indicator showing:
   :group 'iota-modal
   (if iota-modal-mode
       (progn
-        ;; Set up state tracking FIRST (before adding segment)
-        (add-hook 'post-command-hook #'iota-modal-update-state nil)
-        (iota-modal-update-state)
-        ;; Then add segment (which might fail if dependencies missing)
+        ;; NO post-command-hook needed! State is detected lazily during render
+        ;; This eliminates the performance overhead of checking state on every command
         (condition-case err
             (iota-modal-add-segment)
           (error
            (message "Warning: Could not add modal segment: %s" err)))
-        (message "IOTA modal mode enabled"))
+        (message "IOTA modal mode enabled - state tracked lazily"))
     (progn
-      ;; Clean up - remove from both buffer-local and global
-      (remove-hook 'post-command-hook #'iota-modal-update-state t)
-      (remove-hook 'post-command-hook #'iota-modal-update-state nil)
+      ;; Clean up segment
       (condition-case err
           (iota-modal-remove-segment)
         (error
