@@ -36,11 +36,7 @@
   "Create buffer name segment."
   (iota-segment-create
    :id 'buffer-name
-   :text (lambda ()
-           (let ((name (buffer-name)))
-             (if (buffer-modified-p)
-                 (concat (propertize "●" 'face (iota-theme-get-accent-face)) " " name)
-               name)))
+   :text (lambda () (buffer-name))
    :face #'iota-theme-get-modeline-face
    :align 'left
    :priority 100
@@ -164,8 +160,102 @@
 
 ;;; VCS Segments
 
+(defun iota-segment--git-status-indicators ()
+  "Get Git status indicators (*, +, ?, ⇡, ⇣, etc.)."
+  (when-let ((default-directory (vc-git-root (or (buffer-file-name) default-directory))))
+    (let ((status "")
+          (upstream nil)
+          (ahead 0)
+          (behind 0))
+      ;; Get upstream tracking info
+      (with-temp-buffer
+        (when (zerop (call-process "git" nil t nil "rev-parse" "--abbrev-ref" "@{upstream}"))
+          (setq upstream (string-trim (buffer-string)))))
+
+      ;; Get ahead/behind counts if we have upstream
+      (when upstream
+        (with-temp-buffer
+          (when (zerop (call-process "git" nil t nil "rev-list" "--left-right" "--count"
+                                     (concat "HEAD..." upstream)))
+            (goto-char (point-min))
+            (when (looking-at "\\([0-9]+\\)\t\\([0-9]+\\)")
+              (setq ahead (string-to-number (match-string 1)))
+              (setq behind (string-to-number (match-string 2)))))))
+
+      ;; Check for unstaged, staged, and untracked files
+      (with-temp-buffer
+        (call-process "git" nil t nil "status" "--porcelain")
+        (goto-char (point-min))
+        (let ((has-unstaged nil)
+              (has-staged nil)
+              (has-untracked nil))
+          (while (not (eobp))
+            (let ((line (buffer-substring (line-beginning-position) (line-end-position))))
+              (when (string-match "^\\(.\\)\\(.\\)" line)
+                (let ((x (match-string 1 line))
+                      (y (match-string 2 line)))
+                  ;; Staged changes (index)
+                  (when (string-match "[MADRC]" x)
+                    (setq has-staged t))
+                  ;; Unstaged changes (working tree)
+                  (when (string-match "[MD]" y)
+                    (setq has-unstaged t))
+                  ;; Untracked files
+                  (when (string= "??" (concat x y))
+                    (setq has-untracked t)))))
+            (forward-line))
+
+          ;; Build status string
+          (when has-staged (setq status (concat status "+")))
+          (when has-unstaged (setq status (concat status "*")))
+          (when has-untracked (setq status (concat status "?")))))
+
+      ;; Add ahead/behind indicators
+      (cond
+       ((and (> ahead 0) (> behind 0))
+        (setq status (concat status "⇕")))
+       ((> ahead 0)
+        (setq status (concat status "⇡" (if (> ahead 1) (number-to-string ahead) ""))))
+       ((> behind 0)
+        (setq status (concat status "⇣" (if (> behind 1) (number-to-string behind) "")))))
+
+      status)))
+
+(defun iota-segment-vcs ()
+  "Create comprehensive VCS segment with branch and status.
+Format: ⎇ main*+? where:
+  ⎇ = branch symbol
+  * = unstaged changes
+  + = staged changes
+  ? = untracked files
+  ⇡N = ahead of remote by N commits
+  ⇣N = behind remote by N commits
+  ⇕ = diverged from remote"
+  (iota-segment-create
+   :id 'vcs
+   :text (lambda ()
+           (when-let ((file (buffer-file-name)))
+             (when (vc-git-registered file)
+               (let* ((branch-raw (vc-git-mode-line-string file))
+                      (branch (when branch-raw
+                               (replace-regexp-in-string "Git[-:]" "" branch-raw)))
+                      (status (iota-segment--git-status-indicators)))
+                 (concat "⎇ " branch status)))))
+   :face #'iota-theme-get-accent-face
+   :align 'left
+   :priority 50
+   :update-on 'timer
+   :visible-fn (lambda () (and vc-mode (buffer-file-name)))
+   :help-echo (lambda ()
+                (concat "VCS: " (or (ignore-errors
+                                     (vc-git-mode-line-string (buffer-file-name)))
+                                   "")
+                       "\n* = unstaged, + = staged, ? = untracked"
+                       "\n⇡ = ahead, ⇣ = behind, ⇕ = diverged"))))
+
+;; Legacy segments kept for compatibility
 (defun iota-segment-vcs-branch ()
-  "Create VCS branch segment."
+  "Create VCS branch segment (legacy - use iota-segment-vcs instead)."
   (iota-segment-create
    :id 'vcs-branch
    :text (lambda ()
@@ -179,7 +269,7 @@
    :help-echo "VCS branch"))
 
 (defun iota-segment-vcs-status ()
-  "Create VCS status segment."
+  "Create VCS status segment (legacy - use iota-segment-vcs instead)."
   (iota-segment-create
    :id 'vcs-status
    :text (lambda ()
@@ -286,8 +376,7 @@
 (defun iota-segments-standard ()
   "Return standard segment set."
   (list (iota-segment-buffer-name)
-        (iota-segment-vcs-branch)
-        (iota-segment-vcs-status)
+        (iota-segment-vcs)
         (iota-segment-major-mode)
         (iota-segment-position)
         (iota-segment-position-percent)))
@@ -295,8 +384,7 @@
 (defun iota-segments-full ()
   "Return full segment set."
   (list (iota-segment-buffer-name)
-        (iota-segment-vcs-branch)
-        (iota-segment-vcs-status)
+        (iota-segment-vcs)
         (iota-segment-buffer-size)
         (iota-segment-major-mode)
         (iota-segment-region-info)

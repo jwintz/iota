@@ -52,7 +52,7 @@
 
 ;; Optional modules
 (require 'iota-theme-transparent)
-;; (require 'iota-element-theme)  ; Still incomplete - causes background issues
+(require 'iota-modal)
 
 ;;; Version
 

@@ -48,15 +48,17 @@ This face is applied to the vertical-border face when IOTA window mode is active
 ;;; Box Faces
 
 (defface iota-box-face
-  '((t :foreground "grey50"))
+  '((t :inherit vertical-border))
   "Face for TUI box decorations.
-The foreground color is used for the box lines. No background."
+The foreground color is used for the box lines. No background.
+Adapts to current theme via inheritance from vertical-border."
   :group 'iota-faces)
 
 (defface iota-active-box-face
-  '((t :foreground "grey50"))
+  '((t :inherit vertical-border))
   "Face for box borders in active window.
-Full brightness. No background."
+Full brightness. No background.
+Adapts to current theme via inheritance from vertical-border."
   :group 'iota-faces)
 
 (defface iota-inactive-box-face
@@ -68,48 +70,54 @@ Dimmed to 30% brightness. No background."
 ;;; Accent Faces
 
 (defface iota-accent-face
-  '((t :foreground "#39bae6" :weight bold))
-  "Face for accent elements (highlights, active items)."
+  '((t :inherit font-lock-constant-face :weight bold))
+  "Face for accent elements (highlights, active items).
+Adapts to current theme via inheritance from font-lock-constant-face."
   :group 'iota-faces)
 
 (defface iota-active-accent-face
-  '((t :foreground "#39bae6" :weight bold))
+  '((t :inherit font-lock-constant-face :weight bold))
   "Face for accent elements in active window.
-Full brightness accent color."
+Full brightness accent color.
+Adapts to current theme via inheritance from font-lock-constant-face."
   :group 'iota-faces)
 
 (defface iota-inactive-accent-face
-  '((t :foreground "#2a5a6a" :weight normal))
+  '((t :inherit shadow :weight normal))
   "Face for accent elements in inactive window.
-Desaturated and dimmed accent color."
+Desaturated and dimmed accent color.
+Adapts to current theme via inheritance from shadow."
   :group 'iota-faces)
 
 ;;; Highlight Faces
 
 (defface iota-active-highlight-face
-  '((t :foreground "#ffcc66" :weight bold))
+  '((t :inherit warning :weight bold))
   "Face for highlighted elements in active window.
-Uses gold-yellow accent color from branding."
+Adapts to current theme via inheritance from warning face."
   :group 'iota-faces)
 
 (defface iota-inactive-highlight-face
-  '((t :foreground "#665533" :weight normal))
+  '((t :inherit shadow :weight normal))
   "Face for highlighted elements in inactive window.
-Dimmed version of gold-yellow accent."
+Dimmed appearance.
+Adapts to current theme via inheritance from shadow."
   :group 'iota-faces)
 
 ;;; Modeline Faces
 
 (defface iota-active-modeline-face
-  '((t :foreground "#e6e6e6" :weight normal))
+  '((t :inherit default :weight normal))
   "Face for active window modeline.
-Uses full brightness and saturation."
+Uses full brightness and saturation.
+Adapts to current theme via inheritance from default."
   :group 'iota-faces)
 
 (defface iota-inactive-modeline-face
-  '((t :foreground "#666666" :weight light))
+  '((t :inherit shadow :weight light))
   "Face for inactive window modeline.
-Uses dimmed colors and reduced weight."
+Uses dimmed colors and reduced weight.
+Adapts to current theme via inheritance from shadow."
   :group 'iota-faces)
 
 (defface iota-modeline-face
@@ -174,23 +182,27 @@ Dimmed warning color."
 ;;; Splash Screen Faces
 
 (defface iota-splash-logo-primary
-  '((t :foreground "#39bae6" :weight normal))
-  "Face for primary logo letters (I O T) in splash screen."
+  '((t :inherit font-lock-function-name-face :weight normal))
+  "Face for primary logo letters (I O T) in splash screen.
+Adapts to current theme via inheritance from font-lock-function-name-face."
   :group 'iota-faces)
 
 (defface iota-splash-logo-accent
-  '((t :foreground "#ffcc66" :weight bold))
-  "Face for accent logo letter (Λ) in splash screen."
+  '((t :inherit font-lock-keyword-face :weight bold))
+  "Face for accent logo letter (Λ) in splash screen.
+Adapts to current theme via inheritance from font-lock-keyword-face."
   :group 'iota-faces)
 
 (defface iota-splash-tagline
-  '((t :foreground "#e6e6e6" :weight normal))
-  "Face for splash screen tagline."
+  '((t :inherit default :weight normal))
+  "Face for splash screen tagline.
+Adapts to current theme via inheritance from default face."
   :group 'iota-faces)
 
 (defface iota-splash-tertiary
-  '((t :foreground "#999999" :weight light))
-  "Face for tertiary logo (ι • ο • τ • α) in splash screen."
+  '((t :inherit shadow :weight light))
+  "Face for tertiary logo (ι • ο • τ • α) in splash screen.
+Adapts to current theme via inheritance from shadow face."
   :group 'iota-faces)
 
 (defface iota-splash-anim-1

@@ -53,7 +53,7 @@ Provides additional visual feedback beyond the fade animation."
   :type 'boolean
   :group 'iota)
 
-(defcustom iota-window-animate-modeline nil
+(defcustom iota-window-animate-modeline t
   "Animate modeline face changes on window focus.
 When enabled, modeline will fade between active/inactive colors."
   :type 'boolean
