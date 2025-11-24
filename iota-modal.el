@@ -70,14 +70,22 @@ Options:
 
 ;;; State Management
 
-(defvar iota-modal--current-state 'normal
-  "Current element state for theming.")
+(defvar-local iota-modal--current-state 'normal
+  "Current element state for theming.
+Buffer-local so each buffer can have independent state.")
+
+(defvar-local iota-modal--cached-indicator nil
+  "Cached indicator string with color for active window.
+Buffer-local to avoid recalculating on every render.")
 
 (defvar iota-modal--transition-timers nil
   "Active transition timers.")
 
-(defvar iota-modal--last-update-time nil
-  "Timestamp of last state update.")
+(defvar-local iota-modal--last-update-time 0
+  "Timestamp of last state update for this buffer.")
+
+(defvar iota-modal--update-debounce 0.1
+  "Minimum seconds between state updates to prevent lag.")
 
 (defun iota-modal-get-state-color (&optional state)
   "Get color for STATE (defaults to current state)."
@@ -85,29 +93,37 @@ Options:
              iota-modal-color-states))
 
 (defun iota-modal-detect-state ()
-  "Detect current Emacs state for theming."
+  "Detect current buffer state for theming.
+Does not check window selection - that's handled separately during rendering."
   (cond
    (defining-kbd-macro 'recording)
    ((and (boundp 'isearch-mode) isearch-mode) 'search)
    (buffer-read-only 'read-only)
    ((buffer-modified-p) 'modified)
-   ((not (eq (selected-window) (get-buffer-window))) 'inactive)
    (t 'normal)))
 
 (defun iota-modal-update-state ()
-  "Update current state and refresh UI if changed."
-  (let ((new-state (iota-modal-detect-state)))
-    (unless (eq new-state iota-modal--current-state)
-      (setq iota-modal--current-state new-state)
+  "Update current state and refresh UI if changed.
+Debounced to prevent performance issues."
+  (let ((current-time (float-time))
+        (new-state (iota-modal-detect-state)))
+    ;; Only update if state changed AND enough time has passed
+    (when (and (not (eq new-state iota-modal--current-state))
+               (>= (- current-time iota-modal--last-update-time)
+                   iota-modal--update-debounce))
+      (setq iota-modal--current-state new-state
+            iota-modal--last-update-time current-time
+            iota-modal--cached-indicator nil)  ; Invalidate cache
       (iota-modal-refresh-ui))))
 
 (defun iota-modal-refresh-ui ()
-  "Refresh UI elements with current theme state."
-  ;; Trigger full modeline update including overlay rendering
+  "Refresh UI elements with current theme state.
+Uses lightweight update without clearing caches."
+  ;; Use lightweight update instead of full refresh to avoid lag
+  ;; The segment will re-render automatically with new state colors
   (when (bound-and-true-p iota-modeline-mode)
-    (if (fboundp 'iota-modeline-refresh)
-        (iota-modeline-refresh)  ; Full refresh with cache clear
-      (force-mode-line-update t))))
+    ;; Don't clear caches - just trigger a redisplay
+    (force-mode-line-update t)))
 
 ;;; Color Transitions
 
@@ -184,32 +200,49 @@ Returns nil for regular Emacs mode so buffer state can be shown."
 
 ;;; Modeline Segment Integration
 
+(defun iota-modal--get-indicator-char ()
+  "Get the indicator character for current state.
+Fast lookup without modal mode checks."
+  (pcase iota-modal--current-state
+    ('normal "●")
+    ('modified "●")
+    ('read-only "⊗")
+    ('recording "⬤")
+    ('search "⌕")
+    (_ "•")))
+
+(defun iota-modal--build-active-indicator ()
+  "Build colored indicator for active window.
+Cached in buffer-local variable to avoid recalculation."
+  (or iota-modal--cached-indicator
+      (let* ((state iota-modal--current-state)
+             (color (iota-modal-get-state-color state))
+             (indicator (or (iota-modal-modal-indicator)
+                           (iota-modal--get-indicator-char))))
+        (setq iota-modal--cached-indicator
+              (propertize indicator 'face `(:foreground ,color))))))
+
 (defun iota-modal-state-segment ()
-  "Create a modeline segment showing current state with color.
-Always visible when modal mode is active, with color indicating state."
+  "Create a modeline segment showing current buffer state with color.
+Each buffer maintains its own state. Active windows show colored indicator,
+inactive windows show simple gray character only."
   (require 'iota-segment)
+  (require 'iota-theme)
   (iota-segment-create
    :id 'modal-state
    :text (lambda ()
-           (let* ((state iota-modal--current-state)
-                  (color (iota-modal-get-state-color state)))
-             ;; Always show indicator with state-based color
-             (let ((indicator (or (iota-modal-modal-indicator)
-                                 (pcase state
-                                   ('normal "●")
-                                   ('modified "●")
-                                   ('read-only "⊗")
-                                   ('recording "⬤")
-                                   ('search "⌕")
-                                   ('inactive "○")
-                                   (_ "•")))))
-               (propertize indicator
-                          'face `(:foreground ,color)))))
+           ;; Check if this window is active using the proper function
+           (if (iota-theme-window-active-p)
+               ;; Active: use cached colored indicator
+               (iota-modal--build-active-indicator)
+             ;; Inactive: just show character with inactive face
+             (propertize (iota-modal--get-indicator-char)
+                        'face 'iota-inactive-modeline-face)))
    :face nil  ; Don't override the propertized face in the text
    :align 'left
    :priority 150
    :help-echo (lambda ()
-                (format "State: %s" iota-modal--current-state))))
+                (format "Buffer state: %s" iota-modal--current-state))))
 
 ;;; Hooks
 

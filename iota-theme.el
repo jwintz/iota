@@ -124,6 +124,12 @@ Returns a hex color string."
          (new-rgb (color-hsl-to-rgb h new-s l)))
     (apply #'color-rgb-to-hex (append new-rgb '(2)))))
 
+(defun iota-theme-color-desaturate (color amount)
+  "Desaturate COLOR by AMOUNT (0.0 to 1.0).
+0.0 = no change, 1.0 = fully desaturated (grayscale).
+Returns a hex color string."
+  (iota-theme-color-adjust-saturation color (- amount)))
+
 ;;; Contrast Utilities
 
 (defun iota-theme-contrast-ratio (color1 color2)
