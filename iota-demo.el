@@ -33,12 +33,16 @@
 
 (defvar iota-demo--demos
   '(iota-demo
+    iota-demo-theme-system
     iota-demo-box-styles
     iota-demo-widgets
     iota-demo-logos
     iota-demo-faces
     iota-demo-animations
-    iota-demo-window-states)
+    iota-demo-window-states
+    iota-demo-window-focus
+    iota-demo-window-effects
+    iota-demo-window-dividers)
   "List of demo functions in order.")
 
 (defvar iota-demo--current-index 0
@@ -70,13 +74,16 @@
   (interactive)
   (let ((buf-name (buffer-name))
         (demo-map '(("*I O T Λ Demo*" . iota-demo)
-                   ("*IOTA Theme Demo*" . iota-demo-theme-system)
-                   ("*IOTA Box Styles*" . iota-demo-box-styles)
-                   ("*IOTA Widgets Demo*" . iota-demo-widgets)
+                   ("*I O T Λ Theme Demo*" . iota-demo-theme-system)
+                   ("*I O T Λ Box Styles*" . iota-demo-box-styles)
+                   ("*I O T Λ Widgets Demo*" . iota-demo-widgets)
                    ("*I O T Λ Logo Demo*" . iota-demo-logos)
                    ("*I O T Λ Face Demo*" . iota-demo-faces)
                    ("*I O T Λ Animation Demo*" . iota-demo-animations)
-                   ("*I O T Λ Active*" . iota-demo-window-states))))
+                   ("*I O T Λ Active*" . iota-demo-window-states)
+                   ("*I O T Λ Focus Demo*" . iota-demo-window-focus)
+                   ("*I O T Λ Effects Demo*" . iota-demo-window-effects)
+                   ("*I O T Λ Dividers Demo*" . iota-demo-window-dividers))))
     (when-let ((demo-fn (alist-get buf-name demo-map nil nil #'string=)))
       (funcall demo-fn)
       (message "Demo refreshed"))))
@@ -126,13 +133,16 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
   "Find index of current demo based on buffer name."
   (let ((buf-name (buffer-name))
         (demo-buffers '("*I O T Λ Demo*"
-                       "*IOTA Theme Demo*"
-                       "*IOTA Box Styles*"
-                       "*IOTA Widgets Demo*"
+                       "*I O T Λ Theme Demo*"
+                       "*I O T Λ Box Styles*"
+                       "*I O T Λ Widgets Demo*"
                        "*I O T Λ Logo Demo*"
                        "*I O T Λ Face Demo*"
                        "*I O T Λ Animation Demo*"
-                       "*I O T Λ Active*")))
+                       "*I O T Λ Active*"
+                       "*I O T Λ Focus Demo*"
+                       "*I O T Λ Effects Demo*"
+                       "*I O T Λ Dividers Demo*")))
     (or (cl-position buf-name demo-buffers :test #'string=) 0)))
 
 (defun iota-demo-next ()
@@ -260,7 +270,7 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
               (insert (format "  FG: %-16s BG: %-16s Weight: %s\n\n"
                             fg-display bg-display weight-display)))))
 
-        (iota-demo--make-readonly-with-hint "Widgets")))
+        (iota-demo--make-readonly-with-hint "Animations")))
     (iota-demo--show-in-current-window buf)))
 
 ;;; Widget Demo
@@ -269,7 +279,7 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
 (defun iota-demo-widgets ()
   "Demonstrate IOTA widget library."
   (interactive)
-  (let ((buf (iota-demo--setup-buffer "*I O T Λ Widget Demo*")))
+  (let ((buf (iota-demo--setup-buffer "*I O T Λ Widgets Demo*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
         (insert "\n")
@@ -327,7 +337,7 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
         (insert (iota-widget-banner :message "Error: Connection failed" :type 'error :style 'rounded))
         (insert "\n\n")
 
-        (iota-demo--make-readonly-with-hint "Animations")))
+        (iota-demo--make-readonly-with-hint "Logos")))
     (iota-demo--show-in-current-window buf)))
 
 ;;; Animation Demo
@@ -449,7 +459,7 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
                           (iota-window-flash-current)))
                       (message "Animation demo complete!")))))
 
-;;; Window State Demo
+;;; Window State Demos
 
 ;;;###autoload
 (defun iota-demo-window-states ()
@@ -486,7 +496,7 @@ Creates side-by-side windows showing visual differences."
         (insert (propertize "Switch windows with C-x o\n" 'face 'iota-muted-face))
         (insert (propertize "to see state transitions\n" 'face 'iota-muted-face))
 
-        (iota-demo--make-readonly-with-hint "Logos")))
+        (iota-demo--make-readonly-with-hint "Window Focus")))
     (switch-to-buffer buf-left))
 
   ;; Right window
@@ -526,6 +536,154 @@ Creates side-by-side windows showing visual differences."
   (other-window 1)
 
   (message "Switch windows with C-x o to see active/inactive transitions. Press 'n' for next demo."))
+
+;;;###autoload
+(defun iota-demo-window-focus ()
+  "Demonstrate window focus transition animations."
+  (interactive)
+  (let ((buf (iota-demo--setup-buffer "*I O T Λ Focus Demo*")))
+    (with-current-buffer buf
+      (let ((inhibit-read-only t))
+        (insert "\n")
+        (insert (propertize "WINDOW FOCUS TRANSITIONS" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
+        (insert "\n\n")
+        (insert "═══════════════════════════════════════════════════════════\n\n")
+
+        (insert (propertize "ANIMATED TRANSITIONS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+
+        (let ((status (if iota-window-animate-transitions
+                         (propertize "✓ Enabled" 'face 'iota-success-face)
+                       (propertize "✗ Disabled" 'face 'iota-muted-face))))
+          (insert (format "  Status:     %s\n" status))
+          (insert (format "  Duration:   %.2fs\n\n" iota-window-transition-duration)))
+
+        (insert (propertize "Features:" 'face '(:weight bold)) "\n")
+        (insert "  • Smooth color transitions when switching windows\n")
+        (insert "  • Animated modeline face changes\n")
+        (insert "  • Accent element fade effects\n")
+        (insert "  • Customizable transition duration\n\n")
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        (insert (propertize "COMMANDS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+        (insert "  " (propertize "M-x iota-window-toggle-animations" 'face '(:foreground "#39bae6")) "\n")
+        (insert "    Toggle transition animations on/off\n\n")
+
+        (insert "  " (propertize "M-x iota-window-demo-modeline-animation" 'face '(:foreground "#39bae6")) "\n")
+        (insert "    Preview modeline color animation\n\n")
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        (insert (propertize "TRY IT:" 'face '(:weight bold)) "\n")
+        (insert "  1. Split this window: ")
+        (insert (propertize "C-x 2" 'face '(:foreground "#ffcc66")) "\n")
+        (insert "  2. Switch windows: ")
+        (insert (propertize "C-x o" 'face '(:foreground "#ffcc66")) "\n")
+        (insert "  3. Watch the smooth color transitions!\n\n")
+
+        (iota-demo--make-readonly-with-hint "Window Effects")))
+    (iota-demo--show-in-current-window buf)))
+
+;;;###autoload
+(defun iota-demo-window-effects ()
+  "Demonstrate window visual effects (pulse and flash)."
+  (interactive)
+  (let ((buf (iota-demo--setup-buffer "*I O T Λ Effects Demo*")))
+    (with-current-buffer buf
+      (let ((inhibit-read-only t))
+        (insert "\n")
+        (insert (propertize "WINDOW VISUAL EFFECTS" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
+        (insert "\n\n")
+        (insert "═══════════════════════════════════════════════════════════\n\n")
+
+        (insert (propertize "PULSE EFFECT" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+        (insert "  Subtle pulse animation on window activation\n")
+        (insert "  Provides visual feedback for window focus\n\n")
+
+        (let ((status (if iota-window-pulse-on-activate
+                         (propertize "✓ Enabled" 'face 'iota-success-face)
+                       (propertize "✗ Disabled" 'face 'iota-muted-face))))
+          (insert (format "  Status: %s\n\n" status)))
+
+        (insert "  " (propertize "M-x iota-window-pulse-current" 'face '(:foreground "#39bae6")) "\n")
+        (insert "    Pulse the current window accent\n\n")
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        (insert (propertize "FLASH EFFECT" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+        (insert "  Brief flash animation for attention\n")
+        (insert "  Useful for notifications and alerts\n\n")
+
+        (insert "  " (propertize "M-x iota-window-flash-current" 'face '(:foreground "#39bae6")) "\n")
+        (insert "    Flash the current window\n\n")
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        (insert (propertize "TRY THE EFFECTS:" 'face '(:weight bold)) "\n\n")
+        (insert "  Click the button to see a pulse effect:\n\n  ")
+        (insert-button "[ Pulse This Window ]"
+                      'action (lambda (_) (when (fboundp 'iota-window-pulse-current)
+                                           (iota-window-pulse-current)))
+                      'follow-link t
+                      'face '(:foreground "#39bae6" :weight bold))
+        (insert "\n\n  ")
+        (insert-button "[ Flash This Window ]"
+                      'action (lambda (_) (when (fboundp 'iota-window-flash-current)
+                                           (iota-window-flash-current)))
+                      'follow-link t
+                      'face '(:foreground "#ffcc66" :weight bold))
+        (insert "\n\n")
+
+        (iota-demo--make-readonly-with-hint "Window Dividers")))
+    (iota-demo--show-in-current-window buf)))
+
+;;;###autoload
+(defun iota-demo-window-dividers ()
+  "Demonstrate window divider styles."
+  (interactive)
+  (let ((buf (iota-demo--setup-buffer "*I O T Λ Dividers Demo*")))
+    (with-current-buffer buf
+      (let ((inhibit-read-only t))
+        (insert "\n")
+        (insert (propertize "WINDOW DIVIDERS" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
+        (insert "\n\n")
+        (insert "═══════════════════════════════════════════════════════════\n\n")
+
+        (insert (propertize "DIVIDER STYLES" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+
+        (insert "  " (propertize "plain" 'face '(:weight bold)) "\n")
+        (insert "    Continuous vertical line using │ character\n")
+        (insert "    Matches inactive box face color\n\n")
+
+        (insert "  " (propertize "hidden" 'face '(:weight bold)) "\n")
+        (insert "    No visible dividers\n")
+        (insert "    Clean, minimalist appearance\n\n")
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        (insert (propertize "CURRENT SETTINGS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+        (insert (format "  Style:  %s\n\n" iota-window-divider-style))
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        (insert (propertize "COMMANDS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+        (insert "  " (propertize "M-x iota-window-cycle-divider-style" 'face '(:foreground "#39bae6")) "\n")
+        (insert "    Cycle through available divider styles\n\n")
+
+        (insert "  " (propertize "M-x iota-window-set-divider-style" 'face '(:foreground "#39bae6")) "\n")
+        (insert "    Set a specific divider style\n\n")
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        (insert (propertize "TRY IT:" 'face '(:weight bold)) "\n")
+        (insert "  1. Split this window: ")
+        (insert (propertize "C-x 3" 'face '(:foreground "#ffcc66")) "\n")
+        (insert "  2. Run: ")
+        (insert (propertize "M-x iota-window-cycle-divider-style" 'face '(:foreground "#ffcc66")) "\n")
+        (insert "  3. Watch the divider style change!\n\n")
+
+        (iota-demo--make-readonly-with-hint "Main Menu")))
+    (iota-demo--show-in-current-window buf)))
 
 ;;; Main Demo
 
@@ -574,6 +732,15 @@ Opens in current buffer with organized sections."
 
         (insert "  " (propertize "7. Window States" 'face '(:foreground "#39bae6")) "\n")
         (insert "     Active/inactive window distinction\n\n")
+
+        (insert "  " (propertize "8. Window Focus" 'face '(:foreground "#39bae6")) "\n")
+        (insert "     Animated focus transitions between windows\n\n")
+
+        (insert "  " (propertize "9. Window Effects" 'face '(:foreground "#39bae6")) "\n")
+        (insert "     Pulse and flash visual effects\n\n")
+
+        (insert "  " (propertize "10. Window Dividers" 'face '(:foreground "#39bae6")) "\n")
+        (insert "     Divider styles and customization\n\n")
 
         (insert "═══════════════════════════════════════════════════════════════\n\n")
 
@@ -638,18 +805,88 @@ Opens in current buffer with organized sections."
         (insert (propertize emacs-version 'face '(:foreground "#39bae6")))
         (insert "\n")
 
-        (iota-demo--make-readonly-with-hint "Logos")))
+        (iota-demo--make-readonly-with-hint "Theme System")))
     (iota-demo--show-in-current-window buf)))
 
 ;;; New Feature Demos
 
+;;;###autoload
+(defun iota-demo-theme-system ()
+  "Demonstrate IOTA theme system and transparency features."
+  (interactive)
+  (let ((buffer (iota-demo--setup-buffer "*I O T Λ Theme Demo*")))
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert "\n")
+        (insert (propertize "THEME SYSTEM" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
+        (insert "\n\n")
+        (insert "═══════════════════════════════════════════════════════════\n\n")
 
+        ;; Current theme info
+        (insert (propertize "CURRENT THEME" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+        (insert (format "  Theme:        %s\n" (if custom-enabled-themes
+                                                   (car custom-enabled-themes)
+                                                 "default")))
+        (insert (format "  Display:      %s\n" (if (display-graphic-p) "GUI" "Terminal")))
+        (insert (format "  Colors:       %s\n\n" (display-color-cells)))
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        ;; Transparency features
+        (insert (propertize "TRANSPARENCY SYSTEM" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+        (let ((transparent-mode (and (boundp 'iota-theme-transparent-mode)
+                                    iota-theme-transparent-mode)))
+          (insert (format "  Status:       %s\n"
+                         (if transparent-mode
+                             (propertize "✓ Enabled" 'face 'iota-success-face)
+                           (propertize "✗ Disabled" 'face 'iota-muted-face))))
+          (insert "\n")
+          (insert "  Toggle with:  ")
+          (insert (propertize "M-x iota-theme-transparent-mode" 'face '(:foreground "#39bae6")))
+          (insert "\n\n")
+
+          (when transparent-mode
+            (insert (propertize "  Features:" 'face '(:weight bold)) "\n")
+            (insert "    • Terminal background transparency\n")
+            (insert "    • Face background removal\n")
+            (insert "    • Window separator adaptation\n\n")))
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        ;; State-based colors
+        (insert (propertize "STATE-BASED FACES" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+        (insert "  IOTA adapts colors based on window state:\n\n")
+        (insert "  Active window:    ")
+        (insert (propertize "■ " 'face 'iota-active-box-face))
+        (insert (propertize "Bright, saturated colors" 'face 'iota-active-accent-face))
+        (insert "\n")
+        (insert "  Inactive window:  ")
+        (insert (propertize "■ " 'face 'iota-inactive-box-face))
+        (insert (propertize "Dimmed, muted colors" 'face 'iota-inactive-accent-face))
+        (insert "\n\n")
+
+        (insert "───────────────────────────────────────────────────────────\n\n")
+
+        ;; Box face system
+        (insert (propertize "DYNAMIC BOX FACES" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
+        (insert "  Box drawing characters adapt to:\n")
+        (insert "    • Current theme colors\n")
+        (insert "    • Window focus state\n")
+        (insert "    • Terminal/GUI mode\n\n")
+
+        (insert "  Example box rendering:\n\n  ")
+        (insert (iota-box-horizontal-line 50 'rounded 'iota-box-face))
+        (insert "\n\n")
+
+        (iota-demo--make-readonly-with-hint "Box Styles")))
+    (iota-demo--show-in-current-window buffer)))
 
 ;;;###autoload
 (defun iota-demo-box-styles ()
   "Demonstrate all available box styles."
   (interactive)
-  (let ((buffer (iota-demo--setup-buffer "*IOTA Box Styles*")))
+  (let ((buffer (iota-demo--setup-buffer "*I O T Λ Box Styles*")))
     (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
@@ -667,64 +904,6 @@ Opens in current buffer with organized sections."
     (iota-demo--show-in-current-window buffer)))
 
 ;;;###autoload
-(defun iota-demo-widgets ()
-  "Demonstrate IOTA widget library."
-  (interactive)
-  (let ((buffer (iota-demo--setup-buffer "*IOTA Widgets Demo*")))
-    (with-current-buffer buffer
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (insert "=== IOTA Widgets ===\n\n")
-        
-        ;; Progress bars
-        (insert "Progress Bar Styles:\n\n")
-        (dolist (style '(blocks circles squares arrows diamonds braille line dots))
-          (when (fboundp 'iota-widget-progress-bar)
-            (insert (format "  %-10s " (capitalize (symbol-name style))))
-            (insert (iota-widget-progress-bar 65 100 
-                      :width 30 :style style :show-percent t))
-            (insert "\n")))
-        
-        ;; Badges
-        (insert "\n\nBadges:\n  ")
-        (when (fboundp 'iota-widget-badge)
-          (insert (iota-widget-badge "INFO" 'info))
-          (insert " ")
-          (insert (iota-widget-badge "SUCCESS" 'success))
-          (insert " ")
-          (insert (iota-widget-badge "WARNING" 'warning))
-          (insert " ")
-          (insert (iota-widget-badge "ERROR" 'error))
-          (insert "\n"))
-        
-        ;; Status Indicators
-        (insert "\nStatus Indicators:\n")
-        (when (fboundp 'iota-widget-status-indicator)
-          (dolist (status '(success warning error info pending))
-            (insert (format "  %s %s\n"
-                           (iota-widget-status-indicator status)
-                           (capitalize (symbol-name status))))))
-        
-        ;; Spinners
-        (insert "\nSpinner Animations:\n")
-        (when (fboundp 'iota-widget-spinner)
-          (dolist (style '(braille dots line arc box))
-            (insert (format "  %-10s " (capitalize (symbol-name style))))
-            (dotimes (i 8)
-              (insert (iota-widget-spinner i style) " "))
-            (insert "\n")))
-        
-        ;; Bullets
-        (insert "\nBullet Points:\n")
-        (when (fboundp 'iota-widget-bullet)
-          (dotimes (i 3)
-            (insert (format "  %s Item %d\n" (iota-widget-bullet) (1+ i)))))
-        
-        (goto-char (point-min))
-        (iota-demo--make-readonly-with-hint "Logos")))
-    (iota-demo--show-in-current-window buffer)))
-
-;;;###autoload
 (defun iota-demo-all-features ()
   "Demonstrate all IOTA features in sequence."
   (interactive)
@@ -732,7 +911,7 @@ Opens in current buffer with organized sections."
   (sit-for 2)
   (iota-demo-box-styles)
   (sit-for 2)
-  (iota-demo-widgets-enhanced))
+  (iota-demo-widgets))
 
 (provide 'iota-demo)
 
