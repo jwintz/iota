@@ -118,7 +118,7 @@ If WINDOW is nil, use selected window."
   (if (not (iota-modeline--should-show-p))
       "" ; Return empty string for minibuffer
     (let* ((target-window (or window (selected-window)))
-           (width (window-width target-window))
+           (width (1- (window-width target-window)))
            (segments (iota-modeline--get-segments))
            (style iota-modeline-box-style)
            (box-face (or override-box-face
@@ -136,7 +136,7 @@ If WINDOW is nil, use selected window."
                       (cl-remove-if-not
                        (lambda (s) (eq (iota-segment-align s) 'right))
                        segments))
-       :width (if (display-graphic-p) width (1- width))
+       :width width
        :style style
        :face box-face))))
 

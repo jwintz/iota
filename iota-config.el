@@ -101,11 +101,20 @@ Options: minimal, standard, modern, cyberpunk, custom"
   (let ((buf (get-buffer-create "*IOTA Configuration*")))
     (with-current-buffer buf
       (erase-buffer)
-      (insert "=== IOTA Configuration ===\n\n")
 
-      ;; Preset and Style
-      (insert (format "Preset: %s\n" iota-config-preset))
-      (insert (format "Box Style: %s\n" iota-box-default-style))
+      ;; Title
+      (insert (propertize "I O T Λ Configuration" 'face '(:weight bold :height 1.2)))
+      (insert "\n\n")
+      (iota-box-insert-separator 'double)
+      (insert "\n")
+
+      ;; Preset and Style section
+      (insert (propertize "Preset & Style" 'face '(:weight bold)))
+      (insert "\n\n")
+      (insert (format "  Preset:     %s\n"
+                     (propertize (format "%s" iota-config-preset) 'face 'iota-accent-face)))
+      (insert (format "  Box Style:  %s\n"
+                     (propertize (format "%s" iota-box-default-style) 'face 'iota-accent-face)))
 
       ;; Show actual box characters being used
       (let* ((chars (iota-box-get-chars iota-box-default-style))
@@ -115,42 +124,69 @@ Options: minimal, standard, modern, cyberpunk, custom"
              (br (plist-get chars :bottom-right))
              (h (plist-get chars :horizontal))
              (v (plist-get chars :vertical)))
-        (insert (format "\nCurrent Box Characters:\n  %s%s%s%s  %s  Corners\n  %s   %s  Sides\n  %s%s%s%s\n"
+        (insert (format "\n  Current Box Characters:\n    %s%s%s%s  %s  Corners\n    %s   %s  Sides\n    %s%s%s%s\n"
                        tl h h tr tl v v bl h h br)))
+      (insert "\n")
+      (iota-box-insert-separator 'single)
+      (insert "\n")
 
-      ;; Modeline state
+      ;; Modeline state section
       (when (boundp 'iota-modeline-mode)
-        (insert (format "\nModeline Mode: %s\n"
-                       (if iota-modeline-mode "enabled" "disabled")))
+        (insert (propertize "Modeline" 'face '(:weight bold)))
+        (insert "\n\n")
+        (insert (format "  Mode:       %s\n"
+                       (propertize (if iota-modeline-mode "enabled" "disabled")
+                                  'face (if iota-modeline-mode 'success 'iota-muted-face))))
         (when iota-modeline-mode
-          (insert (format "Modeline Box Style: %s\n"
-                         (if (boundp 'iota-modeline-box-style)
-                             iota-modeline-box-style
-                             "not set")))))
+          (insert (format "  Box Style:  %s\n"
+                         (propertize (format "%s" (if (boundp 'iota-modeline-box-style)
+                                                     iota-modeline-box-style
+                                                   "not set"))
+                                    'face 'iota-accent-face))))
+        (insert "\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n"))
 
-      ;; Transparency state
+      ;; Transparency state section
       (when (boundp 'iota-theme-transparent-mode)
-        (insert (format "\nTransparency Mode: %s\n"
-                       (if iota-theme-transparent-mode "enabled" "disabled")))
+        (insert (propertize "Transparency" 'face '(:weight bold)))
+        (insert "\n\n")
+        (insert (format "  Mode:       %s\n"
+                       (propertize (if iota-theme-transparent-mode "enabled" "disabled")
+                                  'face (if iota-theme-transparent-mode 'success 'iota-muted-face))))
         (when (boundp 'iota-theme-transparent--active)
-          (insert (format "Transparency Active: %s\n"
-                         (if iota-theme-transparent--active "yes" "no")))))
+          (insert (format "  Active:     %s\n"
+                         (propertize (if iota-theme-transparent--active "yes" "no")
+                                    'face (if iota-theme-transparent--active 'success 'iota-muted-face)))))
+        (insert "\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n"))
 
-      ;; Current theme
+      ;; Current theme section
       (when custom-enabled-themes
-        (insert (format "\nEnabled Themes: %s\n"
-                       (mapconcat #'symbol-name custom-enabled-themes ", "))))
+        (insert (propertize "Themes" 'face '(:weight bold)))
+        (insert "\n\n")
+        (insert (format "  Enabled:    %s\n"
+                       (propertize (mapconcat #'symbol-name custom-enabled-themes ", ")
+                                  'face 'iota-accent-face)))
+        (insert "\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n"))
 
-      ;; Terminal capabilities
-      (insert (format "\nTerminal Type: %s\n" (or (getenv "TERM") "unknown")))
-      (insert (format "Display Graphic: %s\n" (if (display-graphic-p) "yes" "no")))
-      (insert (format "Color Cells: %s\n" (or (tty-display-color-cells) "N/A")))
+      ;; Terminal capabilities section
+      (insert (propertize "Terminal" 'face '(:weight bold)))
+      (insert "\n\n")
+      (insert (format "  Type:       %s\n" (or (getenv "TERM") "unknown")))
+      (insert (format "  Graphic:    %s\n" (if (display-graphic-p) "yes" "no")))
+      (insert (format "  Colors:     %s\n" (or (tty-display-color-cells) "N/A")))
       (when (not (display-graphic-p))
-        (insert (format "True Color Support: %s\n"
+        (insert (format "  True Color: %s\n"
                        (if (or (getenv "COLORTERM")
                               (string-match-p "truecolor\\|24bit"
                                             (or (getenv "TERM") "")))
-                           "yes" "no")))))
+                           "yes" "no"))))
+      (insert "\n")
+      (iota-box-insert-separator 'double))
     (display-buffer buf)))
 
 ;;; Wizard

@@ -409,5 +409,41 @@ ELLIPSIS defaults to \"...\"."
       (_
        (concat text (make-string padding ?\s))))))
 
+(defun iota-box-insert-separator (&optional style face)
+  "Insert a full-width separator line in the current buffer.
+Uses STYLE (defaults to `iota-box-default-style') and FACE
+(defaults to `iota-muted-face' for a dimmer appearance).
+The separator spans the full window width."
+  (let* ((style (or style iota-box-default-style))
+         (face (or face 'iota-muted-face))
+         ;; Use window-body-width for actual text area width, minus 1 for the newline
+         (width (cond
+                 ((get-buffer-window (current-buffer))
+                  (1- (window-body-width (get-buffer-window (current-buffer)))))
+                 ((and (fboundp 'frame-width) (frame-width))
+                  (1- (frame-width)))
+                 (t 79)))
+         (sep (iota-box-horizontal-line width style face)))
+    (insert sep)
+    (insert "\n")))
+
+(defun iota-box-insert-separator-with-tees (&optional style face)
+  "Insert a full-width separator with T-connectors in the current buffer.
+Uses STYLE (defaults to `iota-box-default-style') and FACE
+(defaults to `iota-muted-face' for a dimmer appearance).
+The separator spans the full window width."
+  (let* ((style (or style iota-box-default-style))
+         (face (or face 'iota-muted-face))
+         ;; Use window-body-width for actual text area width, minus 1 for the newline
+         (width (cond
+                 ((get-buffer-window (current-buffer))
+                  (1- (window-body-width (get-buffer-window (current-buffer)))))
+                 ((and (fboundp 'frame-width) (frame-width))
+                  (1- (frame-width)))
+                 (t 79)))
+         (sep (iota-box-separator width style face)))
+    (insert sep)
+    (insert "\n")))
+
 (provide 'iota-box)
 ;;; iota-box.el ends here

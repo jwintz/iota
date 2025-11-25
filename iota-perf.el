@@ -20,6 +20,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'iota-box)
 
 ;;; Configuration
 
@@ -72,40 +73,62 @@ When enabled, records timing data for operations."
       (message "No performance data collected. Enable with `iota-perf-enable'")
     (with-current-buffer (get-buffer-create "*IOTA Performance*")
       (erase-buffer)
-      (insert "=== IOTA Performance Report ===\n\n")
-      (insert (format "Total measurements: %d\n" (length iota-perf-timings)))
-      (insert (format "Warning threshold: %.3f ms\n\n" 
-                     (* iota-perf-warning-threshold 1000)))
-      
+
+      ;; Title
+      (insert (propertize "I O T Λ Performance Report" 'face '(:weight bold :height 1.2)))
+      (insert "\n\n")
+      (iota-box-insert-separator 'double)
+      (insert "\n")
+
+      ;; Summary section
+      (insert (propertize "Summary" 'face '(:weight bold)))
+      (insert "\n\n")
+      (insert (format "  Total measurements: %s\n"
+                     (propertize (format "%d" (length iota-perf-timings)) 'face 'iota-accent-face)))
+      (insert (format "  Warning threshold:  %s\n"
+                     (propertize (format "%.3f ms" (* iota-perf-warning-threshold 1000))
+                                'face 'iota-accent-face)))
+      (insert "\n")
+      (iota-box-insert-separator 'single)
+      (insert "\n")
+
       ;; Group by operation name
       (let ((grouped (make-hash-table :test 'equal)))
         (dolist (timing iota-perf-timings)
           (let ((name (car timing))
                 (time (cdr timing)))
             (push time (gethash name grouped))))
-        
+
         ;; Calculate statistics for each operation
-        (insert "Operation Statistics:\n")
-        (insert (format "%-30s %8s %8s %8s %8s\n" 
+        (insert (propertize "Operation Statistics" 'face '(:weight bold)))
+        (insert "\n\n")
+        (insert (format "  %-30s %8s %8s %8s %8s\n"
                        "Operation" "Count" "Avg(ms)" "Max(ms)" "Total(ms)"))
-        (insert (make-string 70 ?-) "\n")
-        
+        (iota-box-insert-separator 'single)
+
         (maphash
          (lambda (name times)
            (let* ((count (length times))
                   (total (* 1000 (apply #'+ times)))
                   (avg (/ total count))
                   (max (* 1000 (apply #'max times))))
-             (insert (format "%-30s %8d %8.2f %8.2f %8.2f\n"
+             (insert (format "  %-30s %8d %8.2f %8.2f %8.2f\n"
                            name count avg max total))))
          grouped))
-      
-      (insert "\n\nRecent measurements (newest first):\n")
+
+      (insert "\n")
+      (iota-box-insert-separator 'single)
+      (insert "\n")
+      (insert (propertize "Recent Measurements" 'face '(:weight bold)))
+      (insert (propertize " (newest first)" 'face 'iota-muted-face))
+      (insert "\n\n")
       (dolist (timing (cl-subseq iota-perf-timings 0 (min 20 (length iota-perf-timings))))
-        (insert (format "%-30s: %6.3f ms\n" 
+        (insert (format "  %-30s: %6.3f ms\n"
                        (car timing)
                        (* (cdr timing) 1000))))
-      
+      (insert "\n")
+      (iota-box-insert-separator 'double)
+
       (goto-char (point-min))
       (display-buffer (current-buffer)))))
 

@@ -28,6 +28,7 @@
 (require 'iota-window)
 (require 'iota-widgets)
 (require 'iota-modeline)
+(require 'iota-box)
 
 ;;; Demo Navigation State
 
@@ -109,7 +110,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
   (goto-char (point-max))
   (let ((inhibit-read-only t))
     (insert "\n\n")
-    (insert "═══════════════════════════════════════════════════════════════\n\n")
+    (iota-box-insert-separator 'double)
+    (insert "\n")
     (insert (propertize "Press " 'face '(:weight bold)))
     (insert (propertize "n" 'face '(:foreground "#39bae6" :weight bold)))
     (insert (propertize " or " 'face '(:weight bold)))
@@ -128,6 +130,21 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
     (insert (propertize " to quit" 'face 'iota-muted-face)))
   (goto-char (point-min))
   (read-only-mode 1))
+
+(defun iota-demo--insert-header (title &optional subtitle)
+  "Insert a uniform header with TITLE and optional SUBTITLE.
+Uses consistent styling across all demo buffers."
+  (insert "\n")
+  (insert (propertize title
+                     'face '(:weight bold :foreground "#39bae6" :height 1.4)))
+  (insert "\n")
+  (when subtitle
+    (insert "\n")
+    (insert (propertize subtitle 'face 'iota-muted-face))
+    (insert "\n"))
+  (insert "\n")
+  (iota-box-insert-separator 'double)
+  (insert "\n"))
 
 (defun iota-demo--find-current-index ()
   "Find index of current demo based on buffer name."
@@ -188,10 +205,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
   (let ((buf (iota-demo--setup-buffer "*I O T Λ Logo Demo*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
-        (insert "\n")
-        (insert (propertize "LOGO VARIANTS" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "LOGO VARIANTS"
+                                  "IOTA branding variants for different use cases")
 
         (insert (propertize "PRIMARY LOGO" 'face '(:weight bold :foreground "#39bae6")) "\n")
         (insert (propertize "Use: Main branding, README headers\n" 'face 'iota-muted-face))
@@ -199,7 +214,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
         (insert "  Active:   " (iota-logo-primary t) "\n")
         (insert "  Inactive: " (iota-logo-primary nil) "\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "SECONDARY LOGO" 'face '(:weight bold :foreground "#39bae6")) "\n")
         (insert (propertize "Use: Technical docs, terminal splash screens\n" 'face 'iota-muted-face))
@@ -207,7 +223,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
         (insert "  Active:   " (iota-logo-secondary t) "\n")
         (insert "  Inactive: " (iota-logo-secondary nil) "\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "TERTIARY LOGO" 'face '(:weight bold :foreground "#39bae6")) "\n")
         (insert (propertize "Use: Footers, version tags, status indicators\n" 'face 'iota-muted-face))
@@ -215,7 +232,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
         (insert "  Active:   " (iota-logo-tertiary t) "\n")
         (insert "  Inactive: " (iota-logo-tertiary nil) "\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "TAGLINES" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
         (insert "  " (iota-logo-tagline) "\n")
@@ -233,10 +251,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
   (let ((buf (iota-demo--setup-buffer "*I O T Λ Face Demo*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
-        (insert "\n")
-        (insert (propertize "FACES" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "FACES"
+                                  "Face definitions and color samples")
 
         (let ((faces '((iota-face "Base face for IOTA elements")
                       (iota-box-face "Box drawing characters")
@@ -282,10 +298,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
   (let ((buf (iota-demo--setup-buffer "*I O T Λ Widgets Demo*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
-        (insert "\n")
-        (insert (propertize "WIDGET LIBRARY" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "WIDGET LIBRARY"
+                                  "Progress bars, badges, spinners, tables, and forms")
 
         ;; Progress bars
         (insert (propertize "PROGRESS BARS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
@@ -299,7 +313,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
         (insert "Dot style:\n")
         (insert "  " (iota-widget-progress-bar 85 100 :width 40 :style 'dots :label "Complete") "\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         ;; Tables
         (insert (propertize "TABLES" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
@@ -311,7 +326,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
                 :border 'rounded))
         (insert "\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         ;; Badges
         (insert (propertize "BADGES" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
@@ -320,13 +336,15 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
         (insert (iota-widget-badge "Warning" 'warning) "  ")
         (insert (iota-widget-badge "Info" 'info) "\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         ;; Sparkline
         (insert (propertize "SPARKLINE" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
         (insert "  Metric trend: " (iota-widget-sparkline '(3 5 4 8 6 9 10 8 12 15 13)) "\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         ;; Banner
         (insert (propertize "BANNERS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
@@ -352,10 +370,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
   (let ((buf (iota-demo--setup-buffer "*I O T Λ Animation Demo*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
-        (insert "\n")
-        (insert (propertize "ANIMATIONS" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "ANIMATIONS"
+                                  "Smooth transitions and easing functions")
 
         (insert (propertize "Watch the elements below animate!\n\n" 'face '(:weight bold)))
 
@@ -375,7 +391,8 @@ NEXT-DEMO-NAME is the name of the next demo in sequence."
         (insert (propertize "▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒" 'face 'iota-warning-face))
         (insert "\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
         (insert (propertize "Animations will run for ~20 seconds.\n" 'face 'iota-muted-face))
         (insert (propertize "Smooth transitions with cubic easing.\n" 'face 'iota-muted-face))
         (insert (propertize "Watch the colored elements pulse and morph!\n" 'face 'iota-muted-face))
@@ -475,10 +492,8 @@ Creates side-by-side windows showing visual differences."
   (let ((buf-left (iota-demo--setup-buffer "*I O T Λ Active*")))
     (with-current-buffer buf-left
       (let ((inhibit-read-only t))
-        (insert "\n")
-        (insert (propertize "ACTIVE WINDOW STATE" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "ACTIVE WINDOW STATE"
+                                  "Visual appearance when window has focus")
 
         (insert "This window is currently " (propertize "ACTIVE" 'face '(:weight bold :foreground "#39bae6")) ".\n\n")
 
@@ -492,7 +507,8 @@ Creates side-by-side windows showing visual differences."
         (insert "  " (propertize "Active Accent" 'face 'iota-active-accent-face) "\n")
         (insert "  " (propertize "Active Highlight" 'face 'iota-active-highlight-face) "\n\n")
 
-        (insert "───────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
         (insert (propertize "Switch windows with C-x o\n" 'face 'iota-muted-face))
         (insert (propertize "to see state transitions\n" 'face 'iota-muted-face))
 
@@ -504,10 +520,8 @@ Creates side-by-side windows showing visual differences."
   (let ((buf-right (get-buffer-create "*I O T Λ Inactive*")))
     (with-current-buffer buf-right
       (let ((inhibit-read-only t))
-        (insert "\n")
-        (insert (propertize "INACTIVE WINDOW STATE" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "INACTIVE WINDOW STATE"
+                                  "Visual appearance when window loses focus")
 
         (insert "When inactive, this window is " (propertize "DIMMED" 'face '(:weight bold :foreground "#666666")) ".\n\n")
 
@@ -521,7 +535,8 @@ Creates side-by-side windows showing visual differences."
         (insert "  " (propertize "Inactive Accent" 'face 'iota-inactive-accent-face) "\n")
         (insert "  " (propertize "Inactive Highlight" 'face 'iota-inactive-highlight-face) "\n\n")
 
-        (insert "───────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (when iota-window-animate-transitions
           (insert (propertize "✓ " 'face 'iota-success-face))
@@ -544,10 +559,8 @@ Creates side-by-side windows showing visual differences."
   (let ((buf (iota-demo--setup-buffer "*I O T Λ Focus Demo*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
-        (insert "\n")
-        (insert (propertize "WINDOW FOCUS TRANSITIONS" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "WINDOW FOCUS TRANSITIONS"
+                                  "Animated focus transitions between windows")
 
         (insert (propertize "ANIMATED TRANSITIONS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
 
@@ -563,7 +576,8 @@ Creates side-by-side windows showing visual differences."
         (insert "  • Accent element fade effects\n")
         (insert "  • Customizable transition duration\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "COMMANDS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
         (insert "  " (propertize "M-x iota-window-toggle-animations" 'face '(:foreground "#39bae6")) "\n")
@@ -572,7 +586,8 @@ Creates side-by-side windows showing visual differences."
         (insert "  " (propertize "M-x iota-window-demo-modeline-animation" 'face '(:foreground "#39bae6")) "\n")
         (insert "    Preview modeline color animation\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "TRY IT:" 'face '(:weight bold)) "\n")
         (insert "  1. Split this window: ")
@@ -591,10 +606,8 @@ Creates side-by-side windows showing visual differences."
   (let ((buf (iota-demo--setup-buffer "*I O T Λ Effects Demo*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
-        (insert "\n")
-        (insert (propertize "WINDOW VISUAL EFFECTS" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "WINDOW VISUAL EFFECTS"
+                                  "Pulse and flash visual effects")
 
         (insert (propertize "PULSE EFFECT" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
         (insert "  Subtle pulse animation on window activation\n")
@@ -608,7 +621,8 @@ Creates side-by-side windows showing visual differences."
         (insert "  " (propertize "M-x iota-window-pulse-current" 'face '(:foreground "#39bae6")) "\n")
         (insert "    Pulse the current window accent\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "FLASH EFFECT" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
         (insert "  Brief flash animation for attention\n")
@@ -617,7 +631,8 @@ Creates side-by-side windows showing visual differences."
         (insert "  " (propertize "M-x iota-window-flash-current" 'face '(:foreground "#39bae6")) "\n")
         (insert "    Flash the current window\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "TRY THE EFFECTS:" 'face '(:weight bold)) "\n\n")
         (insert "  Click the button to see a pulse effect:\n\n  ")
@@ -644,10 +659,8 @@ Creates side-by-side windows showing visual differences."
   (let ((buf (iota-demo--setup-buffer "*I O T Λ Dividers Demo*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
-        (insert "\n")
-        (insert (propertize "WINDOW DIVIDERS" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "WINDOW DIVIDERS"
+                                  "Divider styles and customization")
 
         (insert (propertize "DIVIDER STYLES" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
 
@@ -659,12 +672,14 @@ Creates side-by-side windows showing visual differences."
         (insert "    No visible dividers\n")
         (insert "    Clean, minimalist appearance\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "CURRENT SETTINGS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
         (insert (format "  Style:  %s\n\n" iota-window-divider-style))
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "COMMANDS" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
         (insert "  " (propertize "M-x iota-window-cycle-divider-style" 'face '(:foreground "#39bae6")) "\n")
@@ -673,7 +688,8 @@ Creates side-by-side windows showing visual differences."
         (insert "  " (propertize "M-x iota-window-set-divider-style" 'face '(:foreground "#39bae6")) "\n")
         (insert "    Set a specific divider style\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         (insert (propertize "TRY IT:" 'face '(:weight bold)) "\n")
         (insert "  1. Split this window: ")
@@ -703,7 +719,8 @@ Opens in current buffer with organized sections."
         (insert "\n\n")
         (insert (propertize (iota-logo-tagline) 'face 'iota-accent-face))
         (insert "\n\n")
-        (insert "═══════════════════════════════════════════════════════════════\n\n")
+        (iota-box-insert-separator 'double)
+        (insert "\n")
 
         ;; Available Demos
         (insert (propertize "AVAILABLE DEMONSTRATIONS" 'face '(:weight bold :foreground "#39bae6" :height 1.2)) "\n\n")
@@ -715,16 +732,15 @@ Opens in current buffer with organized sections."
         (insert "  " (propertize "2. Box Styles" 'face '(:foreground "#39bae6")) "\n")
         (insert "     Unicode box-drawing characters and styles\n\n")
 
+        (insert "  " (propertize "3. Widgets" 'face '(:foreground "#39bae6")) "\n")
+        (insert "     Progress bars, badges, spinners, tables, forms\n\n")
+
+        (insert (propertize "Branding:" 'face '(:weight bold)) "\n\n")
         (insert "  " (propertize "4. Logos" 'face '(:foreground "#39bae6")) "\n")
         (insert "     IOTA branding variants (primary, secondary, tertiary)\n\n")
 
         (insert "  " (propertize "5. Faces" 'face '(:foreground "#39bae6")) "\n")
         (insert "     Face definitions and color samples\n\n")
-
-        (insert "  " (propertize "3. Widgets" 'face '(:foreground "#39bae6")) "\n")
-        (insert "     Progress bars, badges, spinners, tables, forms\n\n")
-
-        (insert (propertize "Branding:" 'face '(:weight bold)) "\n\n")
 
         (insert (propertize "Interactive:" 'face '(:weight bold)) "\n\n")
         (insert "  " (propertize "6. Animations" 'face '(:foreground "#39bae6")) "\n")
@@ -742,7 +758,8 @@ Opens in current buffer with organized sections."
         (insert "  " (propertize "10. Window Dividers" 'face '(:foreground "#39bae6")) "\n")
         (insert "     Divider styles and customization\n\n")
 
-        (insert "═══════════════════════════════════════════════════════════════\n\n")
+        (iota-box-insert-separator 'double)
+        (insert "\n")
 
         ;; Configuration
         (insert (propertize "CONFIGURATION" 'face '(:weight bold :foreground "#39bae6" :height 1.2)) "\n\n")
@@ -771,7 +788,8 @@ Opens in current buffer with organized sections."
         (insert "  " (propertize "M-x iota-modeline-toggle-position" 'face '(:foreground "#ffcc66")) "\n")
         (insert "    Toggle between header-line and mode-line\n\n")
 
-        (insert "═══════════════════════════════════════════════════════════════\n\n")
+        (iota-box-insert-separator 'double)
+        (insert "\n")
 
         ;; Status
         (insert (propertize "CURRENT STATUS" 'face '(:weight bold :foreground "#39bae6" :height 1.2)) "\n\n")
@@ -794,7 +812,8 @@ Opens in current buffer with organized sections."
           (insert (format "  Preset:         %s\n" iota-modeline-segments-preset))
           (insert (format "  Position:       %s\n\n" iota-modeline-position)))
 
-        (insert "═══════════════════════════════════════════════════════════════\n\n")
+        (iota-box-insert-separator 'double)
+        (insert "\n")
 
         ;; Footer
         (insert (propertize "Version: " 'face 'iota-muted-face))
@@ -818,10 +837,8 @@ Opens in current buffer with organized sections."
     (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert "\n")
-        (insert (propertize "THEME SYSTEM" 'face '(:weight bold :foreground "#39bae6" :height 1.4)))
-        (insert "\n\n")
-        (insert "═══════════════════════════════════════════════════════════\n\n")
+        (iota-demo--insert-header "THEME SYSTEM"
+                                  "State-based colors and transparency system")
 
         ;; Current theme info
         (insert (propertize "CURRENT THEME" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
@@ -831,7 +848,8 @@ Opens in current buffer with organized sections."
         (insert (format "  Display:      %s\n" (if (display-graphic-p) "GUI" "Terminal")))
         (insert (format "  Colors:       %s\n\n" (display-color-cells)))
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         ;; Transparency features
         (insert (propertize "TRANSPARENCY SYSTEM" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
@@ -852,7 +870,8 @@ Opens in current buffer with organized sections."
             (insert "    • Face background removal\n")
             (insert "    • Window separator adaptation\n\n")))
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         ;; State-based colors
         (insert (propertize "STATE-BASED FACES" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
@@ -866,7 +885,8 @@ Opens in current buffer with organized sections."
         (insert (propertize "Dimmed, muted colors" 'face 'iota-inactive-accent-face))
         (insert "\n\n")
 
-        (insert "───────────────────────────────────────────────────────────\n\n")
+        (iota-box-insert-separator 'single)
+        (insert "\n")
 
         ;; Box face system
         (insert (propertize "DYNAMIC BOX FACES" 'face '(:weight bold :foreground "#39bae6")) "\n\n")
@@ -890,14 +910,20 @@ Opens in current buffer with organized sections."
     (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert "=== IOTA Box Drawing Styles ===\n\n")
-        (dolist (style '(single double rounded heavy heavy-rounded 
+        (iota-demo--insert-header "BOX STYLES"
+                                  "Unicode box-drawing characters and styles")
+
+        (dolist (style '(single double rounded heavy heavy-rounded
                                modern-thin modern-thick ascii))
           (when (iota-box-style-available-p style)
-            (insert (format "\n--- %s ---\n" (upcase (symbol-name style))))
+            (insert (propertize (format "%s" (upcase (symbol-name style)))
+                               'face '(:weight bold :foreground "#39bae6")))
+            (insert "\n\n")
             (insert (iota-box-render :content "IOTA Box Rendering"
                                     :style style
                                     :width 40))
+            (insert "\n\n")
+            (iota-box-insert-separator 'single)
             (insert "\n")))
         (goto-char (point-min))
         (iota-demo--make-readonly-with-hint "Widgets")))
