@@ -33,6 +33,7 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
 - Header-line or mode-line positioning
 - Dynamic width calculation
 - Active/inactive window distinction
+- Modal editing integration (Meow & Evil)
 
 ### Theme Integration
 - Automatic color extraction from any theme
@@ -196,6 +197,50 @@ M-x iota-theme-transparent-diagnose
 (setq iota-splash-show-hints t)                    ; Show rotating hints
 ```
 
+### Modal Editing Integration (Meow & Evil)
+
+IOTA provides native integration with modal editing systems like Meow and Evil:
+
+```elisp
+;; Enable modal state indicator in modeline
+(iota-modal-mode 1)
+
+;; Modal indicator style options
+(setq iota-modal-indicator-style 'both)            ; Both glyph and label (default)
+(setq iota-modal-indicator-style 'glyph)           ; Glyph only (●, ◆, etc.)
+(setq iota-modal-indicator-style 'label)           ; Label only (NORMAL, INSERT, etc.)
+(setq iota-modal-indicator-style 'meow)            ; Use Meow's own indicator
+
+;; Cycle through indicator styles
+M-x iota-modal-cycle-indicator-style
+```
+
+**Modal State Indicators (default: both glyph and label):**
+- **Meow States:**
+  - `● NORMAL` — Green dot — Default navigation mode
+  - `◆ INSERT` — Cyan diamond — Insert mode
+  - `◇ MOTION` — Purple diamond — Motion mode
+  - `◎ KEYPAD` — Pink circle — Keypad mode
+  - `◉ BEACON` — Orange circle — Beacon mode
+- **Evil States:** Automatically detected and shown
+- **Emacs Mode:** `○ EMACS` — Gray circle — Shown when modal editing is disabled
+
+**Indicator Styles:**
+- `both` (default): Shows both glyph and label (e.g., `● NORMAL`)
+- `glyph`: Shows only the colored glyph (e.g., `●`)
+- `label`: Shows only the label text (e.g., `NORMAL`)
+- `meow`: Uses Meow's own indicator (Meow only)
+
+**Features:**
+- Shows both glyph and label by default for clarity
+- Labels displayed in both active and inactive windows
+- Buffer-local state tracking (each buffer has its own modal state)
+- Immediate update on state changes (NORMAL ↔ INSERT)
+- Cycle through styles with `M-x iota-modal-cycle-indicator-style`
+- Clear visual distinction between modal editing and Emacs mode
+- Works with both Meow and Evil
+- No configuration required
+
 ### Terminal Emacs Configuration
 
 For optimal IOTA experience in terminal Emacs, consider these settings:
@@ -339,6 +384,9 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 | `M-x iota-modeline-toggle-position` | Toggle header/mode-line |
 | `M-x iota-modeline-cycle-preset` | Cycle through presets |
 | `M-x iota-modeline-cycle-style` | Cycle through box styles |
+| `M-x iota-modal-mode` | Toggle modal state indicator |
+| `M-x iota-modal-cycle-indicator-style` | Cycle indicator styles (both/glyph/label/meow) |
+| `M-x iota-disable-line-numbers` | Prevent line numbers (for meow-tutor) |
 | `M-x iota-refresh-faces` | Refresh faces from theme |
 | `M-x iota-theme-transparent-diagnose` | Diagnose terminal transparency support |
 
@@ -380,6 +428,7 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 - Themes: All themes (automatic adaptation)
 - Terminal and GUI Emacs
 - Platforms: macOS, Linux, Windows
+- Modal Editing: Meow, Evil
 - Integrations: Flycheck, Flymake, VC, all-the-icons
 
 ## Development
@@ -394,6 +443,7 @@ iota/
 ├── iota-demo.el         # Feature demonstrations
 ├── iota-faces.el        # Face definitions
 ├── iota-logos.el        # Branding and logos
+├── iota-modal.el        # Modal editing integration (Meow, Evil)
 ├── iota-modeline.el     # Modeline implementation
 ├── iota-segment.el      # Segment system
 ├── iota-segments.el     # Built-in segments

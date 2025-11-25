@@ -74,9 +74,6 @@ Options:
   "Current element state for theming.
 Buffer-local so each buffer can have independent state.")
 
-(defvar-local iota-modal--cached-indicator nil
-  "Cached indicator string with color for active window.
-Buffer-local to avoid recalculating on every render.")
 
 (defvar iota-modal--transition-timers nil
   "Active transition timers.")
@@ -160,38 +157,130 @@ Note: Disabled - no background attributes allowed."
 
 ;;; Modal Editing Integration
 
+(defcustom iota-modal-indicator-style 'both
+  "Style for modal state indicators.
+- `both': Show both glyph and label (e.g., \"● NORMAL\") (default)
+- `glyph': Show only glyph (e.g., \"●\")
+- `label': Show only label (e.g., \"NORMAL\")
+- `meow': Use Meow's own indicator (Meow only, falls back to `both`)"
+  :type '(choice (const :tag "Both glyph and label" both)
+                 (const :tag "Glyph only" glyph)
+                 (const :tag "Label only" label)
+                 (const :tag "Meow's indicator" meow))
+  :group 'iota-modal)
+
 (defcustom iota-modal-modal-indicators
-  '((normal . ("●" "#50fa7b"))    ; Green dot
-    (insert . ("◆" "#8be9fd"))    ; Cyan diamond
-    (visual . ("◈" "#bd93f9"))    ; Purple diamond outline
-    (replace . ("▲" "#ff5555"))   ; Red triangle
-    (emacs . ("○" "#f1fa8c")))    ; Yellow circle
-  "Modal state indicators with (GLYPH COLOR) pairs."
-  :type '(alist :key-type symbol 
+  '((normal . ("●" "#50fa7b"))    ; Green dot - Meow NORMAL
+    (insert . ("◆" "#8be9fd"))    ; Cyan diamond - Meow INSERT
+    (motion . ("◇" "#bd93f9"))    ; Purple diamond - Meow MOTION
+    (keypad . ("◎" "#ff79c6"))    ; Pink circle - Meow KEYPAD
+    (beacon . ("◉" "#ffb86c"))    ; Orange circle - Meow BEACON
+    (visual . ("◈" "#bd93f9"))    ; Purple diamond outline - Evil VISUAL
+    (replace . ("▲" "#ff5555"))   ; Red triangle - Evil REPLACE
+    (emacs . ("○" "#6272a4")))    ; Gray circle - Emacs mode (no modal editing)
+  "Modal state indicators with (GLYPH COLOR) pairs.
+Supports both Evil and Meow modal editing states."
+  :type '(alist :key-type symbol
                 :value-type (list string color))
   :group 'iota-modal)
+
+(defun iota-modal-meow-active-p ()
+  "Return t if Meow modal editing is currently active.
+Checks both global and buffer-local meow-mode."
+  (or (and (boundp 'meow-mode) meow-mode)
+      (and (boundp 'meow-global-mode) meow-global-mode)))
 
 (defun iota-modal-get-modal-state ()
   "Detect modal editing state (Evil, Meow, Xah-Fly, etc.)."
   (cond
    ((and (boundp 'evil-state) evil-state)
     evil-state)
-   ((and (boundp 'meow-mode) meow-mode 
-         (boundp 'meow--current-state))
-    meow--current-state)
+   ((iota-modal-meow-active-p)
+    (if (and (boundp 'meow--current-state) meow--current-state)
+        meow--current-state
+      ;; Meow is active but state is nil (e.g., in meow-tutor special buffers)
+      ;; Default to 'motion as a reasonable fallback
+      'motion))
    (t 'emacs)))
+
+(defun iota-modal-meow-indicator ()
+  "Return Meow modeline indicator according to `iota-modal-indicator-style'.
+Falls back to IOTA indicator if Meow doesn't provide one."
+  (when (iota-modal-meow-active-p)
+    (pcase iota-modal-indicator-style
+      ('meow
+       ;; Use Meow's own indicator if available
+       (if (fboundp 'meow-indicator)
+           (let ((meow-ind (meow-indicator)))
+             (if (stringp meow-ind)
+                 meow-ind
+               ;; Meow indicator might return nil, fall back to both
+               (iota-modal--format-meow-state meow--current-state 'both)))
+         ;; Meow indicator not available, fall back to both
+         (iota-modal--format-meow-state meow--current-state 'both)))
+      (_
+       ;; Use IOTA's indicator for Meow with specified style
+       (iota-modal--format-meow-state meow--current-state iota-modal-indicator-style)))))
+
+(defun iota-modal--format-meow-state (state style)
+  "Format Meow STATE using IOTA's modal indicators with STYLE.
+STYLE can be `both', `glyph', or `label'."
+  (when-let ((indicator (alist-get state iota-modal-modal-indicators)))
+    (let* ((glyph (car indicator))
+           (color (cadr indicator))
+           (label (upcase (symbol-name state)))
+           (text (pcase style
+                   ('both (concat glyph " " label))
+                   ('glyph glyph)
+                   ('label label)
+                   (_ (concat glyph " " label))))) ; default to both
+      (propertize text
+                  'face `(:foreground ,color)
+                  'help-echo (format "Meow: %s" state)))))
+
+(defun iota-modal--format-evil-state (state style)
+  "Format Evil STATE using IOTA's modal indicators with STYLE.
+STYLE can be `both', `glyph', or `label'."
+  (when-let ((indicator (alist-get state iota-modal-modal-indicators)))
+    (let* ((glyph (car indicator))
+           (color (cadr indicator))
+           (label (upcase (symbol-name state)))
+           (text (pcase style
+                   ('both (concat glyph " " label))
+                   ('glyph glyph)
+                   ('label label)
+                   ('meow (concat glyph " " label)) ; Fall back to both for Evil
+                   (_ (concat glyph " " label))))) ; default to both
+      (propertize text
+                  'face `(:foreground ,color)
+                  'help-echo (format "Evil: %s" state)))))
 
 (defun iota-modal-modal-indicator ()
   "Return propertized modal state indicator.
-Only returns a value for actual modal editing modes (Evil, Meow).
-Returns nil for regular Emacs mode so buffer state can be shown."
+For Meow: uses Meow's indicator or IOTA's Meow-specific indicators.
+For Evil: uses IOTA's Evil indicators.
+For Emacs mode: returns visual indicator showing modal editing is disabled."
   (let ((state (iota-modal-get-modal-state)))
-    ;; Only show modal indicator for non-emacs states
-    (when (and state (not (eq state 'emacs)))
-      (when-let ((indicator (alist-get state iota-modal-modal-indicators)))
-        (propertize (car indicator)
-                    'face `(:foreground ,(cadr indicator))
-                    'help-echo (format "Mode: %s" state))))))
+    (cond
+     ;; Meow is active - use Meow indicator
+     ((iota-modal-meow-active-p)
+      (iota-modal-meow-indicator))
+     ;; Evil is active - use Evil indicator
+     ((and (boundp 'evil-state) evil-state (not (eq state 'emacs)))
+      (iota-modal--format-evil-state state iota-modal-indicator-style))
+     ;; Emacs mode (no modal editing) - show distinct indicator
+     (t
+      (when-let ((indicator (alist-get 'emacs iota-modal-modal-indicators)))
+        (let* ((glyph (car indicator))
+               (color (cadr indicator))
+               (text (pcase iota-modal-indicator-style
+                       ('both (concat glyph " EMACS"))
+                       ('glyph glyph)
+                       ('label "EMACS")
+                       (_ (concat glyph " EMACS"))))) ; default to both
+          (propertize text
+                      'face `(:foreground ,color)
+                      'help-echo "Emacs mode (no modal editing)")))))))
 
 ;;; Modeline Segment Integration
 
@@ -208,20 +297,40 @@ Fast lookup without modal mode checks."
 
 (defun iota-modal--build-active-indicator ()
   "Build colored indicator for active window.
-Cached in buffer-local variable to avoid recalculation."
-  (or iota-modal--cached-indicator
-      (let* ((state iota-modal--current-state)
-             (color (iota-modal-get-state-color state))
-             (indicator (or (iota-modal-modal-indicator)
-                           (iota-modal--get-indicator-char))))
-        (setq iota-modal--cached-indicator
-              (propertize indicator 'face `(:foreground ,color))))))
+Shows modal editing state (Meow/Evil) if active, otherwise buffer state.
+Always recalculates to ensure state is current."
+  (let* ((modal-ind (iota-modal-modal-indicator))
+         (state iota-modal--current-state)
+         (color (iota-modal-get-state-color state)))
+    ;; Always use modal indicator if available (including 'emacs state)
+    ;; This ensures visual distinction between Meow active and Emacs mode
+    (or modal-ind
+        (propertize (iota-modal--get-indicator-char)
+                    'face `(:foreground ,color)))))
+
+(defun iota-modal--build-inactive-indicator ()
+  "Build indicator for inactive window.
+Shows the same content as active but with inactive face."
+  (let* ((modal-ind (iota-modal-modal-indicator)))
+    (if modal-ind
+        ;; Apply inactive face to the modal indicator text
+        (propertize (substring-no-properties modal-ind)
+                    'face 'iota-inactive-modeline-face)
+      ;; Fallback to character
+      (propertize (iota-modal--get-indicator-char)
+                  'face 'iota-inactive-modeline-face))))
 
 (defun iota-modal-state-segment ()
-  "Create a modeline segment showing current buffer state with color.
-Each buffer maintains its own state. Active windows show colored indicator,
-inactive windows show simple gray character only.
-State is detected lazily during render, not on every command."
+  "Create a modeline segment showing modal editing and buffer state.
+
+Shows:
+- Meow states (NORMAL, INSERT, MOTION, etc.) with Meow's indicator or IOTA's
+- Evil states (normal, insert, visual, etc.) with IOTA's indicators
+- Emacs mode (gray circle) when no modal editing is active
+- Buffer states (modified, read-only, recording, search) when in Emacs mode
+
+Active windows show colored indicators, inactive windows show same content in gray.
+State is buffer-local and updates immediately on modal state changes."
   (require 'iota-segment)
   (require 'iota-theme)
   (iota-segment-create
@@ -233,16 +342,124 @@ State is detected lazily during render, not on every command."
            (if (iota-theme-window-active-p)
                ;; Active: use cached colored indicator
                (iota-modal--build-active-indicator)
-             ;; Inactive: just show character with inactive face
-             (propertize (iota-modal--get-indicator-char)
-                        'face 'iota-inactive-modeline-face)))
+             ;; Inactive: show same content but with inactive face
+             (iota-modal--build-inactive-indicator)))
    :face nil  ; Don't override the propertized face in the text
    :align 'left
    :priority 150
    :help-echo (lambda ()
-                (format "Buffer state: %s" iota-modal--current-state))))
+                (let ((modal-state (iota-modal-get-modal-state)))
+                  (if (eq modal-state 'emacs)
+                      (format "Emacs mode - Buffer state: %s" iota-modal--current-state)
+                    (format "Modal: %s" modal-state))))))
+
+;;; Interactive Commands
+
+;;;###autoload
+(defun iota-modal-debug-state ()
+  "Debug function to check current modal state detection."
+  (interactive)
+  (let ((msg (format "Buffer: %s
+meow-mode (buffer-local): %s
+meow-global-mode: %s
+meow--current-state: %s
+iota-modal-meow-active-p: %s
+iota-modal-get-modal-state: %s
+evil-state: %s"
+                     (buffer-name)
+                     (if (boundp 'meow-mode) meow-mode "unbound")
+                     (if (boundp 'meow-global-mode) meow-global-mode "unbound")
+                     (if (boundp 'meow--current-state) meow--current-state "unbound")
+                     (iota-modal-meow-active-p)
+                     (iota-modal-get-modal-state)
+                     (if (boundp 'evil-state) evil-state "unbound"))))
+    (message "%s" msg)
+    (with-current-buffer (get-buffer-create "*IOTA Modal Debug*")
+      (erase-buffer)
+      (insert msg)
+      (display-buffer (current-buffer)))))
+
+;;;###autoload
+(defun iota-modal-cycle-indicator-style ()
+  "Cycle through modal indicator styles: both → glyph → label → meow → both."
+  (interactive)
+  (setq iota-modal-indicator-style
+        (pcase iota-modal-indicator-style
+          ('both 'glyph)
+          ('glyph 'label)
+          ('label 'meow)
+          ('meow 'both)
+          (_ 'both)))
+  ;; Invalidate cached indicators to force refresh
+  (iota-modal--invalidate-cache)
+  (message "Modal indicator style: %s" iota-modal-indicator-style))
+
+;;;###autoload
+(defun iota-modal-toggle-meow-indicator ()
+  "Toggle between Meow's own indicator and IOTA's both style.
+Deprecated: Use `iota-modal-cycle-indicator-style' instead."
+  (interactive)
+  (setq iota-modal-indicator-style
+        (if (eq iota-modal-indicator-style 'meow) 'both 'meow))
+  (iota-modal--invalidate-cache)
+  (message "Modal indicator style: %s" iota-modal-indicator-style))
 
 ;;; Hooks
+
+(defun iota-modal--invalidate-cache ()
+  "Force modeline update in all buffers.
+Forces the modal segment to re-render immediately."
+  (force-mode-line-update t))
+
+(defvar-local iota-modal--last-modal-state nil
+  "Last known modal editing state for change detection.
+Buffer-local so each buffer tracks its own modal state.")
+
+(defun iota-modal--on-meow-mode-change ()
+  "Hook function called when Meow mode is toggled.
+Invalidates cache to ensure modal segment updates immediately."
+  (iota-modal--invalidate-cache))
+
+(defun iota-modal--on-state-change (&optional _new-state)
+  "Hook to detect modal state changes and force modeline update.
+Optional NEW-STATE argument for compatibility with meow-switch-state-hook.
+Runs on every command to ensure state is always current."
+  (when (or (iota-modal-meow-active-p)
+            (and (boundp 'evil-state) evil-state))
+    (let ((current-state (iota-modal-get-modal-state)))
+      (unless (eq current-state iota-modal--last-modal-state)
+        (setq iota-modal--last-modal-state current-state)
+        ;; Force immediate modeline update
+        (force-mode-line-update t)))))
+
+(defun iota-modal--setup-hooks ()
+  "Set up hooks to track modal editing state changes."
+  ;; Hook into Meow/Evil mode toggles (enable/disable)
+  (when (boundp 'meow-mode-hook)
+    (add-hook 'meow-mode-hook #'iota-modal--on-meow-mode-change))
+  (when (boundp 'meow-global-mode-hook)
+    (add-hook 'meow-global-mode-hook #'iota-modal--on-meow-mode-change))
+  (when (boundp 'evil-mode-hook)
+    (add-hook 'evil-mode-hook #'iota-modal--on-meow-mode-change))
+  ;; Meow's state switch hook (fires immediately on state change)
+  (when (boundp 'meow-switch-state-hook)
+    (add-hook 'meow-switch-state-hook #'iota-modal--on-state-change))
+  ;; Pre and post-command hooks to detect state changes
+  (add-hook 'pre-command-hook #'iota-modal--on-state-change)
+  (add-hook 'post-command-hook #'iota-modal--on-state-change))
+
+(defun iota-modal--remove-hooks ()
+  "Remove hooks that track modal editing state changes."
+  (when (boundp 'meow-mode-hook)
+    (remove-hook 'meow-mode-hook #'iota-modal--on-meow-mode-change))
+  (when (boundp 'meow-global-mode-hook)
+    (remove-hook 'meow-global-mode-hook #'iota-modal--on-meow-mode-change))
+  (when (boundp 'evil-mode-hook)
+    (remove-hook 'evil-mode-hook #'iota-modal--on-meow-mode-change))
+  (when (boundp 'meow-switch-state-hook)
+    (remove-hook 'meow-switch-state-hook #'iota-modal--on-state-change))
+  (remove-hook 'pre-command-hook #'iota-modal--on-state-change)
+  (remove-hook 'post-command-hook #'iota-modal--on-state-change))
 
 (defvar iota-modal-mode-hook nil
   "Hook run when IOTA modal mode is enabled.")
@@ -252,17 +469,33 @@ State is detected lazily during render, not on every command."
   "Enable IOTA modal and state-aware theming.
 Provides visual feedback through a colored state indicator in the modeline.
 
-When enabled, automatically adds and displays a colored indicator showing:
+Supports modal editing systems:
+  - Meow: Shows both glyph and label by default (e.g., ● NORMAL)
+    - ● NORMAL (green dot), ◆ INSERT (cyan diamond), ◇ MOTION (purple diamond)
+    - ◎ KEYPAD (pink circle), ◉ BEACON (orange circle)
+  - Evil: Shows both glyph and label (e.g., ● NORMAL)
+  - Emacs mode: ○ EMACS (gray circle) — Shown when modal editing is disabled
+
+Indicator styles (configure via `iota-modal-indicator-style'):
+  - both (default): Shows glyph and label (● NORMAL)
+  - glyph: Shows only glyph (●)
+  - label: Shows only label (NORMAL)
+  - meow: Uses Meow's own indicator (Meow only)
+
+Buffer state indicators (when in Emacs mode):
   - Normal (green): Regular editing
   - Modified (orange): Buffer has unsaved changes
   - Read-only (red): Buffer is read-only
   - Recording (pink): Macro recording active
   - Search (cyan): Incremental search active
-  - Inactive (purple): Window is not selected"
+
+Cycle indicator styles with `iota-modal-cycle-indicator-style'."
   :global t
   :group 'iota-modal
   (if iota-modal-mode
       (progn
+        ;; Set up hooks to track modal mode changes
+        (iota-modal--setup-hooks)
         ;; NO post-command-hook needed! State is detected lazily during render
         ;; This eliminates the performance overhead of checking state on every command
         (condition-case err
@@ -271,6 +504,8 @@ When enabled, automatically adds and displays a colored indicator showing:
            (message "Warning: Could not add modal segment: %s" err)))
         (message "IOTA modal mode enabled - state tracked lazily"))
     (progn
+      ;; Remove hooks
+      (iota-modal--remove-hooks)
       ;; Clean up segment
       (condition-case err
           (iota-modal-remove-segment)
