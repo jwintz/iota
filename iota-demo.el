@@ -67,7 +67,10 @@
         (local-set-key (kbd "DEL") 'iota-demo-previous)
         (local-set-key (kbd "<backspace>") 'iota-demo-previous)
         (local-set-key (kbd "r") 'iota-demo--refresh-current)
-        (local-set-key (kbd "g") 'iota-demo--refresh-current)))
+        (local-set-key (kbd "g") 'iota-demo--refresh-current))
+      ;; Enable dynamic separator updates
+      (when (fboundp 'iota-box--enable-dynamic-separators)
+        (iota-box--enable-dynamic-separators)))
     buf))
 
 (defun iota-demo--refresh-current ()
@@ -90,11 +93,22 @@
       (message "Demo refreshed"))))
 
 (defun iota-demo--quit-buffer ()
-  "Quit current demo buffer, handling read-only mode."
+  "Quit all demo buffers, handling read-only mode."
   (interactive)
-  (let ((inhibit-read-only t))
-    (when (buffer-live-p (current-buffer))
-      (kill-buffer (current-buffer)))))
+  (let ((inhibit-read-only t)
+        (demo-buffer-patterns '("^\\*I O T Λ.*\\*$"
+                               "^\\*IOTA.*\\*$"
+                               "^\\*.*Demo\\*$")))
+    ;; Kill all buffers matching demo patterns
+    (dolist (buf (buffer-list))
+      (when (and (buffer-live-p buf)
+                 (cl-some (lambda (pattern)
+                           (string-match-p pattern (buffer-name buf)))
+                         demo-buffer-patterns))
+        (with-current-buffer buf
+          (let ((inhibit-read-only t))
+            (kill-buffer buf)))))
+    (message "All demo buffers closed")))
 
 (defun iota-demo--show-in-current-window (buffer)
   "Display BUFFER in current window, taking over the full frame."
@@ -362,16 +376,19 @@ Uses consistent styling across all demo buffers."
 
 ;;;###autoload
 (defun iota-demo-animations ()
-  "Demonstrate IOTA animation capabilities."
+  "Demonstrate IOTA animation capabilities with a 5-second demo."
   (interactive)
   (unless iota-animate-enabled
     (user-error "Animations are disabled. Set `iota-animate-enabled' to t"))
 
-  (let ((buf (iota-demo--setup-buffer "*I O T Λ Animation Demo*")))
+  (let ((buf (iota-demo--setup-buffer "*I O T Λ Animation Demo*"))
+        (progress-marker nil)
+        (timer nil)
+        (total-duration 5.0))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
         (iota-demo--insert-header "ANIMATIONS"
-                                  "Smooth transitions and easing functions")
+                                  "5-second animation showcase with live progress")
 
         (insert (propertize "Watch the elements below animate!\n\n" 'face '(:weight bold)))
 
@@ -383,97 +400,82 @@ Uses consistent styling across all demo buffers."
         (insert (propertize "I O T Λ  ANIMATING!" 'face 'iota-accent-face))
         (insert "\n\n")
 
-        (insert "Success:    ")
-        (insert (propertize "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓" 'face 'iota-success-face))
-        (insert "\n\n")
-
-        (insert "Warning:    ")
-        (insert (propertize "▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒" 'face 'iota-warning-face))
-        (insert "\n\n")
-
         (iota-box-insert-separator 'single)
         (insert "\n")
-        (insert (propertize "Animations will run for ~20 seconds.\n" 'face 'iota-muted-face))
-        (insert (propertize "Smooth transitions with cubic easing.\n" 'face 'iota-muted-face))
-        (insert (propertize "Watch the colored elements pulse and morph!\n" 'face 'iota-muted-face))
+
+        ;; Progress bar section
+        (insert (propertize "PROGRESS:\n\n" 'face '(:weight bold :foreground "#39bae6")))
+        (setq progress-marker (point-marker))
+        (insert (iota-widget-progress-bar 0 100 :width 50 :style 'blocks :label "Animation"))
+        (insert "\n\n")
+
+        (insert (propertize "Phase 1: Color pulse (0-2s)\n" 'face 'iota-muted-face))
+        (insert (propertize "Phase 2: Color morph (2-4s)\n" 'face 'iota-muted-face))
+        (insert (propertize "Phase 3: Final flash (4-5s)\n" 'face 'iota-muted-face))
         (insert "\n")
 
         (iota-demo--make-readonly-with-hint "Window States")))
 
     (iota-demo--show-in-current-window buf)
 
-    ;; Start animation sequence
-    (run-with-timer 0.5 nil
-                    (lambda ()
-                      ;; 1. Pulse box face (2s)
-                      (iota-animate-pulse 'iota-box-face
-                                         :duration 2.0
-                                         :intensity 0.6
-                                         :attribute :foreground)))
+    ;; Update progress bar continuously
+    (let ((start-time (float-time)))
+      (setq timer
+            (run-with-timer 0 0.1
+                          (lambda ()
+                            (let* ((elapsed (- (float-time) start-time))
+                                   (progress (min 100 (* (/ elapsed total-duration) 100))))
+                              (when (buffer-live-p buf)
+                                (with-current-buffer buf
+                                  (let ((inhibit-read-only t))
+                                    (save-excursion
+                                      (goto-char progress-marker)
+                                      (delete-region (point) (progn (forward-line 1) (point)))
+                                      (insert (iota-widget-progress-bar
+                                              (truncate progress) 100
+                                              :width 50 :style 'blocks :label "Animation"))
+                                      (insert "\n")))))
+                              (when (>= elapsed total-duration)
+                                (cancel-timer timer)))))))
 
-    (run-with-timer 3.0 nil
+    ;; Phase 1: Quick pulse on box face (0-2s)
+    (run-with-timer 0.2 nil
                     (lambda ()
-                      ;; 2. Pulse accent (2.5s)
-                      (iota-animate-pulse 'iota-accent-face
-                                         :duration 2.5
-                                         :intensity 0.7
-                                         :attribute :foreground)))
-
-    (run-with-timer 6.0 nil
-                    (lambda ()
-                      ;; 3. Color morph box (4s cycle)
-                      (let ((original (face-attribute 'iota-box-face :foreground nil t)))
-                        (when (and original (stringp original))
-                          (iota-animate-face 'iota-box-face :foreground
-                                           original "#ff6b6b"
-                                           :duration 2.0
-                                           :easing #'iota-animate-ease-in-out-cubic
-                                           :finish-fn
-                                           (lambda ()
-                                             (iota-animate-face 'iota-box-face :foreground
-                                                              "#ff6b6b" original
-                                                              :duration 2.0
-                                                              :easing #'iota-animate-ease-in-out-cubic)))))))
-
-    (run-with-timer 11.0 nil
-                    (lambda ()
-                      ;; 4. Pulse success (2s)
-                      (iota-animate-pulse 'iota-success-face
-                                         :duration 2.0
-                                         :intensity 0.5
-                                         :attribute :foreground)))
-
-    (run-with-timer 14.0 nil
-                    (lambda ()
-                      ;; 5. Pulse warning (2s)
-                      (iota-animate-pulse 'iota-warning-face
-                                         :duration 2.0
-                                         :intensity 0.6
-                                         :attribute :foreground)))
-
-    (run-with-timer 17.0 nil
-                    (lambda ()
-                      ;; 6. Color morph accent (4s cycle)
-                      (let ((original (face-attribute 'iota-accent-face :foreground nil t)))
-                        (when (and original (stringp original))
-                          (iota-animate-face 'iota-accent-face :foreground
-                                           original "#ffcc66"
+                      (when (buffer-live-p buf)
+                        (iota-animate-pulse 'iota-box-face
                                            :duration 1.5
-                                           :easing #'iota-animate-ease-in-out-cubic
-                                           :finish-fn
-                                           (lambda ()
-                                             (iota-animate-face 'iota-accent-face :foreground
-                                                              "#ffcc66" original
-                                                              :duration 1.5
-                                                              :easing #'iota-animate-ease-in-out-cubic)))))))
+                                           :intensity 0.7
+                                           :attribute :foreground))))
 
-    (run-with-timer 20.5 nil
+    ;; Phase 2: Color morph cycle (2-4s)
+    (run-with-timer 2.0 nil
                     (lambda ()
-                      ;; 7. Grand finale - window flash
-                      (when (and (fboundp 'iota-window-flash-current)
-                               (get-buffer-window "*I O T Λ Animation Demo*"))
-                        (with-selected-window (get-buffer-window "*I O T Λ Animation Demo*")
-                          (iota-window-flash-current)))
+                      (when (buffer-live-p buf)
+                        (let ((original (face-attribute 'iota-accent-face :foreground nil t)))
+                          (when (and original (stringp original))
+                            (iota-animate-face 'iota-accent-face :foreground
+                                             original "#ff6b6b"
+                                             :duration 1.0
+                                             :easing #'iota-animate-ease-in-out-cubic
+                                             :finish-fn
+                                             (lambda ()
+                                               (when (buffer-live-p buf)
+                                                 (iota-animate-face 'iota-accent-face :foreground
+                                                                  "#ff6b6b" original
+                                                                  :duration 1.0
+                                                                  :easing #'iota-animate-ease-in-out-cubic)))))))))
+
+    ;; Phase 3: Final flash and completion (4-5s)
+    (run-with-timer 4.0 nil
+                    (lambda ()
+                      (when (and (buffer-live-p buf)
+                               (fboundp 'iota-window-flash-current)
+                               (get-buffer-window buf))
+                        (with-selected-window (get-buffer-window buf)
+                          (iota-window-flash-current)))))
+
+    (run-with-timer 5.0 nil
+                    (lambda ()
                       (message "Animation demo complete!")))))
 
 ;;; Window State Demos
@@ -488,64 +490,78 @@ Creates side-by-side windows showing visual differences."
   ;; Create horizontal split
   (split-window-horizontally)
 
-  ;; Left window
+  ;; Left window - switch to buffer first, then populate
   (let ((buf-left (iota-demo--setup-buffer "*I O T Λ Active*")))
-    (with-current-buffer buf-left
-      (let ((inhibit-read-only t))
-        (iota-demo--insert-header "ACTIVE WINDOW STATE"
-                                  "Visual appearance when window has focus")
+    (switch-to-buffer buf-left)
+    (let ((inhibit-read-only t))
+      (iota-demo--insert-header "ACTIVE WINDOW STATE"
+                                "Visual appearance when window has focus")
 
-        (insert "This window is currently " (propertize "ACTIVE" 'face '(:weight bold :foreground "#39bae6")) ".\n\n")
+      (insert "This window is currently " (propertize "ACTIVE" 'face '(:weight bold :foreground "#39bae6")) ".\n\n")
 
-        (insert (propertize "Features:" 'face '(:weight bold)) "\n")
-        (insert "  • Full brightness colors\n")
-        (insert "  • Bold accent: " (iota-logo-primary t) "\n")
-        (insert "  • Enhanced visibility\n\n")
+      (insert (propertize "Features:" 'face '(:weight bold)) "\n")
+      (insert "  • Full brightness colors\n")
+      (insert "  • Bold accent: " (iota-logo-primary t) "\n")
+      (insert "  • Enhanced visibility\n\n")
 
-        (insert (propertize "Active Faces:" 'face '(:weight bold)) "\n")
-        (insert "  " (propertize "Active Modeline" 'face 'iota-active-modeline-face) "\n")
-        (insert "  " (propertize "Active Accent" 'face 'iota-active-accent-face) "\n")
-        (insert "  " (propertize "Active Highlight" 'face 'iota-active-highlight-face) "\n\n")
+      (insert (propertize "Active Faces:" 'face '(:weight bold)) "\n")
+      (insert "  " (propertize "Active Modeline" 'face 'iota-active-modeline-face) "\n")
+      (insert "  " (propertize "Active Accent" 'face 'iota-active-accent-face) "\n")
+      (insert "  " (propertize "Active Highlight" 'face 'iota-active-highlight-face) "\n\n")
 
-        (iota-box-insert-separator 'single)
-        (insert "\n")
-        (insert (propertize "Switch windows with C-x o\n" 'face 'iota-muted-face))
-        (insert (propertize "to see state transitions\n" 'face 'iota-muted-face))
+      (iota-box-insert-separator 'single)
+      (insert "\n")
+      (insert (propertize "Switch windows with C-x o\n" 'face 'iota-muted-face))
+      (insert (propertize "to see state transitions\n" 'face 'iota-muted-face))
 
-        (iota-demo--make-readonly-with-hint "Window Focus")))
-    (switch-to-buffer buf-left))
+      (iota-demo--make-readonly-with-hint "Window Focus")))
 
-  ;; Right window
+  ;; Right window - switch to buffer first, then populate
   (other-window 1)
   (let ((buf-right (get-buffer-create "*I O T Λ Inactive*")))
-    (with-current-buffer buf-right
-      (let ((inhibit-read-only t))
-        (iota-demo--insert-header "INACTIVE WINDOW STATE"
-                                  "Visual appearance when window loses focus")
+    (switch-to-buffer buf-right)
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      ;; Set up local keymap (same as in iota-demo--setup-buffer)
+      (use-local-map (make-sparse-keymap))
+      (local-set-key (kbd "q") 'iota-demo--quit-buffer)
+      (local-set-key (kbd "Q") 'iota-demo--quit-buffer)
+      (local-set-key (kbd "n") 'iota-demo-next)
+      (local-set-key (kbd "p") 'iota-demo-previous)
+      (local-set-key (kbd "SPC") 'iota-demo-next)
+      (local-set-key (kbd "DEL") 'iota-demo-previous)
+      (local-set-key (kbd "<backspace>") 'iota-demo-previous)
+      (local-set-key (kbd "r") 'iota-demo--refresh-current)
+      (local-set-key (kbd "g") 'iota-demo--refresh-current)
+      ;; Enable dynamic separator updates
+      (when (fboundp 'iota-box--enable-dynamic-separators)
+        (iota-box--enable-dynamic-separators))
 
-        (insert "When inactive, this window is " (propertize "DIMMED" 'face '(:weight bold :foreground "#666666")) ".\n\n")
+      (iota-demo--insert-header "INACTIVE WINDOW STATE"
+                                "Visual appearance when window loses focus")
 
-        (insert (propertize "Features:" 'face '(:weight bold)) "\n")
-        (insert "  • Reduced brightness\n")
-        (insert "  • Muted accent: " (iota-logo-primary nil) "\n")
-        (insert "  • Desaturated colors\n\n")
+      (insert "When inactive, this window is " (propertize "DIMMED" 'face '(:weight bold :foreground "#666666")) ".\n\n")
 
-        (insert (propertize "Inactive Faces:" 'face '(:weight bold)) "\n")
-        (insert "  " (propertize "Inactive Modeline" 'face 'iota-inactive-modeline-face) "\n")
-        (insert "  " (propertize "Inactive Accent" 'face 'iota-inactive-accent-face) "\n")
-        (insert "  " (propertize "Inactive Highlight" 'face 'iota-inactive-highlight-face) "\n\n")
+      (insert (propertize "Features:" 'face '(:weight bold)) "\n")
+      (insert "  • Reduced brightness\n")
+      (insert "  • Muted accent: " (iota-logo-primary nil) "\n")
+      (insert "  • Desaturated colors\n\n")
 
-        (iota-box-insert-separator 'single)
-        (insert "\n")
+      (insert (propertize "Inactive Faces:" 'face '(:weight bold)) "\n")
+      (insert "  " (propertize "Inactive Modeline" 'face 'iota-inactive-modeline-face) "\n")
+      (insert "  " (propertize "Inactive Accent" 'face 'iota-inactive-accent-face) "\n")
+      (insert "  " (propertize "Inactive Highlight" 'face 'iota-inactive-highlight-face) "\n\n")
 
-        (when iota-window-animate-transitions
-          (insert (propertize "✓ " 'face 'iota-success-face))
-          (insert "Animations enabled\n")
-          (insert (propertize "  Watch smooth transitions!\n" 'face 'iota-muted-face)))
+      (iota-box-insert-separator 'single)
+      (insert "\n")
 
-        (goto-char (point-min))
-        (read-only-mode 1)))
-    (switch-to-buffer buf-right))
+      (when iota-window-animate-transitions
+        (insert (propertize "✓ " 'face 'iota-success-face))
+        (insert "Animations enabled\n")
+        (insert (propertize "  Watch smooth transitions!\n" 'face 'iota-muted-face)))
+
+      (goto-char (point-min))
+      (read-only-mode 1)))
 
   ;; Focus left window
   (other-window 1)

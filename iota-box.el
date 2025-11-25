@@ -409,23 +409,69 @@ ELLIPSIS defaults to \"...\"."
       (_
        (concat text (make-string padding ?\s))))))
 
+(defun iota-box--get-current-window-width ()
+  "Get the width of the window displaying current buffer.
+Returns the window body width minus 1 for line wrapping margin."
+  (let ((win (selected-window)))
+    (when win
+      (max 1 (1- (window-body-width win))))))
+
 (defun iota-box-insert-separator (&optional style face)
   "Insert a full-width separator line in the current buffer.
 Uses STYLE (defaults to `iota-box-default-style') and FACE
 (defaults to `iota-muted-face' for a dimmer appearance).
-The separator spans the full window width."
+The separator spans the full window width and updates dynamically on resize."
   (let* ((style (or style iota-box-default-style))
          (face (or face 'iota-muted-face))
-         ;; Use window-body-width for actual text area width, minus 1 for the newline
-         (width (cond
-                 ((get-buffer-window (current-buffer))
-                  (1- (window-body-width (get-buffer-window (current-buffer)))))
-                 ((and (fboundp 'frame-width) (frame-width))
-                  (1- (frame-width)))
-                 (t 79)))
-         (sep (iota-box-horizontal-line width style face)))
-    (insert sep)
-    (insert "\n")))
+         (start (point)))
+    ;; Insert a marker that will be replaced by the actual separator
+    (insert-char ?\s 1)
+    (insert "\n")
+    ;; Create an overlay that will render the separator dynamically
+    (let ((ov (make-overlay start (1+ start))))
+      (overlay-put ov 'iota-separator t)
+      (overlay-put ov 'iota-separator-style style)
+      (overlay-put ov 'iota-separator-face face)
+      (overlay-put ov 'evaporate t)
+      ;; Initial render
+      (iota-box--update-separator-overlay ov))))
+
+(defun iota-box--update-separator-overlay (ov)
+  "Update the display of separator overlay OV based on current window width."
+  (when (overlay-buffer ov)
+    (let* ((style (overlay-get ov 'iota-separator-style))
+           (face (overlay-get ov 'iota-separator-face))
+           (width (or (iota-box--get-current-window-width) 79))
+           (sep (iota-box-horizontal-line width style face)))
+      (overlay-put ov 'display sep))))
+
+(defun iota-box--update-all-separators ()
+  "Update all separator overlays in the current buffer."
+  (dolist (ov (overlays-in (point-min) (point-max)))
+    (when (overlay-get ov 'iota-separator)
+      (iota-box--update-separator-overlay ov))))
+
+(defvar-local iota-box--separator-update-timer nil
+  "Timer for debouncing separator updates.")
+
+(defun iota-box--schedule-separator-update ()
+  "Schedule a separator update, debounced to avoid excessive updates."
+  (when iota-box--separator-update-timer
+    (cancel-timer iota-box--separator-update-timer))
+  (setq iota-box--separator-update-timer
+        (run-with-idle-timer 0.05 nil
+                            (lambda (buf)
+                              (when (buffer-live-p buf)
+                                (with-current-buffer buf
+                                  (iota-box--update-all-separators))))
+                            (current-buffer))))
+
+(defun iota-box--enable-dynamic-separators ()
+  "Enable dynamic separator updates for the current buffer."
+  (add-hook 'window-configuration-change-hook
+            #'iota-box--schedule-separator-update nil t)
+  (add-hook 'window-size-change-functions
+            (lambda (_frame) (iota-box--schedule-separator-update)) nil t))
 
 (defun iota-box-insert-separator-with-tees (&optional style face)
   "Insert a full-width separator with T-connectors in the current buffer.

@@ -4,7 +4,7 @@
 ;; Author: Julien Wintz
 ;; Maintainer: Julien Wintz
 ;; Package: IOTA (I Ø T Δ)
-;; URL: https://github.com/iota/iota
+;; URL: https://github.com/jwintz/iota
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "30.0"))
 ;; Keywords: faces, modeline, tui
@@ -31,7 +31,7 @@
 ;;   M-x customize-group RET iota RET
 ;;
 ;; Documentation:
-;;   See README.md and https://github.com/iota/iota
+;;   See README.md and https://github.com/jwintz/iota
 
 ;;; Code:
 
