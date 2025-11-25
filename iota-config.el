@@ -21,8 +21,6 @@
 
 (require 'cl-lib)
 (require 'iota-box)
-;; Note: element-theme has incomplete implementation
-;; (require 'iota-element-theme)
 (require 'iota-theme-transparent)
 
 ;;; Configuration

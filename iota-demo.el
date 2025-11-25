@@ -33,7 +33,6 @@
 
 (defvar iota-demo--demos
   '(iota-demo
-    iota-demo-theme-system
     iota-demo-box-styles
     iota-demo-widgets
     iota-demo-logos
@@ -644,128 +643,7 @@ Opens in current buffer with organized sections."
 
 ;;; New Feature Demos
 
-;;;###autoload
-(defun iota-demo-theme-system ()
-  "Demonstrate IOTA configuration presets and theming."
-  (interactive)
-  (let ((buffer (iota-demo--setup-buffer "*IOTA Theme Demo*")))
-    (with-current-buffer buffer
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (insert (propertize "IOTA CONFIGURATION PRESETS" 
-                           'face '(:weight bold :height 1.3)) "\n\n")
-        
-        (insert "IOTA provides preset configurations that change both\n")
-        (insert "visual style and behavior.\n\n")
-        
-        (insert "═══════════════════════════════════════════════════════════════\n\n")
-        
-        ;; Current preset
-        (insert (propertize "CURRENT PRESET: " 'face '(:weight bold)))
-        (insert (propertize (format "%s" iota-config-preset)
-                           'face '(:foreground "#39bae6" :weight bold)))
-        (insert "\n")
-        (insert (propertize "  (Press r/g to refresh after changing presets)\n"
-                           'face 'iota-muted-face))
-        (insert "\n")
-        
-        ;; Preset descriptions
-        (insert (propertize "AVAILABLE PRESETS:" 'face '(:weight bold)) "\n\n")
-        
-        (insert (propertize "  minimal" 'face '(:foreground "#39bae6")) "\n")
-        (insert "    • ASCII-only characters\n")
-        (insert "    • No animations\n")
-        (insert "    • Maximum compatibility\n")
-        (insert "    • Best for: older terminals, slow systems\n\n")
-        
-        (insert (propertize "  standard" 'face '(:foreground "#39bae6")) "\n")
-        (insert "    • Basic Unicode box drawing\n")
-        (insert "    • Static colors\n")
-        (insert "    • Balanced appearance\n")
-        (insert "    • Best for: general use\n\n")
-        
-        (insert (propertize "  modern" 'face '(:foreground "#39bae6")) " (Recommended)\n")
-        (insert "    • Full Unicode support\n")
-        (insert "    • Smooth transitions\n")
-        (insert "    • State-aware colors\n")
-        (insert "    • Automatic transparency in terminal\n")
-        (insert "    • Best for: modern terminals (Kitty, Alacritty)\n\n")
-        
-        (insert (propertize "  cyberpunk" 'face '(:foreground "#39bae6")) "\n")
-        (insert "    • Animated spectrum colors\n")
-        (insert "    • Heavy box drawing\n")
-        (insert "    • Maximum visual flair\n")
-        (insert "    • Best for: fun, demos, streaming\n\n")
-        
-        (insert "───────────────────────────────────────────────────────────────\n\n")
-        
-        ;; Interactive commands
-        (insert (propertize "TRY IT NOW:" 'face '(:weight bold :foreground "#50fa7b")) "\n\n")
-        
-        (insert "  ")
-        (insert (propertize "M-x iota-config-choose-preset" 
-                           'face '(:foreground "#8be9fd" :weight bold)))
-        (insert "\n    Switch between presets interactively\n\n")
-        
-        (insert "  ")
-        (insert (propertize "M-x iota-config-info" 
-                           'face '(:foreground "#8be9fd" :weight bold)))
-        (insert "\n    View detailed current configuration\n\n")
-        
-        (insert "───────────────────────────────────────────────────────────────\n\n")
-        
-        ;; State-aware theming
-        (insert (propertize "STATE-AWARE THEMING:" 'face '(:weight bold)) "\n\n")
-        (insert "IOTA changes colors based on Emacs state:\n\n")
 
-        (if (and (fboundp 'iota-element-get-state-color)
-                 (boundp 'iota-element-color-states))
-            (dolist (state '((normal "Regular editing")
-                            (modified "Buffer has changes")
-                            (read-only "Read-only buffer")
-                            (recording "Recording macro")
-                            (search "Searching with isearch")
-                            (error "Error occurred")
-                            (success "Operation succeeded")))
-              (let ((state-sym (car state))
-                    (desc (cadr state))
-                    (color (alist-get (car state) iota-element-color-states)))
-                (insert "  ")
-                (insert (propertize "■" 'face `(:foreground ,color)))
-                (insert " ")
-                (insert (propertize (format "%-12s" (symbol-name state-sym))
-                                   'face '(:foreground "#8be9fd")))
-                (insert (format " %s\n" desc))))
-          ;; Fallback when element-theme is not loaded
-          (insert "  State-aware theming requires iota-element-theme module.\n")
-          (insert "  This module is currently not enabled.\n"))
-        
-        (insert "\n")
-        (insert (propertize "→ " 'face '(:foreground "#50fa7b")))
-        (insert "Open a file and modify it to see colors change!\n\n")
-        
-        (insert "───────────────────────────────────────────────────────────────\n\n")
-        
-        ;; Transparency
-        (insert (propertize "THEME TRANSPARENCY:" 'face '(:weight bold)) "\n\n")
-        (insert "In terminal Emacs, IOTA can strip background colors\n")
-        (insert "from syntax themes, letting your terminal's background\n")
-        (insert "show through while keeping IOTA UI elements colored.\n\n")
-        
-        (insert "Status: ")
-        (insert (if (and (fboundp 'iota-theme-transparent-should-apply-p)
-                        (iota-theme-transparent-should-apply-p))
-                   (propertize "ACTIVE" 'face '(:foreground "#50fa7b" :weight bold))
-                 (propertize "INACTIVE" 'face '(:foreground "#6272a4"))))
-        (insert (format " (%s)\n\n" (if (display-graphic-p) "GUI" "Terminal")))
-        
-        (when (not (display-graphic-p))
-          (insert (propertize "→ " 'face '(:foreground "#50fa7b")))
-          (insert "Load any color theme to see transparency in action!\n\n"))
-        
-        (goto-char (point-min))
-        (iota-demo--make-readonly-with-hint "Box Styles")))
-    (iota-demo--show-in-current-window buffer)))
 
 ;;;###autoload
 (defun iota-demo-box-styles ()

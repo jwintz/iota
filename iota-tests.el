@@ -21,22 +21,11 @@
 
 (require 'ert)
 (require 'iota)
-(require 'iota-element-theme)
 (require 'iota-theme-transparent)
 (require 'iota-box)
 (require 'iota-widgets)
 
 ;;; Theme System Tests
-
-(ert-deftest iota-test-state-detection ()
-  "Test state detection logic."
-  (with-temp-buffer
-    ;; State detection checks window, so in temp buffer it may be 'inactive
-    (should (memq (iota-element-detect-state) '(normal inactive)))
-    (set-buffer-modified-p t)
-    (should (memq (iota-element-detect-state) '(modified inactive)))
-    (read-only-mode 1)
-    (should (memq (iota-element-detect-state) '(read-only inactive)))))
 
 (ert-deftest iota-test-transparent-should-apply ()
   "Test transparency application logic."
@@ -45,13 +34,6 @@
     ;; Mock display-graphic-p to return nil (terminal)
     (cl-letf (((symbol-function 'display-graphic-p) (lambda () nil)))
       (should (iota-theme-transparent-should-apply-p)))))
-
-(ert-deftest iota-test-element-color-states ()
-  "Test element color state definitions."
-  (should (alist-get 'normal iota-element-color-states))
-  (should (alist-get 'modified iota-element-color-states))
-  (should (alist-get 'error iota-element-color-states))
-  (should (stringp (alist-get 'normal iota-element-color-states))))
 
 ;;; Box Rendering Tests
 
@@ -164,7 +146,6 @@
   (should (featurep 'iota))
   (should (featurep 'iota-box))
   (should (featurep 'iota-theme))
-  (should (featurep 'iota-element-theme))
   (should (featurep 'iota-theme-transparent))
   (should (featurep 'iota-widgets))
   (should (featurep 'iota-config))

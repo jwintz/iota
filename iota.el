@@ -132,7 +132,7 @@
         '(iota-perf iota-config iota-demo iota-window iota-logos 
           iota-splash iota-faces iota-widgets iota-modeline 
           iota-animate iota-segments iota-segment iota-tui 
-          iota-element-theme iota-theme-transparent iota-theme 
+          iota-theme-transparent iota-theme 
           iota-box iota))
   (require 'iota)
   (iota-modeline-mode 1)

@@ -158,6 +158,9 @@ If WINDOW is nil, use selected window."
 (defvar iota-modeline--window-overlays (make-hash-table :weakness 'key)
   "Hash table mapping windows to their header-line overlays.")
 
+(defvar iota-modeline--separator-overlays (make-hash-table :weakness 'key)
+  "Hash table mapping windows to their separator-line overlays.")
+
 (defun iota-modeline--ensure-overlay (window)
   "Ensure the simulated header overlay exists for WINDOW."
   (let ((overlay (gethash window iota-modeline--window-overlays)))
@@ -207,6 +210,47 @@ If WINDOW is nil, use selected window."
                (delete-overlay overlay)))
            iota-modeline--window-overlays)
   (clrhash iota-modeline--window-overlays))
+
+(defun iota-modeline--ensure-separator-overlay (window)
+  "Ensure the separator overlay exists for WINDOW."
+  (let ((overlay (gethash window iota-modeline--separator-overlays)))
+    ;; Clean up invalid overlay
+    (when (and overlay
+               (overlayp overlay)
+               (not (overlay-buffer overlay)))
+      (remhash window iota-modeline--separator-overlays)
+      (setq overlay nil))
+    ;; Create new overlay if needed
+    (unless overlay
+      (with-current-buffer (window-buffer window)
+        (setq overlay (make-overlay (point-max) (point-max) (current-buffer)))
+        (overlay-put overlay 'priority 100)
+        (overlay-put overlay 'window window)
+        (puthash window overlay iota-modeline--separator-overlays)))
+    overlay))
+
+(defun iota-modeline--update-separator-overlay (window)
+  "Update the separator overlay for WINDOW."
+  (when (window-live-p window)
+    (with-current-buffer (window-buffer window)
+      (let ((overlay (iota-modeline--ensure-separator-overlay window)))
+        (move-overlay overlay (point-max) (point-max) (current-buffer))
+        (if (and (iota-modeline--should-show-p)
+                 (iota-modeline--window-is-at-bottom-p window))
+            ;; Show separator for bottom windows
+            (overlay-put overlay 'after-string
+                        (propertize "\n" 'display
+                                   (list 'space :width (window-width window))))
+            ;; Hide separator for non-bottom windows
+            (overlay-put overlay 'after-string nil))))))
+
+(defun iota-modeline--remove-separator-overlays ()
+  "Remove all separator overlays."
+  (maphash (lambda (_window overlay)
+             (when (overlayp overlay)
+               (delete-overlay overlay)))
+           iota-modeline--separator-overlays)
+  (clrhash iota-modeline--separator-overlays))
 
 ;;; Update Logic
 
@@ -335,21 +379,47 @@ If WINDOW is nil, use selected window."
   "Handle window size changes."
   (iota-modeline--update))
 
+(defun iota-modeline--window-is-at-bottom-p (window)
+  "Return t if WINDOW is at the bottom of the frame."
+  (catch 'found-window-below
+    (let* ((edges1 (window-edges window))
+           (bottom1 (nth 3 edges1))
+           (left1 (nth 0 edges1))
+           (right1 (nth 2 edges1)))
+      (dolist (w (window-list nil 'no-minibuf))
+        (when (not (eq window w))
+          (let* ((edges2 (window-edges w))
+                 (top2 (nth 1 edges2))
+                 (left2 (nth 0 edges2))
+                 (right2 (nth 2 edges2)))
+            (when (and edges1 edges2
+                       (= top2 bottom1) ; w is below window
+                       (> (min right1 right2) (max left1 left2))) ; they overlap
+              (throw 'found-window-below nil))))) ; not at bottom
+      t))) ; at bottom
+
 (defun iota-modeline--update-separator-lines (&optional _frame)
   "Update mode-line separator for each window based on position.
-Only bottom windows get the separator line."
+Only windows that are at the bottom of the frame get a separator line."
+  ;; Clear buffer-local mode-line-format and use per-window overlays instead
   (dolist (window (window-list nil 'no-minibuf))
-    (let ((buffer (window-buffer window)))
-      (when (buffer-live-p buffer)
-        (with-current-buffer buffer
-          (if (window-at-side-p window 'bottom)
-              ;; Bottom window: show separator with proper face
-              (setq-local mode-line-format
-                          `(:eval (iota-box-horizontal-line (window-width)
-                                                            iota-modeline-box-style
-                                                            (iota-theme-get-box-face ,window))))
-            ;; Other windows: no mode-line
-            (setq-local mode-line-format nil)))))))
+    (with-current-buffer (window-buffer window)
+      (when (iota-modeline--should-show-p)
+        ;; Ensure mode-line is set to show the actual separator
+        (setq-local mode-line-format
+                    '(:eval (iota-box-horizontal-line (window-width)
+                                                      iota-modeline-box-style
+                                                      (iota-theme-get-box-face (selected-window))))))))
+
+  ;; Use window parameters to control visibility per-window
+  (dolist (window (window-list nil 'no-minibuf))
+    (if (and (with-current-buffer (window-buffer window)
+               (iota-modeline--should-show-p))
+             (iota-modeline--window-is-at-bottom-p window))
+        ;; Window is at bottom - ensure mode-line is visible
+        (set-window-parameter window 'mode-line-format nil)
+      ;; Window is not at bottom - hide mode-line
+      (set-window-parameter window 'mode-line-format 'none))))
 
 (defun iota-modeline--setup ()
   "Set up IOTA modeline."
@@ -367,7 +437,6 @@ Only bottom windows get the separator line."
      (setq-default header-line-format nil)
      (add-hook 'window-scroll-functions #'iota-modeline--window-scroll)
      ;; Use buffer-local mode-line for separator
-     (add-hook 'window-configuration-change-hook #'iota-modeline--update-separator-lines)
      (add-hook 'window-size-change-functions #'iota-modeline--update-separator-lines)
      (iota-modeline--update-separator-lines))
     ('mode
@@ -441,23 +510,27 @@ Only bottom windows get the separator line."
   (remove-hook 'window-size-change-functions #'iota-modeline--window-size-change)
   (remove-hook 'window-size-change-functions #'iota-modeline--update-separator-lines)
   (remove-hook 'window-configuration-change-hook #'iota-modeline--window-configuration-change)
-  (remove-hook 'window-configuration-change-hook #'iota-modeline--update-separator-lines)
-  
-  ;; Remove overlay
+
+  ;; Clear window parameters
+  (dolist (window (window-list nil 'no-minibuf))
+    (set-window-parameter window 'mode-line-format nil))
+
+  ;; Remove overlays
   (iota-modeline--remove-overlay)
-  
+  (iota-modeline--remove-separator-overlays)
+
   ;; Clean up timers
   (iota-modeline--cleanup-timers)
-  
+
   ;; Restore original formats
   (when iota-modeline--original-header-line
     (setq-default header-line-format iota-modeline--original-header-line))
   (when iota-modeline--original-mode-line
     (setq-default mode-line-format iota-modeline--original-mode-line))
-  
+
   ;; Clear cache
   (iota-segment-cache-clear)
-  
+
   ;; Force update
   (force-mode-line-update t))
 

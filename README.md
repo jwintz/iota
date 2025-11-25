@@ -9,11 +9,7 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
 
 ## Features
 
-### Dual-Theme System
-- **Element Theming**: Dynamic, state-aware colors for IOTA UI components
-  - Adaptive colors based on Emacs state (normal, modified, read-only, recording, etc.)
-  - Smooth color transitions with configurable animation
-  - Modal editing integration (Evil, Meow, etc.)
+### Syntax Theme Transparency
 - **Syntax Theme Transparency**: Automatic background removal in terminal
   - Preserves IOTA UI element backgrounds while making syntax transparent
   - Smart face classification and selective preservation
@@ -130,7 +126,6 @@ Feature demos:
 M-x iota-demo                    ; Main demo interface
 M-x iota-demo-theme-system       ; Theme system showcase
 M-x iota-demo-box-styles         ; Box-drawing styles
-M-x iota-demo-modern-widgets     ; Widget gallery
 M-x iota-demo-all-features       ; Sequential demo
 ```
 
@@ -154,26 +149,6 @@ M-x iota-config-info             ; View current settings
 (setq iota-config-preset 'modern)
 M-x iota-config-choose-preset  ; Interactive preset selection
 M-x iota-config-info           ; View current configuration
-```
-
-### Element Theme System
-
-```elisp
-;; Element theme configuration (utilities available, mode disabled)
-(setq iota-element-theme 'adaptive)                ; 'adaptive, 'spectrum, 'minimal, 'custom
-
-;; Customize state colors (for future use)
-(setq iota-element-color-states
-      '((normal . "#4ade80")      ; Green
-        (modified . "#ffa500")    ; Orange
-        (read-only . "#ff6b6b")   ; Red
-        (recording . "#ff79c6")   ; Pink
-        (search . "#8be9fd")      ; Cyan
-        (error . "#ff5555")       ; Bright red
-        (success . "#50fa7b")))   ; Bright green
-
-;; Note: iota-element-theme-mode is disabled (incomplete implementation)
-;; The color utilities remain available for future development
 ```
 
 ### Theme Transparency (Terminal)
@@ -364,10 +339,8 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 | `M-x iota-modeline-toggle-position` | Toggle header/mode-line |
 | `M-x iota-modeline-cycle-preset` | Cycle through presets |
 | `M-x iota-modeline-cycle-style` | Cycle through box styles |
-| `M-x iota-diagnose` | Show diagnostics info |
 | `M-x iota-refresh-faces` | Refresh faces from theme |
-| `M-x iota-theme-info` | Show theme details |
-| `M-x iota-theme-test-contrast` | Test theme contrast |
+| `M-x iota-theme-transparent-diagnose` | Diagnose terminal transparency support |
 
 ## API Reference
 
