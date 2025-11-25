@@ -380,7 +380,8 @@ If WINDOW is nil, use selected window."
   (iota-modeline--update))
 
 (defun iota-modeline--window-is-at-bottom-p (window)
-  "Return t if WINDOW is at the bottom of the frame."
+  "Return t if WINDOW is at the bottom of the frame.
+Ignores which-key and other temporary popup buffers when determining position."
   (catch 'found-window-below
     (let* ((edges1 (window-edges window))
            (bottom1 (nth 3 edges1))
@@ -391,10 +392,14 @@ If WINDOW is nil, use selected window."
           (let* ((edges2 (window-edges w))
                  (top2 (nth 1 edges2))
                  (left2 (nth 0 edges2))
-                 (right2 (nth 2 edges2)))
+                 (right2 (nth 2 edges2))
+                 (buf-name (buffer-name (window-buffer w))))
+            ;; Ignore which-key and similar popup buffers when determining bottom position
             (when (and edges1 edges2
                        (= top2 bottom1) ; w is below window
-                       (> (min right1 right2) (max left1 left2))) ; they overlap
+                       (> (min right1 right2) (max left1 left2)) ; they overlap
+                       (not (string-prefix-p " *which-key*" buf-name))
+                       (not (string-prefix-p "*which-key*" buf-name)))
               (throw 'found-window-below nil))))) ; not at bottom
       t))) ; at bottom
 

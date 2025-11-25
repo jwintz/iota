@@ -54,6 +54,13 @@
 (require 'iota-theme-transparent)
 (require 'iota-modal)
 
+;;; Configuration
+
+(defgroup iota nil
+  "Minimal Terminal Interface for Emacs."
+  :group 'faces
+  :prefix "iota-")
+
 ;;; Version
 
 (defconst iota-version "0.1.0"
@@ -117,6 +124,55 @@
     (message "I O T Λ setup complete! Modeline and window tracking enabled.")))
 
 ;;; Quick Commands
+
+;;; Line Number Prevention
+
+(defun iota-prevent-line-numbers (&rest _)
+  "Prevent line numbers from being enabled.
+This function overrides all line number enabling functions to do nothing."
+  (interactive)
+  nil)
+
+;;;###autoload
+(defun iota-disable-line-numbers ()
+  "Disable all line number modes by advising their functions.
+This prevents any code (including meow-tutor) from enabling line numbers."
+  (interactive)
+  ;; First, turn off any currently active line numbers
+  (when (bound-and-true-p display-line-numbers-mode)
+    (display-line-numbers-mode -1))
+  (when (bound-and-true-p global-display-line-numbers-mode)
+    (global-display-line-numbers-mode -1))
+  (when (bound-and-true-p linum-mode)
+    (linum-mode -1))
+
+  ;; Then prevent them from being enabled again
+  (advice-add 'display-line-numbers-mode :override #'iota-prevent-line-numbers)
+  (advice-add 'global-display-line-numbers-mode :override #'iota-prevent-line-numbers)
+  (advice-add 'linum-mode :override #'iota-prevent-line-numbers)
+  (message "Line numbers permanently disabled"))
+
+;;;###autoload
+(defun iota-enable-line-numbers ()
+  "Re-enable line number modes by removing advice.
+This removes the prevention added by `iota-disable-line-numbers'."
+  (interactive)
+  (advice-remove 'display-line-numbers-mode #'iota-prevent-line-numbers)
+  (advice-remove 'global-display-line-numbers-mode #'iota-prevent-line-numbers)
+  (advice-remove 'linum-mode #'iota-prevent-line-numbers)
+  (message "Line numbers re-enabled"))
+
+(defcustom iota-prevent-line-numbers nil
+  "When non-nil, prevent any code from enabling line numbers.
+This is useful to prevent packages like meow-tutor from showing line numbers.
+When enabled, line number modes will be permanently disabled."
+  :type 'boolean
+  :group 'iota
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (if value
+             (iota-disable-line-numbers)
+           (iota-enable-line-numbers))))
 
 ;;; Integration Helpers
 
