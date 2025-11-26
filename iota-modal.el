@@ -84,6 +84,62 @@ Buffer-local so each buffer can have independent state.")
 (defvar iota-modal--update-debounce 0.1
   "Minimum seconds between state updates to prevent lag.")
 
+(defvar iota-modal--original-cursor-type nil
+  "Original cursor-type before Meow/modal editing was enabled.
+Saved at load time to capture the true original value.")
+
+(defvar iota-modal--original-cursor-color nil
+  "Original cursor color before Meow/modal editing was enabled.
+Saved at load time to capture the true original value.")
+
+;; Save cursor state IMMEDIATELY at load time, before any modal package can change it
+;; This must happen before meow-global-mode or evil-mode is enabled
+(unless iota-modal--original-cursor-type
+  (setq iota-modal--original-cursor-type
+        (or (default-value 'cursor-type) 'bar)))
+
+(unless iota-modal--original-cursor-color
+  (setq iota-modal--original-cursor-color
+        (face-attribute 'cursor :background nil 'default)))
+
+(defun iota-modal--cursor-type-to-escape-sequence (ctype)
+  "Convert Emacs cursor type CTYPE to terminal escape sequence.
+Returns the DECSCUSR escape sequence for the cursor shape."
+  (pcase ctype
+    ('bar "\e[5 q")           ; Blinking bar
+    ('(bar . _) "\e[5 q")     ; Bar with width
+    ('hbar "\e[3 q")          ; Blinking underline
+    ('(hbar . _) "\e[3 q")    ; Underline with height
+    ('box "\e[1 q")           ; Blinking block
+    ('hollow "\e[1 q")        ; Hollow box (use block)
+    (_ "\e[5 q")))            ; Default to bar
+
+(defun iota-modal--restore-cursor-state ()
+  "Restore cursor to its original state before modal editing."
+  (when iota-modal--original-cursor-type
+    (setq-default cursor-type iota-modal--original-cursor-type)
+    ;; Also set for current buffer
+    (setq cursor-type iota-modal--original-cursor-type))
+  (when iota-modal--original-cursor-color
+    (set-face-attribute 'cursor nil :background iota-modal--original-cursor-color))
+  ;; Send terminal escape sequence to restore cursor shape (for terminal Emacs)
+  (unless (display-graphic-p)
+    (send-string-to-terminal
+     (iota-modal--cursor-type-to-escape-sequence iota-modal--original-cursor-type)))
+  ;; Force cursor redisplay
+  (redraw-frame))
+
+(defun iota-modal--restore-cursor-on-exit ()
+  "Restore terminal cursor when Emacs exits.
+This ensures the terminal cursor is reset even if modal editing changed it."
+  (unless (display-graphic-p)
+    ;; Send escape sequence to restore original cursor shape
+    (send-string-to-terminal
+     (iota-modal--cursor-type-to-escape-sequence iota-modal--original-cursor-type))))
+
+;; Always restore cursor on Emacs exit
+(add-hook 'kill-emacs-hook #'iota-modal--restore-cursor-on-exit)
+
 (defun iota-modal-get-state-color (&optional state)
   "Get color for STATE (defaults to current state)."
   (alist-get (or state iota-modal--current-state)
@@ -105,8 +161,7 @@ Called lazily during rendering, not on every command.
 Returns t if state changed."
   (let ((new-state (iota-modal-detect-state)))
     (unless (eq new-state iota-modal--current-state)
-      (setq iota-modal--current-state new-state
-            iota-modal--cached-indicator nil)  ; Invalidate cache
+      (setq iota-modal--current-state new-state)
       t)))
 
 (defun iota-modal-refresh-ui ()
@@ -207,20 +262,21 @@ Checks both global and buffer-local meow-mode."
   "Return Meow modeline indicator according to `iota-modal-indicator-style'.
 Falls back to IOTA indicator if Meow doesn't provide one."
   (when (iota-modal-meow-active-p)
-    (pcase iota-modal-indicator-style
-      ('meow
-       ;; Use Meow's own indicator if available
-       (if (fboundp 'meow-indicator)
-           (let ((meow-ind (meow-indicator)))
-             (if (stringp meow-ind)
-                 meow-ind
-               ;; Meow indicator might return nil, fall back to both
-               (iota-modal--format-meow-state meow--current-state 'both)))
-         ;; Meow indicator not available, fall back to both
-         (iota-modal--format-meow-state meow--current-state 'both)))
-      (_
-       ;; Use IOTA's indicator for Meow with specified style
-       (iota-modal--format-meow-state meow--current-state iota-modal-indicator-style)))))
+    (let ((current-state (iota-modal-get-modal-state)))
+      (pcase iota-modal-indicator-style
+        ('meow
+         ;; Use Meow's own indicator if available
+         (if (fboundp 'meow-indicator)
+             (let ((meow-ind (meow-indicator)))
+               (if (stringp meow-ind)
+                   meow-ind
+                 ;; Meow indicator might return nil, fall back to both
+                 (iota-modal--format-meow-state current-state 'both)))
+           ;; Meow indicator not available, fall back to both
+           (iota-modal--format-meow-state current-state 'both)))
+        (_
+         ;; Use IOTA's indicator for Meow with specified style
+         (iota-modal--format-meow-state current-state iota-modal-indicator-style))))))
 
 (defun iota-modal--format-meow-state (state style)
   "Format Meow STATE using IOTA's modal indicators with STYLE.
@@ -380,6 +436,14 @@ evil-state: %s"
       (display-buffer (current-buffer)))))
 
 ;;;###autoload
+(defun iota-modal-restore-cursor ()
+  "Restore cursor to its original state.
+Use this if cursor shape/color is incorrect after disabling modal editing."
+  (interactive)
+  (iota-modal--restore-cursor-state)
+  (message "Cursor state restored"))
+
+;;;###autoload
 (defun iota-modal-cycle-indicator-style ()
   "Cycle through modal indicator styles: both → glyph → label → meow → both."
   (interactive)
@@ -420,30 +484,52 @@ Buffer-local so each buffer tracks its own modal state.")
 Invalidates cache to ensure modal segment updates immediately."
   (iota-modal--invalidate-cache))
 
-(defun iota-modal--on-state-change (&optional _new-state)
+(defun iota-modal--on-state-change (&optional new-state)
   "Hook to detect modal state changes and force modeline update.
-Optional NEW-STATE argument for compatibility with meow-switch-state-hook.
-Runs on every command to ensure state is always current."
+NEW-STATE is the state passed by meow-switch-state-hook (if called from there).
+Otherwise detects state from current buffer."
   (when (or (iota-modal-meow-active-p)
             (and (boundp 'evil-state) evil-state))
-    (let ((current-state (iota-modal-get-modal-state)))
+    ;; Use passed state if available (from meow-switch-state-hook),
+    ;; otherwise detect current state
+    (let ((current-state (or new-state (iota-modal-get-modal-state))))
       (unless (eq current-state iota-modal--last-modal-state)
         (setq iota-modal--last-modal-state current-state)
         ;; Force immediate modeline update
         (force-mode-line-update t)))))
 
-(defun iota-modal--setup-hooks ()
-  "Set up hooks to track modal editing state changes."
-  ;; Hook into Meow/Evil mode toggles (enable/disable)
+(defun iota-modal--setup-meow-hooks ()
+  "Set up Meow-specific hooks.
+Called both at mode enable time and when Meow is loaded."
   (when (boundp 'meow-mode-hook)
     (add-hook 'meow-mode-hook #'iota-modal--on-meow-mode-change))
   (when (boundp 'meow-global-mode-hook)
     (add-hook 'meow-global-mode-hook #'iota-modal--on-meow-mode-change))
-  (when (boundp 'evil-mode-hook)
-    (add-hook 'evil-mode-hook #'iota-modal--on-meow-mode-change))
   ;; Meow's state switch hook (fires immediately on state change)
   (when (boundp 'meow-switch-state-hook)
     (add-hook 'meow-switch-state-hook #'iota-modal--on-state-change))
+  ;; Also hook into insert enter/exit for extra reliability
+  (when (boundp 'meow-insert-enter-hook)
+    (add-hook 'meow-insert-enter-hook
+              (lambda () (iota-modal--on-state-change 'insert))))
+  (when (boundp 'meow-insert-exit-hook)
+    (add-hook 'meow-insert-exit-hook
+              (lambda () (iota-modal--on-state-change 'normal)))))
+
+(defun iota-modal--setup-hooks ()
+  "Set up hooks to track modal editing state changes."
+  ;; Set up Meow hooks if already loaded
+  (iota-modal--setup-meow-hooks)
+  ;; Also set up hooks when Meow loads later
+  (with-eval-after-load 'meow
+    (iota-modal--setup-meow-hooks))
+  ;; Hook into Evil mode toggles (enable/disable)
+  (when (boundp 'evil-mode-hook)
+    (add-hook 'evil-mode-hook #'iota-modal--on-meow-mode-change))
+  ;; Also set up Evil hooks when Evil loads later
+  (with-eval-after-load 'evil
+    (when (boundp 'evil-mode-hook)
+      (add-hook 'evil-mode-hook #'iota-modal--on-meow-mode-change)))
   ;; Pre and post-command hooks to detect state changes
   (add-hook 'pre-command-hook #'iota-modal--on-state-change)
   (add-hook 'post-command-hook #'iota-modal--on-state-change))
@@ -458,6 +544,8 @@ Runs on every command to ensure state is always current."
     (remove-hook 'evil-mode-hook #'iota-modal--on-meow-mode-change))
   (when (boundp 'meow-switch-state-hook)
     (remove-hook 'meow-switch-state-hook #'iota-modal--on-state-change))
+  ;; Note: Can't easily remove the lambda hooks from insert-enter/exit-hook
+  ;; They will be cleaned up when the hooks are redefined
   (remove-hook 'pre-command-hook #'iota-modal--on-state-change)
   (remove-hook 'post-command-hook #'iota-modal--on-state-change))
 
@@ -494,6 +582,7 @@ Cycle indicator styles with `iota-modal-cycle-indicator-style'."
   :group 'iota-modal
   (if iota-modal-mode
       (progn
+        ;; Cursor state is saved at load time (before any modal package can change it)
         ;; Set up hooks to track modal mode changes
         (iota-modal--setup-hooks)
         ;; NO post-command-hook needed! State is detected lazily during render
@@ -511,6 +600,8 @@ Cycle indicator styles with `iota-modal-cycle-indicator-style'."
           (iota-modal-remove-segment)
         (error
          (message "Warning: Could not remove modal segment: %s" err)))
+      ;; Restore cursor to original state
+      (iota-modal--restore-cursor-state)
       (message "IOTA modal mode disabled"))))
 
 (defvar iota-modal--original-preset nil
