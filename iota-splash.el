@@ -24,6 +24,7 @@
 (require 'iota-timers)
 (require 'iota-update)
 (require 'iota-utils)
+(require 'iota-box)
 (require 'color)
 
 (defcustom iota-splash-buffer-name "*I O T Λ splash*"
@@ -385,9 +386,58 @@ Redraws are debounced to prevent performance issues."
                 (iota-splash--redraw-buffer)))))))))
 
 (defun iota-splash--check-and-redraw ()
-  "Check if splash screen window height changed and redraw if needed."
+  "Check if splash screen window height changed and redraw if needed.
+Also updates separator line visibility based on minibuffer/which-key state."
   (when (get-buffer iota-splash-buffer-name)
+    (iota-splash--update-separator)
     (iota-splash--redraw-on-resize)))
+
+(defun iota-splash--minibuffer-active-p ()
+  "Return t if the minibuffer is currently active."
+  (and (active-minibuffer-window)
+       (minibufferp (window-buffer (active-minibuffer-window)))))
+
+(defun iota-splash--which-key-visible-p ()
+  "Return t if a which-key window is currently visible."
+  (cl-some (lambda (win)
+             (let ((buf-name (buffer-name (window-buffer win))))
+               (or (string-prefix-p " *which-key*" buf-name)
+                   (string-prefix-p "*which-key*" buf-name))))
+           (window-list)))
+
+(defun iota-splash--get-separator-line (window)
+  "Get a separator line string for WINDOW.
+Uses the configured box style from iota-modeline if available."
+  (let* ((width (1- (window-body-width window)))
+         (style (if (boundp 'iota-modeline-box-style)
+                    iota-modeline-box-style
+                  'rounded))
+         (face (if (boundp 'iota-muted-face)
+                   'iota-muted-face
+                 'default)))
+    (iota-box-horizontal-line width style face)))
+
+(defun iota-splash--update-separator ()
+  "Update the separator line visibility for splash screen.
+Shows separator when minibuffer or which-key is active."
+  (let ((buffer (get-buffer iota-splash-buffer-name)))
+    (when (and buffer (buffer-live-p buffer))
+      (let ((win (get-buffer-window buffer)))
+        (when (window-live-p win)
+          (if (or (iota-splash--minibuffer-active-p)
+                  (iota-splash--which-key-visible-p))
+              ;; Show separator line when minibuffer/which-key is active
+              (with-current-buffer buffer
+                (setq-local mode-line-format
+                            '(:eval (iota-splash--get-separator-line (selected-window)))))
+            ;; Hide separator line when not needed
+            (with-current-buffer buffer
+              (setq-local mode-line-format nil)))
+          ;; Update window parameter as well
+          (if (or (iota-splash--minibuffer-active-p)
+                  (iota-splash--which-key-visible-p))
+              (set-window-parameter win 'mode-line-format nil)
+            (set-window-parameter win 'mode-line-format 'none)))))))
 
 (defun iota-splash--on-window-config-change ()
   "Handle window configuration changes (e.g., which-key appearing).
@@ -396,6 +446,8 @@ This forces a redraw to ensure the splash screen stays centered."
     (when (and buffer
                (buffer-live-p buffer)
                (get-buffer-window buffer))
+      ;; Update separator line visibility
+      (iota-splash--update-separator)
       ;; Force redraw on any window configuration change
       (iota-splash--redraw-buffer)
       ;; Ensure cursor stays hidden after window config changes
@@ -403,19 +455,45 @@ This forces a redraw to ensure the splash screen stays centered."
         (when win
           (internal-show-cursor win nil))))))
 
-(defun iota-splash--on-minibuffer-change ()
-  "Handle minibuffer setup/exit to redraw splash screen.
-This ensures the splash screen stays centered when minibuffer height changes."
+(defun iota-splash--on-minibuffer-setup ()
+  "Handle minibuffer setup to show separator and redraw splash screen."
   (let ((buffer (get-buffer iota-splash-buffer-name)))
     (when (and buffer
                (buffer-live-p buffer)
                (get-buffer-window buffer))
-      ;; Force redraw when minibuffer state changes
+      ;; Show separator line when minibuffer is active
+      (iota-splash--update-separator)
+      ;; Force redraw when minibuffer opens
       (iota-splash--redraw-buffer)
       ;; Ensure cursor stays hidden
       (let ((win (get-buffer-window buffer)))
         (when win
           (internal-show-cursor win nil))))))
+
+(defun iota-splash--on-minibuffer-exit ()
+  "Handle minibuffer exit to hide separator and redraw splash screen."
+  (let ((buffer (get-buffer iota-splash-buffer-name)))
+    (when (and buffer
+               (buffer-live-p buffer)
+               (get-buffer-window buffer))
+      ;; Schedule separator update after minibuffer is fully closed
+      (run-with-timer 0.01 nil #'iota-splash--update-separator)
+      ;; Force redraw when minibuffer closes
+      (run-with-timer 0.02 nil #'iota-splash--redraw-buffer)
+      ;; Ensure cursor stays hidden
+      (let ((win (get-buffer-window buffer)))
+        (when win
+          (internal-show-cursor win nil))))))
+
+(defun iota-splash--on-echo-area-clear ()
+  "Handle echo area clear to redraw splash screen."
+  (let ((buffer (get-buffer iota-splash-buffer-name)))
+    (when (and buffer
+               (buffer-live-p buffer)
+               (get-buffer-window buffer))
+      ;; Update separator and redraw
+      (iota-splash--update-separator)
+      (iota-splash--redraw-buffer))))
 
 (defun iota-splash--restore-cursor ()
   "Restore cursor visibility when leaving splash screen."
@@ -439,9 +517,10 @@ This ensures the splash screen stays centered when minibuffer height changes."
   "Remove all splash screen hooks and restore cursor."
   (remove-hook 'post-command-hook #'iota-splash--check-and-redraw)
   (remove-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
-  (remove-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-change)
-  (remove-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-change)
+  (remove-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-setup)
+  (remove-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)
   (remove-hook 'buffer-list-update-hook #'iota-splash--check-buffer-switch)
+  (remove-hook 'echo-area-clear-hook #'iota-splash--on-echo-area-clear)
   ;; Restore cursor when cleaning up
   (iota-splash--restore-cursor))
 
@@ -552,7 +631,8 @@ Does not display if Emacs was opened with file arguments."
         (setq buffer-read-only t))) ; closes inner let and with-current-buffer
 
       ;; Set window parameters after buffer is displayed
-      (set-window-parameter (selected-window) 'mode-line-format nil)
+      ;; Initially hide mode-line, will be shown when minibuffer activates
+      (set-window-parameter (selected-window) 'mode-line-format 'none)
       (set-window-parameter (selected-window) 'header-line-format nil)
 
       ;; Hide cursor at window level (more reliable than buffer-local)
@@ -569,9 +649,10 @@ Does not display if Emacs was opened with file arguments."
       ;; Add hooks to check for window size and configuration changes
       (add-hook 'post-command-hook #'iota-splash--check-and-redraw)
       (add-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
-      (add-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-change)
-      (add-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-change)
+      (add-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-setup)
+      (add-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)
       (add-hook 'buffer-list-update-hook #'iota-splash--check-buffer-switch)
+      (add-hook 'echo-area-clear-hook #'iota-splash--on-echo-area-clear)
 
       ;; Start animations and hint rotation
       (iota-splash--start-animation)
