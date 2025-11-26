@@ -305,8 +305,6 @@ Returns: String with box decorations."
          (right-len (length right-content))
          (used-width (+ left-len center-len right-len))
          (remaining (max 0 (- content-width used-width)))
-         (left-spacing (/ remaining 2))
-         (right-spacing (- remaining left-spacing))
          
          ;; Build content line and track divider positions
          (content-parts (list))
@@ -325,22 +323,37 @@ Returns: String with box decorations."
             (setq pos (+ pos 3))))) ; +3 for " │ "
       (setq current-pos (+ current-pos left-len)))
     
-    ;; Add spacing (no separator in empty space)
-    (when (> left-len 0)
-      (push (make-string (+ left-spacing right-spacing) ?\s) content-parts)
-      (setq current-pos (+ current-pos left-spacing right-spacing)))
-    
-    ;; Add center content (if any)
-    (when (> center-len 0)
-      (push center-content content-parts)
-      ;; Track positions of separators within center content
-      (let ((pos 0))
-        (dolist (part center-parts)
-          (setq pos (+ pos (length part)))
-          (when (not (eq part (car (last center-parts))))
-            (push (+ current-pos pos 1) dividers)
-            (setq pos (+ pos 3)))))
-      (setq current-pos (+ current-pos center-len)))
+    ;; Calculate spacing distribution
+    ;; If we have center content, split space around it
+    ;; Otherwise, all space goes between left and right
+    (cond
+     ;; Case 1: We have center content - distribute space around it
+     ((> center-len 0)
+      (let* ((left-gap (/ remaining 2))
+             (right-gap (- remaining left-gap)))
+        ;; Add left gap
+        (when (> left-gap 0)
+          (push (make-string left-gap ?\s) content-parts)
+          (setq current-pos (+ current-pos left-gap)))
+        ;; Add center content
+        (push center-content content-parts)
+        (let ((pos 0))
+          (dolist (part center-parts)
+            (setq pos (+ pos (length part)))
+            (when (not (eq part (car (last center-parts))))
+              (push (+ current-pos pos 1) dividers)
+              (setq pos (+ pos 3)))))
+        (setq current-pos (+ current-pos center-len))
+        ;; Add right gap
+        (when (> right-gap 0)
+          (push (make-string right-gap ?\s) content-parts)
+          (setq current-pos (+ current-pos right-gap)))))
+     
+     ;; Case 2: No center content - all space between left and right
+     (t
+      (when (> remaining 0)
+        (push (make-string remaining ?\s) content-parts)
+        (setq current-pos (+ current-pos remaining)))))
     
     ;; Add right content
     (when (> right-len 0)
@@ -358,8 +371,6 @@ Returns: String with box decorations."
     (let* ((left-border (if face (propertize vert 'face face) vert))
            (right-border (if face (propertize vert 'face face) vert))
            (content-line (concat left-border " " (apply #'concat content-parts) " " right-border)))
-      ;; Border faces now explicitly set via propertize above
-      nil
       
       (if compact
           content-line

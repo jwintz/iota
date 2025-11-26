@@ -123,7 +123,9 @@ If WINDOW is nil, use selected window."
   (if (not (iota-modeline--should-show-p))
       "" ; Return empty string for minibuffer
     (let* ((target-window (or window (selected-window)))
-           (width (1- (window-width target-window)))
+           ;; Use window-body-width which excludes margins, fringes, and scroll bars
+           ;; Subtract 1 to prevent line wrapping at exact boundary
+           (width (1- (window-body-width target-window)))
            (segments (iota-modeline--get-segments))
            (style iota-modeline-box-style)
            (box-face (or override-box-face
@@ -335,7 +337,8 @@ This is the main entry point for the iota-update system."
        ((string= (buffer-name) "*Completions*")
         ;; For completions, show a simple separator line
         (setq-local mode-line-format
-                    '(:eval (iota-box-horizontal-line (window-width) 'single 'iota-muted-face))))
+                    '(:eval (iota-box-horizontal-line (1- (window-body-width))
+                                                      'single 'iota-muted-face))))
        (t
         ;; For other excluded buffers, explicitly set mode-line and header-line to nil
         (setq-local mode-line-format nil)
@@ -430,7 +433,7 @@ Only windows that are at the bottom of the frame get a separator line."
       (when (iota-modeline--should-show-p)
         ;; Ensure mode-line is set to show the actual separator
         (setq-local mode-line-format
-                    '(:eval (iota-box-horizontal-line (window-width)
+                    '(:eval (iota-box-horizontal-line (1- (window-body-width))
                                                       iota-modeline-box-style
                                                       (iota-theme-get-box-face (selected-window))))))))
 
