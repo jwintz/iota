@@ -23,6 +23,9 @@
 (require 'cl-lib)
 (require 'iota-segment)
 (require 'iota-theme)
+(require 'iota-cache)
+(require 'iota-update)
+(require 'iota-utils)
 
 (defvar battery-status-function)
 (defvar flycheck-current-errors)
@@ -167,13 +170,20 @@
 (defvar-local iota-segment--vcs-cache-time 0
   "Time when VCS cache was last updated.")
 
-(defcustom iota-segment-vcs-cache-duration 5
-  "How long to cache VCS status in seconds."
+(defcustom iota-segment-vcs-cache-duration 10
+  "How long to cache VCS status in seconds.
+Longer values improve performance but may show stale data.
+Recommended: 5-30 seconds."
   :type 'number
   :group 'iota)
 
 (defun iota-segment--invalidate-vcs-cache ()
-  "Invalidate VCS status cache for current buffer."
+  "Invalidate VCS status cache for current buffer.
+Uses unified cache system."
+  ;; Clear unified cache VCS entries for this directory
+  (when-let ((dir (vc-git-root (or (buffer-file-name) default-directory))))
+    (iota-cache-invalidate (format "^vcs:git-status:%s" (regexp-quote dir))))
+  ;; Also clear legacy cache
   (setq iota-segment--vcs-status-cache nil
         iota-segment--vcs-cache-time 0))
 

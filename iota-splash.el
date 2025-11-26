@@ -21,6 +21,9 @@
 ;;; Code:
 
 (require 'iota-faces)
+(require 'iota-timers)
+(require 'iota-update)
+(require 'iota-utils)
 (require 'color)
 
 (defcustom iota-splash-buffer-name "*I O T Λ splash*"
@@ -296,18 +299,41 @@ WINDOW is the window to use for width calculations (defaults to selected window)
   (when (and iota-splash-show-hints
              (not iota-splash--hint-timer))
     (setq iota-splash--hint-index 0)
-    (setq iota-splash--hint-timer
-          (run-with-timer 5 5 #'iota-splash--rotate-hint))))
+    ;; Use centralized timer registry
+    (iota-timers-run-with-timer 'splash-hints 5 5 #'iota-splash--rotate-hint)))
 
 (defun iota-splash--stop-hint-rotation ()
   "Stop the hint rotation timer."
+  ;; Use centralized timer registry
+  (iota-timers-cancel 'splash-hints)
+  ;; Also clean up legacy timer if present
   (when (and iota-splash--hint-timer (timerp iota-splash--hint-timer))
     (cancel-timer iota-splash--hint-timer)
     (setq iota-splash--hint-timer nil)))
 
+(defvar iota-splash--redraw-pending nil
+  "Whether a redraw is pending (for debouncing).")
+
+(defvar iota-splash--last-redraw-time 0
+  "Time of last redraw (for throttling).")
+
+(defcustom iota-splash-redraw-debounce 0.1
+  "Minimum interval between splash screen redraws in seconds."
+  :type 'float
+  :group 'iota)
+
 (defun iota-splash--redraw-buffer ()
   "Redraw the splash screen buffer content.
-This regenerates the entire buffer with proper padding and centering."
+This regenerates the entire buffer with proper padding and centering.
+Redraws are debounced to prevent performance issues."
+  (let ((now (float-time)))
+    ;; Throttle redraws
+    (when (> (- now iota-splash--last-redraw-time) iota-splash-redraw-debounce)
+      (setq iota-splash--last-redraw-time now)
+      (iota-splash--do-redraw))))
+
+(defun iota-splash--do-redraw ()
+  "Actually perform the splash screen redraw."
   (let ((buffer (get-buffer iota-splash-buffer-name)))
     (when (and buffer (buffer-live-p buffer))
       (with-current-buffer buffer
@@ -436,13 +462,15 @@ This ensures the splash screen stays centered when minibuffer height changes."
 (defun iota-splash--start-animation ()
   "Start the splash screen animation timer."
   (setq iota-splash--animation-step 0)
-  (when (and iota-splash--animation-timer (timerp iota-splash--animation-timer))
-    (cancel-timer iota-splash--animation-timer))
-  (setq iota-splash--animation-timer
-        (run-with-timer 0 0.1 #'iota-splash--animate-step)))
+  ;; Use centralized timer registry
+  (iota-timers-cancel 'splash-animation)
+  (iota-timers-run-with-timer 'splash-animation 0 0.1 #'iota-splash--animate-step))
 
 (defun iota-splash--stop-animation ()
   "Stop the splash screen animation timer."
+  ;; Use centralized timer registry
+  (iota-timers-cancel 'splash-animation)
+  ;; Also clean up legacy timer if present
   (when (and iota-splash--animation-timer (timerp iota-splash--animation-timer))
     (cancel-timer iota-splash--animation-timer)
     (setq iota-splash--animation-timer nil)))

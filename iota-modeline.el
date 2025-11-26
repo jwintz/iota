@@ -27,6 +27,10 @@
 (require 'iota-segments)
 (require 'iota-theme)
 (require 'iota-tui)
+(require 'iota-update)
+(require 'iota-timers)
+(require 'iota-cache)
+(require 'iota-utils)
 
 ;;; Customization
 
@@ -74,9 +78,10 @@ Should be a list of segment structs."
   :type '(repeat sexp)
   :group 'iota-modeline)
 
-(defcustom iota-modeline-update-debounce 0.05
+(defcustom iota-modeline-update-debounce 0.15
   "Debounce interval for modeline updates in seconds.
-Reduced to 50ms to not interfere with 30 FPS animations."
+Recommended range: 0.1 - 0.3. Higher values reduce CPU usage.
+Note: This is now handled by the centralized update system."
   :type 'float
   :group 'iota-modeline)
 
@@ -259,6 +264,12 @@ If WINDOW is nil, use selected window."
   (dolist (win (window-list))
     (iota-modeline--update-overlay win)))
 
+(defun iota-modeline--do-update ()
+  "Perform modeline update (called by centralized update system).
+This is the main entry point for the iota-update system."
+  (iota-safe-call "modeline-update"
+    (iota-modeline--update)))
+
 (defun iota-modeline--should-update-p ()
   "Return t if modeline should update now."
   (let ((current-time (float-time)))
@@ -272,18 +283,25 @@ If WINDOW is nil, use selected window."
     (iota-modeline--update)))
 
 (defun iota-modeline--setup-timers ()
-  "Set up periodic update timers."
-  (when iota-modeline--update-timer
-    (cancel-timer iota-modeline--update-timer))
-  ;; Update every minute for time/battery segments
-  (setq iota-modeline--update-timer
-        (run-with-timer 60 60 #'iota-modeline--update)))
+  "Set up periodic update timers using centralized timer registry."
+  ;; Use centralized timer management for proper cleanup
+  (iota-timers-cancel 'modeline-periodic)
+  ;; Periodic updates now handled by iota-update system
+  ;; Only register if not using centralized updates
+  (unless (featurep 'iota-update)
+    (setq iota-modeline--update-timer
+          (iota-timers-run-with-timer 'modeline-periodic 60 60 #'iota-modeline--update))))
 
 (defun iota-modeline--cleanup-timers ()
-  "Clean up timers."
+  "Clean up timers using centralized timer registry."
+  ;; Cancel via registry
+  (iota-timers-cancel 'modeline-periodic)
+  ;; Also clean up legacy timer if present
   (when iota-modeline--update-timer
     (cancel-timer iota-modeline--update-timer)
-    (setq iota-modeline--update-timer nil)))
+    (setq iota-modeline--update-timer nil))
+  ;; Cancel any debounce timers
+  (cancel-function-timers #'iota-modeline--debounced-update))
 
 ;;; Hooks
 
@@ -466,16 +484,25 @@ Only windows that are at the bottom of the frame get a separator line."
                        iota-theme-transparent-mode)))
     (iota-theme-transparent-mode 1))
 
-  ;; Set up hooks
-  (add-hook 'post-command-hook #'iota-modeline--post-command)
-  (add-hook 'buffer-list-update-hook #'iota-modeline--buffer-list-update)
+  ;; Register with centralized update system
+  (when (featurep 'iota-update)
+    (iota-update-register-component :modeline #'iota-modeline--do-update)
+    (iota-update-install-hooks))
+  
+  ;; Set up hooks (minimal set - post-command-hook removed for performance)
+  ;; The centralized update system uses idle timers instead
+  (unless (featurep 'iota-update)
+    ;; Fallback if update system not loaded
+    (add-hook 'buffer-list-update-hook #'iota-modeline--buffer-list-update))
+  
   (add-hook 'after-change-major-mode-hook #'iota-modeline--after-change-major-mode)
   (add-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
-  (add-hook 'window-size-change-functions #'iota-modeline--window-size-change)
-  ;; Note: window-configuration-change-hook disabled to avoid duplication issues
-  ;; (add-hook 'window-configuration-change-hook #'iota-modeline--window-configuration-change)
+  
+  ;; Window hooks now handled by centralized update system
+  (unless (featurep 'iota-update)
+    (add-hook 'window-size-change-functions #'iota-modeline--window-size-change))
 
-  ;; Set up timers
+  ;; Set up timers (now uses centralized timer registry)
   (iota-modeline--setup-timers)
   
   ;; Apply to all existing buffers
@@ -506,8 +533,11 @@ Only windows that are at the bottom of the frame get a separator line."
 
 (defun iota-modeline--teardown ()
   "Tear down IOTA modeline."
+  ;; Unregister from centralized update system
+  (when (featurep 'iota-update)
+    (iota-update-unregister-component :modeline))
+  
   ;; Remove hooks
-  (remove-hook 'post-command-hook #'iota-modeline--post-command)
   (remove-hook 'buffer-list-update-hook #'iota-modeline--buffer-list-update)
   (remove-hook 'after-change-major-mode-hook #'iota-modeline--after-change-major-mode)
   (remove-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)

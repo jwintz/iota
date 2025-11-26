@@ -247,13 +247,12 @@ Wrapper around `iota-theme-get-color'."
 
 ;;; Version
 
-(defconst iota-version "0.1.0"
-  "I O T Λ version string.")
-
+;; Version is defined in iota.el - use that as the single source of truth
 (defun iota-version ()
   "Display I O T Λ version."
   (interactive)
-  (message "I O T Λ v%s — Not one iota more than needed." iota-version))
+  (message "I O T Λ v%s — Not one iota more than needed."
+           (if (boundp 'iota-version) iota-version "0.1.0")))
 
 ;;; Feature Checks
 

@@ -24,6 +24,8 @@
 (require 'cl-lib)
 (require 'color)
 (require 'iota-theme)
+(require 'iota-timers)
+(require 'iota-utils)
 
 ;;; Configuration
 
@@ -219,14 +221,16 @@ Returns: Animation ID (use with `iota-animate-stop')."
                        :update-fn update-fn
                        :finish-fn finish-fn
                        :cancel-fn cancel-fn))
+           (timer-key (intern (format "animate-%d" id)))
            (timer nil))
-      ;; Create timer that looks up animation by ID to avoid closure issues
-      (setq timer (run-with-timer 0 interval
-                                  (lambda ()
-                                    (let ((anim (cl-find id iota-animate--active-animations
-                                                         :key #'iota-animation-id)))
-                                      (when anim
-                                        (iota-animate--tick anim))))))
+      ;; Create timer using centralized registry
+      (setq timer (iota-timers-run-with-timer 
+                   timer-key 0 interval
+                   (lambda ()
+                     (let ((anim (cl-find id iota-animate--active-animations
+                                          :key #'iota-animation-id)))
+                       (when anim
+                         (iota-animate--tick anim))))))
       (setf (iota-animation-timer animation) timer)
       ;; Register animation
       (push animation iota-animate--active-animations)
@@ -236,9 +240,13 @@ Returns: Animation ID (use with `iota-animate-stop')."
   "Stop animation with ID."
   (when-let ((animation (cl-find id iota-animate--active-animations
                                   :key #'iota-animation-id)))
-    ;; Cancel timer
+    ;; Cancel timer via registry
+    (let ((timer-key (intern (format "animate-%d" id))))
+      (iota-timers-cancel timer-key))
+    ;; Also cancel direct timer reference if present
     (when-let ((timer (iota-animation-timer animation)))
-      (cancel-timer timer))
+      (when (timerp timer)
+        (cancel-timer timer)))
     ;; Remove from active list
     (setq iota-animate--active-animations
           (cl-remove id iota-animate--active-animations
@@ -248,9 +256,13 @@ Returns: Animation ID (use with `iota-animate-stop')."
 (defun iota-animate-stop-all ()
   "Stop all active animations."
   (interactive)
+  ;; Cancel all animation timers via registry
+  (iota-timers-cancel-group 'animate)
+  ;; Also cancel any direct timer references
   (dolist (animation iota-animate--active-animations)
     (when-let ((timer (iota-animation-timer animation)))
-      (cancel-timer timer))
+      (when (timerp timer)
+        (cancel-timer timer)))
     (when-let ((cancel-fn (iota-animation-cancel-fn animation)))
       (funcall cancel-fn)))
   (setq iota-animate--active-animations nil))

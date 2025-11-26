@@ -35,6 +35,13 @@
 
 ;;; Code:
 
+;; Core utilities (load first)
+(require 'iota-utils)
+(require 'iota-cache)
+(require 'iota-timers)
+(require 'iota-update)
+
+;; UI components
 (require 'iota-box)
 (require 'iota-segment)
 (require 'iota-segments)
