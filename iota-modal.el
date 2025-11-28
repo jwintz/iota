@@ -230,6 +230,11 @@ STYLE can be `both', `glyph', or `label'."
                    (iota-modal--format-indicator state iota-modal-indicator-style))
                   'face 'iota-inactive-modeline-face))))
 
+(defun iota-modal--build-short-indicator ()
+  "Build the short modal state indicator (glyph only) for the modeline."
+  (let ((state (if (bound-and-true-p modalka-mode) 'command 'insert)))
+    (iota-modal--format-indicator state 'glyph)))
+
 (defun iota-modal-state-segment ()
   "Create a modeline segment showing modal state.
 
@@ -242,6 +247,7 @@ Active windows show colored indicators, inactive windows show dimmed."
   (iota-segment-create
    :id 'modal-state
    :text #'iota-modal--build-indicator
+   :short-text #'iota-modal--build-short-indicator
    :face nil ; Don't override the propertized face
    :align 'left
    :priority 150
@@ -317,30 +323,15 @@ This implements the Iota Semantic Specification from the architecture document."
   (define-key modalka-mode-map (kbd "r") #'isearch-backward)
 
   ;; === Prefix Delegation (Section 3.3) ===
-  ;; Create a custom x-prefix keymap that inherits from ctl-x-map
-  ;; but overrides specific keys to act like C-x C-* instead of C-x *
-  (let ((x-map (make-sparse-keymap)))
-    ;; Inherit from ctl-x-map for fallback commands
-    (set-keymap-parent x-map ctl-x-map)
-    ;; Override with C-x C-* equivalents
-    (define-key x-map (kbd "f") #'find-file)              ; C-x C-f
-    (define-key x-map (kbd "s") #'save-buffer)            ; C-x C-s
-    (define-key x-map (kbd "b") #'switch-to-buffer)       ; C-x b (already correct)
-    (define-key x-map (kbd "k") #'kill-buffer)            ; C-x k (already correct)
-    (define-key x-map (kbd "o") #'other-window)           ; C-x o (already correct)
-    (define-key x-map (kbd "0") #'delete-window)          ; C-x 0 (already correct)
-    (define-key x-map (kbd "1") #'delete-other-windows)   ; C-x 1 (already correct)
-    (define-key x-map (kbd "2") #'split-window-below)     ; C-x 2 (already correct)
-    (define-key x-map (kbd "3") #'split-window-right)     ; C-x 3 (already correct)
-    (define-key x-map (kbd "w") #'write-file)             ; C-x C-w
-    (define-key x-map (kbd "e") #'eval-last-sexp)         ; C-x C-e
-    (define-key x-map (kbd "c") #'save-buffers-kill-terminal)  ; C-x C-c
-    (define-key x-map (kbd "u") #'undo)                   ; C-x u (already correct)
-    (define-key modalka-mode-map (kbd "x") x-map))
+  ;; For x prefix, we need to respect user's C-x bindings including those
+  ;; made with :bind* (which use override-global-map).
+  ;; We create a command that simulates C-x and then reads the next key.
+  (define-key modalka-mode-map (kbd "x") #'iota-modal--simulate-C-x)
   (define-key modalka-mode-map (kbd "X") #'execute-extended-command)  ; M-x
-  ;; C-c prefix: bind directly for mode-specific commands
-  (define-key modalka-mode-map (kbd "c") mode-specific-map)
-  (define-key modalka-mode-map (kbd "h") help-map)  ; Help prefix
+  ;; C-c prefix: simulate C-c for mode-specific commands
+  (define-key modalka-mode-map (kbd "c") #'iota-modal--simulate-C-c)
+  ;; Help prefix: simulate C-h
+  (define-key modalka-mode-map (kbd "h") #'iota-modal--simulate-C-h)
   (define-key modalka-mode-map (kbd "g") #'keyboard-quit)
 
   ;; === Arrow Keys Passthrough ===
@@ -396,6 +387,58 @@ This implements the Iota Semantic Specification from the architecture document."
   (move-beginning-of-line nil)
   (open-line 1)
   (iota-modal-enter-insert-mode))
+
+;;; Prefix Key Simulation
+;; These functions simulate C-x, C-c, C-h prefixes by reading the next key
+;; and looking up the binding through the normal key-binding mechanism.
+;; This ensures user bindings (including :bind* / override-global-map) work.
+
+(defvar iota-modal--x-convenience-map
+  (let ((map (make-sparse-keymap)))
+    ;; Convenience mappings: x <key> -> C-x C-<key>
+    ;; These are the most common C-x C-* commands accessed without Control
+    (define-key map (kbd "f") #'find-file)              ; C-x C-f
+    (define-key map (kbd "s") #'save-buffer)            ; C-x C-s
+    (define-key map (kbd "w") #'write-file)             ; C-x C-w
+    (define-key map (kbd "e") #'eval-last-sexp)         ; C-x C-e
+    (define-key map (kbd "c") #'save-buffers-kill-terminal)  ; C-x C-c
+    map)
+  "Convenience keymap for common C-x C-* commands.")
+
+(defun iota-modal--simulate-prefix (prefix-key prefix-name &optional convenience-map)
+  "Simulate PREFIX-KEY (like \"C-x\") and execute the resulting command.
+PREFIX-NAME is used for the prompt.
+CONVENIENCE-MAP is an optional keymap checked first for convenience bindings."
+  (let* ((key (read-key-sequence-vector (concat prefix-name "-")))
+         ;; First check convenience map for single-key shortcuts
+         (convenience-cmd (and convenience-map
+                               (lookup-key convenience-map key)))
+         ;; Then check full C-x <key> binding (for user overrides like windmove)
+         (full-key (vconcat (kbd prefix-key) key))
+         (cmd (or (and (commandp convenience-cmd) convenience-cmd)
+                  (key-binding full-key))))
+    (if cmd
+        (if (commandp cmd)
+            (call-interactively cmd)
+          (error "%s %s is not a command" prefix-name (key-description key)))
+      (message "%s %s is undefined" prefix-name (key-description key)))))
+
+(defun iota-modal--simulate-C-x ()
+  "Simulate C-x prefix and execute the following command.
+Common commands like `f' (find-file), `s' (save) work without Control.
+All other bindings including user customizations (like windmove) work too."
+  (interactive)
+  (iota-modal--simulate-prefix "C-x" "x" iota-modal--x-convenience-map))
+
+(defun iota-modal--simulate-C-c ()
+  "Simulate C-c prefix and execute the following command."
+  (interactive)
+  (iota-modal--simulate-prefix "C-c" "c"))
+
+(defun iota-modal--simulate-C-h ()
+  "Simulate C-h prefix and execute the following command."
+  (interactive)
+  (iota-modal--simulate-prefix "C-h" "h"))
 
 ;;; Debug Logging
 
@@ -454,6 +497,11 @@ Updates cursor and forces modeline refresh."
   (when (fboundp 'iota-update-request)
     (iota-update-request :modeline t)))
 
+(defun iota-modal--on-window-selection-change (frame)
+  "Update cursor when window selection changes in FRAME.
+This ensures cursor reflects the modal state of the newly selected buffer."
+  (iota-modal--update-cursor))
+
 (defun iota-modal--setup-hooks ()
   "Set up hooks for modal state tracking."
   ;; Track modalka state changes
@@ -461,6 +509,8 @@ Updates cursor and forces modeline refresh."
   ;; Activate in text and programming modes (whitelist approach)
   (add-hook 'text-mode-hook #'iota-modal--maybe-activate)
   (add-hook 'prog-mode-hook #'iota-modal--maybe-activate)
+  ;; Update cursor when switching windows/buffers
+  (add-hook 'window-selection-change-functions #'iota-modal--on-window-selection-change)
   ;; Restore cursor on Emacs exit
   (add-hook 'kill-emacs-hook #'iota-modal--restore-cursor-on-exit))
 
@@ -469,6 +519,7 @@ Updates cursor and forces modeline refresh."
   (remove-hook 'modalka-mode-hook #'iota-modal--on-mode-change)
   (remove-hook 'text-mode-hook #'iota-modal--maybe-activate)
   (remove-hook 'prog-mode-hook #'iota-modal--maybe-activate)
+  (remove-hook 'window-selection-change-functions #'iota-modal--on-window-selection-change)
   (remove-hook 'kill-emacs-hook #'iota-modal--restore-cursor-on-exit))
 
 ;;; Segment Management

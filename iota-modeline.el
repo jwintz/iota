@@ -117,6 +117,38 @@ If nil, inactive windows use default modeline."
 
 ;;; Modeline Rendering
 
+(defun iota-modeline--fit-segments (segments width _style)
+  "Fit SEGMENTS into WIDTH for box rendering with _STYLE.
+Returns three lists: (left-fitted center-fitted right-fitted).
+Each fitted list contains (segment . use-short) cons cells."
+  (let* ((left-segs (cl-remove-if-not
+                     (lambda (s) (eq (iota-segment-align s) 'left))
+                     segments))
+         (center-segs (cl-remove-if-not
+                       (lambda (s) (eq (iota-segment-align s) 'center))
+                       segments))
+         (right-segs (cl-remove-if-not
+                      (lambda (s) (eq (iota-segment-align s) 'right))
+                      segments))
+         ;; Box borders take 4 chars (2 borders + 2 spaces), separator is 3 chars " │ "
+         (content-width (- width 4))
+         (separator-width 3)
+         ;; Calculate minimum required width for highest priority segments
+         (left-fitted (iota-segment-fit-to-width left-segs
+                                                  (/ content-width 3)
+                                                  separator-width))
+         (right-fitted (iota-segment-fit-to-width right-segs
+                                                   (/ content-width 3)
+                                                   separator-width))
+         ;; Calculate remaining width for center after left and right
+         (left-width (iota-segment--calculate-total-width left-fitted separator-width))
+         (right-width (iota-segment--calculate-total-width right-fitted separator-width))
+         (center-available (max 0 (- content-width left-width right-width 2))) ; 2 for min spacing
+         (center-fitted (iota-segment-fit-to-width center-segs
+                                                    center-available
+                                                    separator-width)))
+    (list left-fitted center-fitted right-fitted)))
+
 (defun iota-modeline--render (&optional override-box-face window)
   "Render IOTA modeline format string for WINDOW.
 If WINDOW is nil, use selected window."
@@ -129,20 +161,16 @@ If WINDOW is nil, use selected window."
            (segments (iota-modeline--get-segments))
            (style iota-modeline-box-style)
            (box-face (or override-box-face
-                        (iota-theme-get-box-face target-window))))
+                        (iota-theme-get-box-face target-window)))
+           ;; Fit segments to available width
+           (fitted (iota-modeline--fit-segments segments width style))
+           (left-fitted (nth 0 fitted))
+           (center-fitted (nth 1 fitted))
+           (right-fitted (nth 2 fitted)))
       (iota-box-render-single-line
-       :left (mapcar #'iota-segment-render
-                     (cl-remove-if-not
-                      (lambda (s) (eq (iota-segment-align s) 'left))
-                      segments))
-       :center (mapcar #'iota-segment-render
-                       (cl-remove-if-not
-                        (lambda (s) (eq (iota-segment-align s) 'center))
-                        segments))
-       :right (mapcar #'iota-segment-render
-                      (cl-remove-if-not
-                       (lambda (s) (eq (iota-segment-align s) 'right))
-                       segments))
+       :left (iota-segment-render-fitted left-fitted)
+       :center (iota-segment-render-fitted center-fitted)
+       :right (iota-segment-render-fitted right-fitted)
        :width width
        :style style
        :face box-face))))

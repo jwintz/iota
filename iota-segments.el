@@ -40,6 +40,11 @@
   (iota-segment-create
    :id 'buffer-name
    :text (lambda () (buffer-name))
+   :short-text (lambda ()
+                 (let ((name (buffer-name)))
+                   (if (> (length name) 12)
+                       (concat (substring name 0 10) "…")
+                     name)))
    :face #'iota-theme-get-modeline-face
    :align 'left
    :priority 100
@@ -103,6 +108,12 @@
                        0
                      (/ (* 100 (- (point) (point-min)))
                         (- (point-max) (point-min))))))
+   :short-text (lambda ()
+                 (format "%d%%"
+                         (if (= (point-max) (point-min))
+                             0
+                           (/ (* 100 (- (point) (point-min)))
+                              (- (point-max) (point-min))))))
    :face #'iota-theme-get-modeline-face
    :align 'right
    :priority 70
@@ -134,6 +145,14 @@
              (if (stringp name)
                  (substring-no-properties name)
                (format "%s" name))))
+   :short-text (lambda ()
+                 (let* ((name (format-mode-line mode-name))
+                        (name (if (stringp name)
+                                  (substring-no-properties name)
+                                (format "%s" name))))
+                   (if (> (length name) 6)
+                       (substring name 0 4)
+                     name)))
    :face (lambda () (list :inherit (iota-theme-get-modeline-face) :weight 'bold))
    :align 'right
    :priority 60
@@ -278,6 +297,18 @@ Format: ⎇ main*+? where:
                                (replace-regexp-in-string "Git[-:]" "" branch-raw)))
                       (status (iota-segment--git-status-indicators)))
                  (concat "⎇ " branch status)))))
+   :short-text (lambda ()
+                 (when-let ((file (buffer-file-name)))
+                   (when (vc-git-registered file)
+                     (let* ((branch-raw (vc-git-mode-line-string file))
+                            (branch (when branch-raw
+                                     (replace-regexp-in-string "Git[-:]" "" branch-raw)))
+                            (status (iota-segment--git-status-indicators))
+                            ;; Truncate branch name for short version
+                            (short-branch (if (and branch (> (length branch) 8))
+                                              (concat (substring branch 0 6) "…")
+                                            branch)))
+                       (concat "⎇" short-branch status)))))
    :face #'iota-theme-get-accent-face
    :align 'left
    :priority 50
@@ -331,6 +362,7 @@ Format: ⎇ main*+? where:
   (iota-segment-create
    :id 'time
    :text (lambda () (format-time-string "%H:%M"))
+   :short-text (lambda () (format-time-string "%H:%M"))
    :face #'iota-theme-get-modeline-face
    :align 'right
    :priority 10

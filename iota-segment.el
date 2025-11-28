@@ -34,9 +34,11 @@
 Slots:
   id          Symbol uniquely identifying this segment
   text        String content or function returning string
+  short-text  Shorter version for constrained displays (optional)
   face        Face or function returning face
   align       Alignment: left, center, right
   priority    Display priority (higher = more important)
+  min-priority Minimum priority threshold to show this segment (default 0)
   update-on   Event triggering update: always, point, timer, manual
   cache-key   Key for caching (if nil, no caching)
   help-echo   Tooltip text or function
@@ -44,9 +46,11 @@ Slots:
   visible-fn  Function determining visibility (optional)"
   id
   text
+  short-text
   face
   (align 'left)
   (priority 50)
+  (min-priority 0)
   (update-on 'always)
   cache-key
   help-echo
@@ -267,6 +271,106 @@ Useful for visual division between segments."
   (iota-segment-create
    :text (make-string width ?\s)
    :priority 0))
+
+;;; Responsive Segment Fitting
+
+(defun iota-segment-render-for-width (segment use-short)
+  "Render SEGMENT, using short text if USE-SHORT is non-nil.
+Returns the rendered string or nil if segment is not visible."
+  (when (and segment
+             (or (null (iota-segment-visible-fn segment))
+                 (funcall (iota-segment-visible-fn segment))))
+    (let* ((text-fn (if (and use-short (iota-segment-short-text segment))
+                        (iota-segment-short-text segment)
+                      (iota-segment-text segment)))
+           (text (iota-segment-eval text-fn))
+           (face (let ((f (iota-segment-face segment)))
+                   (if (functionp f) (funcall f) f)))
+           (help-echo (iota-segment-help-echo segment))
+           (keymap (iota-segment-keymap segment))
+           (result text))
+      ;; Apply face
+      (when face
+        (setq result (propertize result 'face face)))
+      ;; Apply help-echo
+      (when help-echo
+        (setq result (propertize result 'help-echo
+                                 (if (functionp help-echo)
+                                     (funcall help-echo)
+                                   help-echo))))
+      ;; Apply keymap
+      (when keymap
+        (setq result (propertize result 'keymap keymap)))
+      result)))
+
+(defun iota-segment-text-width (segment &optional use-short)
+  "Calculate the display width of SEGMENT's text.
+If USE-SHORT is non-nil and segment has short-text, use that instead."
+  (when (and segment
+             (or (null (iota-segment-visible-fn segment))
+                 (funcall (iota-segment-visible-fn segment))))
+    (let* ((text-fn (if (and use-short (iota-segment-short-text segment))
+                        (iota-segment-short-text segment)
+                      (iota-segment-text segment)))
+           (text (iota-segment-eval text-fn)))
+      (string-width text))))
+
+(defun iota-segment-fit-to-width (segments available-width separator-width)
+  "Fit SEGMENTS into AVAILABLE-WIDTH, collapsing/removing as needed.
+SEPARATOR-WIDTH is the width of the separator between segments.
+
+Returns a list of (segment . use-short) cons cells for segments that fit.
+Segments are removed by priority (lowest first) until they fit.
+Before removing a segment, we try using its short-text version."
+  (let* ((sorted-segments (sort (copy-sequence segments)
+                                (lambda (a b)
+                                  (> (iota-segment-priority a)
+                                     (iota-segment-priority b)))))
+         ;; Start with all segments, no collapsing
+         (result (mapcar (lambda (s) (cons s nil)) sorted-segments))
+         (total-width (iota-segment--calculate-total-width result separator-width)))
+    
+    ;; If it fits, we're done
+    (when (> total-width available-width)
+      ;; Try progressive fitting strategies:
+      ;; 1. First, try collapsing segments (use short-text) from lowest priority
+      (let ((to-collapse (reverse result))) ; lowest priority first
+        (while (and to-collapse (> total-width available-width))
+          (let* ((entry (car to-collapse))
+                 (seg (car entry)))
+            (when (iota-segment-short-text seg)
+              ;; Mark this segment to use short text
+              (setcdr entry t)
+              (setq total-width (iota-segment--calculate-total-width result separator-width))))
+          (setq to-collapse (cdr to-collapse))))
+      
+      ;; 2. If still doesn't fit, remove segments from lowest priority
+      (while (and result (> total-width available-width))
+        ;; Remove the last one (lowest priority since list is sorted by priority desc)
+        (setq result (butlast result))
+        (setq total-width (iota-segment--calculate-total-width result separator-width))))
+    
+    result))
+
+(defun iota-segment--calculate-total-width (segment-entries separator-width)
+  "Calculate total width for SEGMENT-ENTRIES with SEPARATOR-WIDTH.
+SEGMENT-ENTRIES is a list of (segment . use-short) cons cells."
+  (let ((widths (delq nil
+                      (mapcar (lambda (entry)
+                                (iota-segment-text-width (car entry) (cdr entry)))
+                              segment-entries))))
+    (if widths
+        (+ (apply #'+ widths)
+           (* separator-width (max 0 (1- (length widths)))))
+      0)))
+
+(defun iota-segment-render-fitted (segment-entries)
+  "Render SEGMENT-ENTRIES which are (segment . use-short) cons cells.
+Returns list of rendered strings."
+  (delq nil
+        (mapcar (lambda (entry)
+                  (iota-segment-render-for-width (car entry) (cdr entry)))
+                segment-entries)))
 
 ;;; Update Triggers
 
