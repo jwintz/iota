@@ -472,7 +472,9 @@ All other bindings including user customizations (like windmove) work too."
        (not (member major-mode iota-modal-excluded-modes))
        (not (derived-mode-p 'special-mode))
        (not (string-prefix-p " *" (buffer-name)))
-       (not (string-prefix-p "*" (buffer-name)))))
+       ;; Allow splash screen, exclude other * buffers
+       (or (string-match-p "I O T Λ splash" (buffer-name))
+           (not (string-prefix-p "*" (buffer-name))))))
 
 (defun iota-modal--maybe-activate ()
   "Activate modalka in current buffer if appropriate.

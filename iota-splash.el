@@ -20,12 +20,15 @@
 
 ;;; Code:
 
-(require 'iota-faces)
-(require 'iota-timers)
-(require 'iota-update)
-(require 'iota-utils)
-(require 'iota-box)
-(require 'color)
+;; Only require what's absolutely needed at load time
+(require 'iota-faces)  ; Defines faces used in splash
+(require 'color)       ; For color-lighten-name
+
+;; Declare functions from modules loaded on-demand
+(declare-function iota-timers-run-with-timer "iota-timers")
+(declare-function iota-timers-cancel "iota-timers")
+(declare-function iota-box-horizontal-line "iota-box")
+(declare-function iota-theme-get-box-face "iota-theme")
 
 (defcustom iota-splash-buffer-name "*I O T Λ splash*"
   "Buffer name for IOTA splash screen."
@@ -127,6 +130,17 @@ Returns a hex color string."
   "Insert the footer tagline."
   (insert "Not one iota more than needed.")
   (insert "\n"))
+
+(defun iota-splash--insert-init-time ()
+  "Insert the Emacs init time at the bottom of the splash screen."
+  (let ((init-time (emacs-init-time "%f")))  ; Get raw seconds as float string
+    (when init-time
+      (let* ((seconds (string-to-number init-time))
+             (time-str (format "%.2f" seconds)))
+        (insert (propertize "Loaded in " 'face 'shadow))
+        (insert (propertize time-str 'face 'iota-splash-logo-primary))
+        (insert (propertize " seconds" 'face 'shadow))
+        (insert "\n")))))
 
 (defun iota-splash--project-available-p ()
   "Return t if project.el is available."
@@ -300,13 +314,15 @@ WINDOW is the window to use for width calculations (defaults to selected window)
   (when (and iota-splash-show-hints
              (not iota-splash--hint-timer))
     (setq iota-splash--hint-index 0)
-    ;; Use centralized timer registry
+    ;; Use centralized timer registry (load on demand)
+    (require 'iota-timers)
     (iota-timers-run-with-timer 'splash-hints 5 5 #'iota-splash--rotate-hint)))
 
 (defun iota-splash--stop-hint-rotation ()
   "Stop the hint rotation timer."
   ;; Use centralized timer registry
-  (iota-timers-cancel 'splash-hints)
+  (when (featurep 'iota-timers)
+    (iota-timers-cancel 'splash-hints))
   ;; Also clean up legacy timer if present
   (when (and iota-splash--hint-timer (timerp iota-splash--hint-timer))
     (cancel-timer iota-splash--hint-timer)
@@ -350,7 +366,8 @@ Redraws are debounced to prevent performance issues."
                                            (if (and iota-splash-show-key-bindings
                                                     (iota-splash--project-available-p))
                                                13 0)
-                                           (if iota-splash-show-hints 5 0)))
+                                           (if iota-splash-show-hints 5 0)
+                                           2))  ; +2 for init time line
                          (padding (max 0 (/ (- current-height content-lines) 2))))
                     (dotimes (_ padding) (insert "\n")))
                   (let ((logo-start (point)))
@@ -365,6 +382,13 @@ Redraws are debounced to prevent performance issues."
                     (iota-splash--insert-hints)
                     (let ((fill-column (window-width window)))
                       (center-region hints-start (point))))
+
+                  ;; Insert init time at the bottom, centered
+                  (let ((init-time-start (point)))
+                    (insert "\n")
+                    (iota-splash--insert-init-time)
+                    (let ((fill-column (window-width window)))
+                      (center-region init-time-start (point))))
 
                   ;; Ensure cursor remains hidden after redraw
                   (setq-local cursor-type nil)
@@ -409,6 +433,7 @@ Also updates separator line visibility based on minibuffer/which-key state."
   "Get a separator line string for WINDOW.
 Uses the configured box style from iota-modeline if available.
 Uses the same face as the modeline box for consistency."
+  (require 'iota-box)  ; Load on demand
   (let* ((width (1- (window-body-width window)))
          (style (if (boundp 'iota-modeline-box-style)
                     iota-modeline-box-style
@@ -545,14 +570,16 @@ This forces a redraw to ensure the splash screen stays centered."
 (defun iota-splash--start-animation ()
   "Start the splash screen animation timer."
   (setq iota-splash--animation-step 0)
-  ;; Use centralized timer registry
+  ;; Use centralized timer registry (load on demand)
+  (require 'iota-timers)
   (iota-timers-cancel 'splash-animation)
   (iota-timers-run-with-timer 'splash-animation 0 0.1 #'iota-splash--animate-step))
 
 (defun iota-splash--stop-animation ()
   "Stop the splash screen animation timer."
   ;; Use centralized timer registry
-  (iota-timers-cancel 'splash-animation)
+  (when (featurep 'iota-timers)
+    (iota-timers-cancel 'splash-animation))
   ;; Also clean up legacy timer if present
   (when (and iota-splash--animation-timer (timerp iota-splash--animation-timer))
     (cancel-timer iota-splash--animation-timer)
@@ -593,7 +620,8 @@ Does not display if Emacs was opened with file arguments."
                                  (if (and iota-splash-show-key-bindings
                                           (iota-splash--project-available-p))
                                      13 0)
-                                 (if iota-splash-show-hints 5 0)))
+                                 (if iota-splash-show-hints 5 0)
+                                 2))  ; +2 for init time line
                (padding (max 0 (/ (- (window-body-height) content-lines) 2))))
           (dotimes (_ padding) (insert "\n")))
 
@@ -613,10 +641,23 @@ Does not display if Emacs was opened with file arguments."
           (let ((fill-column (window-width)))
             (center-region hints-start (point))))
 
+        ;; Insert init time at the bottom, centered
+        (let ((init-time-start (point)))
+          (insert "\n")
+          (iota-splash--insert-init-time)
+          (let ((fill-column (window-width)))
+            (center-region init-time-start (point))))
+
         ;; Finalize Buffer State
         (read-only-mode 1)
         (local-set-key (kbd "q") 'quit-window)
         (local-set-key (kbd "RET") 'quit-window)
+
+        ;; Enable modalka for command mode in splash screen
+        ;; This allows x f, x b, etc. to work
+        (when (and (boundp 'iota-modal-mode) iota-modal-mode
+                   (fboundp 'modalka-mode))
+          (modalka-mode 1))
 
         ;; Hide both mode-line and header-line in splash screen
         (setq-local mode-line-format nil)
