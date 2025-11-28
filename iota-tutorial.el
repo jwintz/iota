@@ -131,7 +131,7 @@ STYLE defaults to `single'."
    (iota-tutorial--separator)
    "\n\n"
    (propertize "How to use this tutorial:\n\n" 'face '(:weight bold))
-   "  This buffer is " (propertize "EDITABLE" 'face '(:foreground "#50fa7b" :weight bold)) " - practice the commands directly!\n\n"
+   "  This buffer is " (propertize "EDITABLE" 'face 'iota-success-face) " - practice the commands directly!\n\n"
    "  " (propertize "n/p" 'face 'iota-accent-face) "    — Move to next/previous line\n"
    "  " (propertize "v/V" 'face 'iota-accent-face) "    — Scroll down/up\n"
    "  " (propertize "i" 'face 'iota-accent-face) "      — Enter INSERT mode (type text)\n"
@@ -144,9 +144,9 @@ STYLE defaults to `single'."
    (iota-tutorial--heading "UNDERSTANDING MODES")
    "\n\n"
    "IOTA has two modes:\n\n"
-   (iota-tutorial--mode-box "COMMAND" "box" "Keys trigger commands" "#50fa7b")
+   (iota-tutorial--mode-box "COMMAND" "box" "Keys trigger commands" 'command)
    "\n\n"
-   (iota-tutorial--mode-box "INSERT" "bar" "Keys insert text" "#6272a4")
+   (iota-tutorial--mode-box "INSERT" "bar" "Keys insert text" 'insert)
    "\n\n"
    (iota-tutorial--separator)
    "\n\n"
@@ -155,8 +155,8 @@ STYLE defaults to `single'."
    "    COMMAND: █ (box) — 'Stopping' power, keys are commands\n"
    "    INSERT:  | (bar) — 'Insertion' point, keys type text\n\n"
    "  " (propertize "Modeline Indicator" 'face '(:weight bold)) "\n"
-   "    " (propertize "● COMMAND" 'face '(:foreground "#50fa7b" :weight bold)) " — Green, prominent\n"
-   "    " (propertize "○ INSERT" 'face '(:foreground "#6272a4")) "  — Gray, subtle\n\n"
+   "    " (propertize "● COMMAND" 'face 'iota-success-face) " — Green, prominent\n"
+   "    " (propertize "○ INSERT" 'face 'iota-muted-face) "  — Gray, subtle\n\n"
    (iota-tutorial--separator)
    "\n\n"
    (propertize "Mode Switching:\n\n" 'face '(:weight bold))
@@ -281,7 +281,7 @@ STYLE defaults to `single'."
   (concat
    (iota-tutorial--heading "COPY, PASTE, CUT")
    "\n\n"
-   (propertize "THE CORE OF IOTA\n\n" 'face '(:weight bold :foreground "#50fa7b"))
+   (propertize "THE CORE OF IOTA\n\n" 'face 'iota-success-face)
    "These bindings preserve Emacs semantics:\n\n"
    (iota-tutorial--key-table
     '(("w" "M-w" "kill-ring-save" "COPY — save region to kill ring")
@@ -383,7 +383,7 @@ STYLE defaults to `single'."
    (iota-tutorial--heading "LEADER KEY FRAMEWORK")
    "\n\n"
    "The leader key provides organized command access:\n\n"
-   (propertize "Leader Key: , (comma)\n\n" 'face '(:weight bold :foreground "#50fa7b"))
+   (propertize "Leader Key: , (comma)\n\n" 'face 'iota-success-face)
    (iota-tutorial--separator)
    "\n\n"
    (propertize "Leader Hierarchy:\n\n" 'face '(:weight bold))
@@ -415,7 +415,7 @@ STYLE defaults to `single'."
   (concat
    (iota-tutorial--heading "CONGRATULATIONS!")
    "\n\n"
-   (propertize "You've completed the IOTA tutorial!\n\n" 'face '(:weight bold :foreground "#50fa7b"))
+   (propertize "You've completed the IOTA tutorial!\n\n" 'face 'iota-success-face)
    (iota-tutorial--separator-double)
    "\n\n"
    (propertize "Quick Reference Card:\n\n" 'face '(:weight bold))
@@ -439,17 +439,33 @@ STYLE defaults to `single'."
 (defun iota-tutorial--heading (text)
   "Format TEXT as a section heading."
   (concat "\n"
-          (propertize (concat "  " text) 'face '(:weight bold :foreground "#39bae6" :height 1.3))
+          (propertize (concat "  " text) 'face 'iota-highlight-face)
           "\n"))
 
-(defun iota-tutorial--mode-box (name cursor-shape description color)
-  "Create a mode description box for NAME with CURSOR-SHAPE and DESCRIPTION."
-  (let ((cursor-char (if (string= cursor-shape "box") "█" "|")))
+(defun iota-tutorial--mode-box (name cursor-shape description mode-type)
+  "Create a mode description box for NAME with CURSOR-SHAPE and DESCRIPTION.
+MODE-TYPE is either 'command or 'insert to derive the color from theme."
+  (let* ((cursor-char (if (string= cursor-shape "box") "█" "|"))
+         (color (pcase mode-type
+                  ('command (or (and (fboundp 'iota-theme-get-success-color)
+                                     (iota-theme-get-success-color))
+                                "#50fa7b"))
+                  ('insert (or (and (fboundp 'iota-theme-get-muted-color)
+                                    (iota-theme-get-muted-color))
+                               "#6272a4"))
+                  (_ "#888888")))
+         ;; Total width is 45. Line structure:
+         ;; "  │ " (4) + cursor (1) + "  " (2) + name (36) + " │" (2) = 45
+         ;; "  │     " (8) + desc (35) + " │" (2) = 45
+         (name-padded (format "%-36s" name))
+         (desc-padded (format "%-35s" description)))
     (concat "  ╭─────────────────────────────────────────╮\n"
-            (format "  │  %s  %-35s│\n"
-                    (propertize cursor-char 'face `(:foreground ,color))
-                    (propertize name 'face `(:foreground ,color :weight bold)))
-            (format "  │     %-37s│\n" description)
+            "  │ "
+            (propertize cursor-char 'face `(:foreground ,color))
+            "  "
+            (propertize name-padded 'face `(:foreground ,color :weight bold))
+            " │\n"
+            "  │     " desc-padded " │\n"
             "  ╰─────────────────────────────────────────╯")))
 
 (defun iota-tutorial--key-table (rows)

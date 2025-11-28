@@ -29,6 +29,25 @@
 (require 'iota-widgets)
 (require 'iota-modeline)
 (require 'iota-box)
+(require 'iota-theme)
+
+;;; Demo Face Helpers
+
+(defun iota-demo--accent-face ()
+  "Get the accent face for demo highlighting."
+  'iota-accent-face)
+
+(defun iota-demo--heading-face ()
+  "Get the face for demo headings."
+  'iota-highlight-face)
+
+(defun iota-demo--success-face ()
+  "Get the success face for demo."
+  'iota-success-face)
+
+(defun iota-demo--muted-face ()
+  "Get the muted face for demo."
+  'iota-muted-face)
 
 ;;; Demo Navigation State
 

@@ -157,7 +157,8 @@ If WINDOW is nil, use selected window."
     (let* ((target-window (or window (selected-window)))
            ;; Use window-body-width which excludes margins, fringes, and scroll bars
            ;; Subtract 1 to prevent line wrapping at exact boundary
-           (width (1- (window-body-width target-window)))
+           (raw-width (window-body-width target-window))
+           (width (if raw-width (max 1 (1- raw-width)) 80))  ; Fallback to 80 if nil
            (segments (iota-modeline--get-segments))
            (style iota-modeline-box-style)
            (box-face (or override-box-face
@@ -197,46 +198,61 @@ If WINDOW is nil, use selected window."
   "Hash table mapping windows to their separator-line overlays.")
 
 (defun iota-modeline--ensure-overlay (window)
-  "Ensure the simulated header overlay exists for WINDOW."
-  (let ((overlay (gethash window iota-modeline--window-overlays)))
-    ;; Clean up invalid overlay
-    (when (and overlay
-               (overlayp overlay)
-               (not (overlay-buffer overlay)))
-      (remhash window iota-modeline--window-overlays)
-      (setq overlay nil))
-    ;; Create new overlay if needed
-    (unless overlay
-      (with-current-buffer (window-buffer window)
-        (setq overlay (make-overlay (point-min) (point-min) (current-buffer)))
-        (overlay-put overlay 'priority 100)
-        (puthash window overlay iota-modeline--window-overlays)))
-    overlay))
+  "Ensure the simulated header overlay exists for WINDOW.
+Returns nil if window or buffer is invalid."
+  (when (and (window-live-p window)
+             (window-buffer window)
+             (buffer-live-p (window-buffer window)))
+    (let ((overlay (gethash window iota-modeline--window-overlays)))
+      ;; Clean up invalid overlay
+      (when (and overlay
+                 (overlayp overlay)
+                 (not (overlay-buffer overlay)))
+        (remhash window iota-modeline--window-overlays)
+        (setq overlay nil))
+      ;; Create new overlay if needed
+      (unless overlay
+        (with-current-buffer (window-buffer window)
+          (setq overlay (make-overlay (point-min) (point-min) (current-buffer)))
+          (overlay-put overlay 'priority 100)
+          (puthash window overlay iota-modeline--window-overlays)))
+      overlay)))
 
 (defun iota-modeline--update-overlay (&optional window)
   "Update the simulated header overlay for WINDOW.
 If WINDOW is nil, use selected window."
   (condition-case err
       (let ((win (or window (selected-window))))
-        (when (window-live-p win)
+        (when (and (window-live-p win)
+                   (window-buffer win)
+                   (buffer-live-p (window-buffer win)))
           (with-current-buffer (window-buffer win)
             (when (eq iota-modeline-position 'header)
               ;; Ensure native header line is disabled locally
               (kill-local-variable 'header-line-format)
 
-              (let* ((overlay (iota-modeline--ensure-overlay win))
-                     (start (window-start win))
-                     ;; Pass window explicitly to ensure correct face
-                     (box (with-selected-window win
-                            (iota-modeline--render nil win))))
-                (move-overlay overlay start start (current-buffer))
-                (overlay-put overlay 'before-string
-                             (if (string= box "")
-                                 ""
-                               (concat box "\n")))
-                (overlay-put overlay 'window win))))))
+              (let ((overlay (iota-modeline--ensure-overlay win))
+                    (start (window-start win)))
+                ;; Only proceed if we have valid overlay and start position
+                (when (and overlay (overlayp overlay)
+                           start (integer-or-marker-p start))
+                  (condition-case render-err
+                      (let ((box (with-selected-window win
+                                   (iota-modeline--render nil win))))
+                        (move-overlay overlay start start (current-buffer))
+                        (overlay-put overlay 'before-string
+                                     (if (and box (stringp box) (not (string= box "")))
+                                         (concat box "\n")
+                                       ""))
+                        (overlay-put overlay 'window win))
+                    (error
+                     ;; Log detailed error with backtrace info
+                     (message "IOTA Error in render for buffer %s: %s"
+                              (buffer-name) (error-message-string render-err))))))))))
     (error
-     (message "IOTA Error in update-overlay: %s" (error-message-string err)))))
+     (message "IOTA Error in update-overlay for window %s: %s"
+              (if (windowp window) (window-buffer window) "nil")
+              (error-message-string err)))))
 
 (defun iota-modeline--remove-overlay ()
   "Remove all simulated header overlays."
@@ -247,37 +263,44 @@ If WINDOW is nil, use selected window."
   (clrhash iota-modeline--window-overlays))
 
 (defun iota-modeline--ensure-separator-overlay (window)
-  "Ensure the separator overlay exists for WINDOW."
-  (let ((overlay (gethash window iota-modeline--separator-overlays)))
-    ;; Clean up invalid overlay
-    (when (and overlay
-               (overlayp overlay)
-               (not (overlay-buffer overlay)))
-      (remhash window iota-modeline--separator-overlays)
-      (setq overlay nil))
-    ;; Create new overlay if needed
-    (unless overlay
-      (with-current-buffer (window-buffer window)
-        (setq overlay (make-overlay (point-max) (point-max) (current-buffer)))
-        (overlay-put overlay 'priority 100)
-        (overlay-put overlay 'window window)
-        (puthash window overlay iota-modeline--separator-overlays)))
-    overlay))
+  "Ensure the separator overlay exists for WINDOW.
+Returns nil if window or buffer is invalid."
+  (when (and (window-live-p window)
+             (window-buffer window)
+             (buffer-live-p (window-buffer window)))
+    (let ((overlay (gethash window iota-modeline--separator-overlays)))
+      ;; Clean up invalid overlay
+      (when (and overlay
+                 (overlayp overlay)
+                 (not (overlay-buffer overlay)))
+        (remhash window iota-modeline--separator-overlays)
+        (setq overlay nil))
+      ;; Create new overlay if needed
+      (unless overlay
+        (with-current-buffer (window-buffer window)
+          (setq overlay (make-overlay (point-max) (point-max) (current-buffer)))
+          (overlay-put overlay 'priority 100)
+          (overlay-put overlay 'window window)
+          (puthash window overlay iota-modeline--separator-overlays)))
+      overlay)))
 
 (defun iota-modeline--update-separator-overlay (window)
   "Update the separator overlay for WINDOW."
-  (when (window-live-p window)
-    (with-current-buffer (window-buffer window)
-      (let ((overlay (iota-modeline--ensure-separator-overlay window)))
-        (move-overlay overlay (point-max) (point-max) (current-buffer))
-        (if (and (iota-modeline--should-show-p)
-                 (iota-modeline--window-is-at-bottom-p window))
-            ;; Show separator for bottom windows
-            (overlay-put overlay 'after-string
-                        (propertize "\n" 'display
-                                   (list 'space :width (window-width window))))
+  (when (and (window-live-p window)
+             (window-buffer window)
+             (buffer-live-p (window-buffer window)))
+    (let ((overlay (iota-modeline--ensure-separator-overlay window)))
+      (when overlay
+        (with-current-buffer (window-buffer window)
+          (move-overlay overlay (point-max) (point-max) (current-buffer))
+          (if (and (iota-modeline--should-show-p)
+                   (iota-modeline--window-is-at-bottom-p window))
+              ;; Show separator for bottom windows
+              (overlay-put overlay 'after-string
+                          (propertize "\n" 'display
+                                     (list 'space :width (window-width window))))
             ;; Hide separator for non-bottom windows
-            (overlay-put overlay 'after-string nil))))))
+            (overlay-put overlay 'after-string nil)))))))
 
 (defun iota-modeline--remove-separator-overlays ()
   "Remove all separator overlays."

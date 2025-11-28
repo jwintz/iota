@@ -305,15 +305,19 @@ Returns the rendered string or nil if segment is not visible."
 
 (defun iota-segment-text-width (segment &optional use-short)
   "Calculate the display width of SEGMENT's text.
-If USE-SHORT is non-nil and segment has short-text, use that instead."
-  (when (and segment
-             (or (null (iota-segment-visible-fn segment))
-                 (funcall (iota-segment-visible-fn segment))))
-    (let* ((text-fn (if (and use-short (iota-segment-short-text segment))
-                        (iota-segment-short-text segment)
-                      (iota-segment-text segment)))
-           (text (iota-segment-eval text-fn)))
-      (string-width text))))
+If USE-SHORT is non-nil and segment has short-text, use that instead.
+Returns 0 if segment is invisible or has no text."
+  (if (and segment
+           (or (null (iota-segment-visible-fn segment))
+               (funcall (iota-segment-visible-fn segment))))
+      (let* ((text-fn (if (and use-short (iota-segment-short-text segment))
+                          (iota-segment-short-text segment)
+                        (iota-segment-text segment)))
+             (text (iota-segment-eval text-fn)))
+        (if (stringp text)
+            (string-width text)
+          0))
+    0))
 
 (defun iota-segment-fit-to-width (segments available-width separator-width)
   "Fit SEGMENTS into AVAILABLE-WIDTH, collapsing/removing as needed.
@@ -355,14 +359,15 @@ Before removing a segment, we try using its short-text version."
 (defun iota-segment--calculate-total-width (segment-entries separator-width)
   "Calculate total width for SEGMENT-ENTRIES with SEPARATOR-WIDTH.
 SEGMENT-ENTRIES is a list of (segment . use-short) cons cells."
-  (let ((widths (delq nil
-                      (mapcar (lambda (entry)
-                                (iota-segment-text-width (car entry) (cdr entry)))
-                              segment-entries))))
-    (if widths
+  (if (null segment-entries)
+      0
+    (let ((widths (mapcar (lambda (entry)
+                            (or (iota-segment-text-width (car entry) (cdr entry)) 0))
+                          segment-entries)))
+      ;; Filter out zero-width segments for separator calculation
+      (let ((non-zero-count (cl-count-if (lambda (w) (> w 0)) widths)))
         (+ (apply #'+ widths)
-           (* separator-width (max 0 (1- (length widths)))))
-      0)))
+           (* (or separator-width 0) (max 0 (1- non-zero-count))))))))
 
 (defun iota-segment-render-fitted (segment-entries)
   "Render SEGMENT-ENTRIES which are (segment . use-short) cons cells.

@@ -83,46 +83,66 @@ See `iota-theme-dark-p' for THRESHOLD details."
 
 (defun iota-theme-color-darken (color percent)
   "Darken COLOR by PERCENT (0.0 to 1.0).
-Returns a hex color string."
-  (let* ((rgb (color-name-to-rgb color))
-         (factor (- 1.0 percent))
-         (r (* (nth 0 rgb) factor))
-         (g (* (nth 1 rgb) factor))
-         (b (* (nth 2 rgb) factor)))
-    (color-rgb-to-hex r g b 2)))
+Returns a hex color string, or COLOR if invalid."
+  (if (iota-theme-color-valid-p color)
+      (let* ((rgb (color-name-to-rgb color))
+             (factor (- 1.0 percent))
+             (r (* (nth 0 rgb) factor))
+             (g (* (nth 1 rgb) factor))
+             (b (* (nth 2 rgb) factor)))
+        (color-rgb-to-hex r g b 2))
+    (or color "#888888")))
 
 (defun iota-theme-color-lighten (color percent)
   "Lighten COLOR by PERCENT (0.0 to 1.0).
-Returns a hex color string."
-  (let* ((rgb (color-name-to-rgb color))
-         (factor percent)
-         (r (+ (nth 0 rgb) (* (- 1.0 (nth 0 rgb)) factor)))
-         (g (+ (nth 1 rgb) (* (- 1.0 (nth 1 rgb)) factor)))
-         (b (+ (nth 2 rgb) (* (- 1.0 (nth 2 rgb)) factor))))
-    (color-rgb-to-hex r g b 2)))
+Returns a hex color string, or COLOR if invalid."
+  (if (iota-theme-color-valid-p color)
+      (let* ((rgb (color-name-to-rgb color))
+             (factor percent)
+             (r (+ (nth 0 rgb) (* (- 1.0 (nth 0 rgb)) factor)))
+             (g (+ (nth 1 rgb) (* (- 1.0 (nth 1 rgb)) factor)))
+             (b (+ (nth 2 rgb) (* (- 1.0 (nth 2 rgb)) factor))))
+        (color-rgb-to-hex r g b 2))
+    (or color "#888888")))
+
+(defun iota-theme-color-valid-p (color)
+  "Return t if COLOR is a valid color that can be converted to RGB."
+  (and color
+       (stringp color)
+       (not (string-prefix-p "unspecified" color))
+       (color-name-to-rgb color)))
 
 (defun iota-theme-color-blend (color1 color2 alpha)
   "Blend COLOR1 and COLOR2 with ALPHA (0.0 = color1, 1.0 = color2).
-Returns a hex color string."
-  (let* ((rgb1 (color-name-to-rgb color1))
-         (rgb2 (color-name-to-rgb color2))
-         (r (+ (* (nth 0 rgb1) (- 1.0 alpha)) (* (nth 0 rgb2) alpha)))
-         (g (+ (* (nth 1 rgb1) (- 1.0 alpha)) (* (nth 1 rgb2) alpha)))
-         (b (+ (* (nth 2 rgb1) (- 1.0 alpha)) (* (nth 2 rgb2) alpha))))
-    (color-rgb-to-hex r g b 2)))
+Returns a hex color string, or COLOR1 if colors are invalid."
+  (if (and (iota-theme-color-valid-p color1)
+           (iota-theme-color-valid-p color2))
+      (let* ((rgb1 (color-name-to-rgb color1))
+             (rgb2 (color-name-to-rgb color2))
+             (r (+ (* (nth 0 rgb1) (- 1.0 alpha)) (* (nth 0 rgb2) alpha)))
+             (g (+ (* (nth 1 rgb1) (- 1.0 alpha)) (* (nth 1 rgb2) alpha)))
+             (b (+ (* (nth 2 rgb1) (- 1.0 alpha)) (* (nth 2 rgb2) alpha))))
+        (color-rgb-to-hex r g b 2))
+    ;; Fallback: return a sensible default
+    (cond
+     ((iota-theme-color-valid-p color1) color1)
+     ((iota-theme-color-valid-p color2) color2)
+     (t "#888888"))))
 
 (defun iota-theme-color-adjust-saturation (color percent)
   "Adjust saturation of COLOR by PERCENT (-1.0 to 1.0).
 Negative values desaturate, positive values saturate.
-Returns a hex color string."
-  (let* ((rgb (color-name-to-rgb color))
-         (hsl (apply #'color-rgb-to-hsl rgb))
-         (h (nth 0 hsl))
-         (s (nth 1 hsl))
-         (l (nth 2 hsl))
-         (new-s (max 0.0 (min 1.0 (+ s (* s percent)))))
-         (new-rgb (color-hsl-to-rgb h new-s l)))
-    (apply #'color-rgb-to-hex (append new-rgb '(2)))))
+Returns a hex color string, or COLOR if invalid."
+  (if (iota-theme-color-valid-p color)
+      (let* ((rgb (color-name-to-rgb color))
+             (hsl (apply #'color-rgb-to-hsl rgb))
+             (h (nth 0 hsl))
+             (s (nth 1 hsl))
+             (l (nth 2 hsl))
+             (new-s (max 0.0 (min 1.0 (+ s (* s percent)))))
+             (new-rgb (color-hsl-to-rgb h new-s l)))
+        (apply #'color-rgb-to-hex (append new-rgb '(2))))
+    (or color "#888888")))
 
 (defun iota-theme-color-desaturate (color amount)
   "Desaturate COLOR by AMOUNT (0.0 to 1.0).
@@ -170,8 +190,11 @@ Tries multiple sources: mode-line-highlight, region, link."
   "Get muted/dimmed color from current theme.
 Useful for secondary text and decorations."
   (let* ((fg (iota-theme-get-foreground 'default "#ffffff"))
-         (bg (iota-theme-get-background 'default "#000000")))
-    (iota-theme-color-blend fg bg 0.5)))
+         (bg (iota-theme-get-background 'default "#000000"))
+         ;; Use fallbacks if colors are unspecified (terminal)
+         (fg-valid (if (iota-theme-color-valid-p fg) fg "#ffffff"))
+         (bg-valid (if (iota-theme-color-valid-p bg) bg "#000000")))
+    (iota-theme-color-blend fg-valid bg-valid 0.5)))
 
 (defun iota-theme-get-error-color ()
   "Get error color from current theme."

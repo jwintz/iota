@@ -76,6 +76,12 @@ Explicitly disables underline/overline to prevent artifacts."
 Adapts to current theme via inheritance from font-lock-constant-face."
   :group 'iota-faces)
 
+(defface iota-highlight-face
+  '((t :inherit font-lock-keyword-face :weight bold))
+  "Face for headings and emphasized text.
+Adapts to current theme via inheritance from font-lock-keyword-face."
+  :group 'iota-faces)
+
 (defface iota-active-accent-face
   '((t :inherit font-lock-constant-face :weight bold))
   "Face for accent elements in active window.

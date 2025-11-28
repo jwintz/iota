@@ -112,14 +112,18 @@
                  (cons :tag "Bar with width" (const bar) integer))
   :group 'iota-modal)
 
-(defcustom iota-modal-command-color "#50fa7b"
-  "Color for COMMAND mode indicator."
-  :type 'color
+(defcustom iota-modal-command-color nil
+  "Color for COMMAND mode indicator.
+When nil (default), uses `iota-theme-get-success-color' for theme integration."
+  :type '(choice (const :tag "Auto (from theme)" nil)
+                 (color :tag "Custom color"))
   :group 'iota-modal)
 
-(defcustom iota-modal-insert-color "#6272a4"
-  "Color for INSERT mode indicator."
-  :type 'color
+(defcustom iota-modal-insert-color nil
+  "Color for INSERT mode indicator.
+When nil (default), uses `iota-theme-get-muted-color' for theme integration."
+  :type '(choice (const :tag "Auto (from theme)" nil)
+                 (color :tag "Custom color"))
   :group 'iota-modal)
 
 (defcustom iota-modal-indicator-style 'both
@@ -202,6 +206,22 @@ This ensures the terminal is left in a clean state."
 
 ;;; Modeline Indicator
 
+(defun iota-modal--get-command-color ()
+  "Get the color for COMMAND mode indicator.
+Uses custom color if set, otherwise derives from theme."
+  (or iota-modal-command-color
+      (and (fboundp 'iota-theme-get-success-color)
+           (iota-theme-get-success-color))
+      "#50fa7b"))  ; Fallback
+
+(defun iota-modal--get-insert-color ()
+  "Get the color for INSERT mode indicator.
+Uses custom color if set, otherwise derives from theme."
+  (or iota-modal-insert-color
+      (and (fboundp 'iota-theme-get-muted-color)
+           (iota-theme-get-muted-color))
+      "#6272a4"))  ; Fallback
+
 (defun iota-modal--format-indicator (state style)
   "Format modal STATE indicator using STYLE.
 STATE is `command' or `insert'.
@@ -209,7 +229,9 @@ STYLE can be `both', `glyph', or `label'."
   (let* ((is-command (eq state 'command))
          (glyph (if is-command "●" "○"))
          (label (if is-command "COMMAND" "INSERT"))
-         (color (if is-command iota-modal-command-color iota-modal-insert-color))
+         (color (if is-command
+                    (iota-modal--get-command-color)
+                  (iota-modal--get-insert-color)))
          (text (pcase style
                  ('both (concat glyph " " label))
                  ('glyph glyph)
