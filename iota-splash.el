@@ -407,14 +407,16 @@ Also updates separator line visibility based on minibuffer/which-key state."
 
 (defun iota-splash--get-separator-line (window)
   "Get a separator line string for WINDOW.
-Uses the configured box style from iota-modeline if available."
+Uses the configured box style from iota-modeline if available.
+Uses the same face as the modeline box for consistency."
   (let* ((width (1- (window-body-width window)))
          (style (if (boundp 'iota-modeline-box-style)
                     iota-modeline-box-style
                   'rounded))
-         (face (if (boundp 'iota-muted-face)
-                   'iota-muted-face
-                 'default)))
+         ;; Use same face as modeline box for consistency
+         (face (if (fboundp 'iota-theme-get-box-face)
+                   (iota-theme-get-box-face window)
+                 'iota-active-box-face)))
     (iota-box-horizontal-line width style face)))
 
 (defun iota-splash--update-separator ()
@@ -427,9 +429,11 @@ Shows separator when minibuffer or which-key is active."
           (if (or (iota-splash--minibuffer-active-p)
                   (iota-splash--which-key-visible-p))
               ;; Show separator line when minibuffer/which-key is active
+              ;; Use :propertize to override mode-line face and remove underline
               (with-current-buffer buffer
                 (setq-local mode-line-format
-                            '(:eval (iota-splash--get-separator-line (selected-window)))))
+                            '(:propertize (:eval (iota-splash--get-separator-line (selected-window)))
+                                          face (:underline nil :overline nil))))
             ;; Hide separator line when not needed
             (with-current-buffer buffer
               (setq-local mode-line-format nil)))

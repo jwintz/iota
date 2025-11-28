@@ -228,10 +228,17 @@ STYLE defaults to `single'."
     '(("v" "C-v" "scroll-down" "Page down (view next screen)")
       ("V" "M-v" "scroll-up" "Page up (view previous screen)")
       ("<" "M-<" "beginning-of-buffer" "Jump to buffer start")
-      (">" "M->" "end-of-buffer" "Jump to buffer end")))
+      (">" "M->" "end-of-buffer" "Jump to buffer end")
+      ("{" "M-{" "backward-paragraph" "Jump to previous paragraph")
+      ("}" "M-}" "forward-paragraph" "Jump to next paragraph")
+      ("[" "C-M-b" "backward-sexp" "Jump to previous sexp")
+      ("]" "C-M-f" "forward-sexp" "Jump to next sexp")))
    "\n\n"
    (iota-tutorial--separator)
    "\n\n"
+   (propertize "Paragraph & Sexp Motions:\n\n" 'face '(:weight bold))
+   "  " (propertize "{" 'face 'iota-accent-face) " / " (propertize "}" 'face 'iota-accent-face) " — Move by paragraph (blank-line separated blocks)\n"
+   "  " (propertize "[" 'face 'iota-accent-face) " / " (propertize "]" 'face 'iota-accent-face) " — Move by sexp (balanced expressions: parens, brackets)\n\n"
    (propertize "Note:\n" 'face '(:weight bold))
    "  In Vi/Vim, 'v' enters Visual mode for selection.\n"
    "  In Iota, selection uses the mark (SPC = C-SPC).\n"
@@ -239,7 +246,7 @@ STYLE defaults to `single'."
    (propertize "Practice:\n\n" 'face '(:weight bold))
    "  1. Press " (propertize ">" 'face 'iota-accent-face) " to go to the end of this buffer\n"
    "  2. Press " (propertize "<" 'face 'iota-accent-face) " to come back to the beginning\n"
-   "  3. Use " (propertize "v" 'face 'iota-accent-face) " and " (propertize "V" 'face 'iota-accent-face) " to scroll through pages\n"))
+   "  3. Use " (propertize "{" 'face 'iota-accent-face) " and " (propertize "}" 'face 'iota-accent-face) " to jump between sections\n"))
 
 (defun iota-tutorial--section-editing ()
   "Generate editing basics section content."
@@ -251,11 +258,15 @@ STYLE defaults to `single'."
     '(("d" "C-d" "delete-char" "Delete character at point")
       ("D" "M-d" "kill-word" "Kill word forward")
       ("k" "C-k" "kill-line" "Kill to end of line")
-      ("/" "C-/" "undo" "Undo last change")
-      ("u" "C-x u" "undo" "Undo (alternative)")))
+      ("u" "C-/" "undo" "Undo last change")
+      ("U" "C-?" "undo-redo" "Redo (reverse undo)")
+      ("/" "M-/" "dabbrev-expand" "Complete word (dynamic abbrev)")))
    "\n\n"
    (iota-tutorial--separator)
    "\n\n"
+   (propertize "Undo/Redo:\n\n" 'face '(:weight bold))
+   "  " (propertize "u" 'face 'iota-accent-face) " — Undo last change\n"
+   "  " (propertize "U" 'face 'iota-accent-face) " — Redo (reverse the undo)\n\n"
    (propertize "Kill vs Delete:\n\n" 'face '(:weight bold))
    "  Emacs distinguishes between:\n"
    "    • " (propertize "Delete" 'face '(:weight bold)) " — Character gone, not saved\n"

@@ -276,6 +276,14 @@ This implements the Iota Semantic Specification from the architecture document."
   (define-key modalka-mode-map (kbd "<") #'beginning-of-buffer)
   (define-key modalka-mode-map (kbd ">") #'end-of-buffer)
 
+  ;; Paragraph motions
+  (define-key modalka-mode-map (kbd "{") #'backward-paragraph)
+  (define-key modalka-mode-map (kbd "}") #'forward-paragraph)
+
+  ;; Sexp motions (balanced expressions)
+  (define-key modalka-mode-map (kbd "[") #'backward-sexp)
+  (define-key modalka-mode-map (kbd "]") #'forward-sexp)
+
   ;; Recentering
   (define-key modalka-mode-map (kbd "l") #'recenter-top-bottom)
 
@@ -309,9 +317,29 @@ This implements the Iota Semantic Specification from the architecture document."
   (define-key modalka-mode-map (kbd "r") #'isearch-backward)
 
   ;; === Prefix Delegation (Section 3.3) ===
-  (define-key modalka-mode-map (kbd "x") ctl-x-map)  ; Global command prefix
+  ;; Create a custom x-prefix keymap that inherits from ctl-x-map
+  ;; but overrides specific keys to act like C-x C-* instead of C-x *
+  (let ((x-map (make-sparse-keymap)))
+    ;; Inherit from ctl-x-map for fallback commands
+    (set-keymap-parent x-map ctl-x-map)
+    ;; Override with C-x C-* equivalents
+    (define-key x-map (kbd "f") #'find-file)              ; C-x C-f
+    (define-key x-map (kbd "s") #'save-buffer)            ; C-x C-s
+    (define-key x-map (kbd "b") #'switch-to-buffer)       ; C-x b (already correct)
+    (define-key x-map (kbd "k") #'kill-buffer)            ; C-x k (already correct)
+    (define-key x-map (kbd "o") #'other-window)           ; C-x o (already correct)
+    (define-key x-map (kbd "0") #'delete-window)          ; C-x 0 (already correct)
+    (define-key x-map (kbd "1") #'delete-other-windows)   ; C-x 1 (already correct)
+    (define-key x-map (kbd "2") #'split-window-below)     ; C-x 2 (already correct)
+    (define-key x-map (kbd "3") #'split-window-right)     ; C-x 3 (already correct)
+    (define-key x-map (kbd "w") #'write-file)             ; C-x C-w
+    (define-key x-map (kbd "e") #'eval-last-sexp)         ; C-x C-e
+    (define-key x-map (kbd "c") #'save-buffers-kill-terminal)  ; C-x C-c
+    (define-key x-map (kbd "u") #'undo)                   ; C-x u (already correct)
+    (define-key modalka-mode-map (kbd "x") x-map))
   (define-key modalka-mode-map (kbd "X") #'execute-extended-command)  ; M-x
-  (define-key modalka-mode-map (kbd "c") mode-specific-map)  ; Mode-specific prefix
+  ;; C-c prefix: bind directly for mode-specific commands
+  (define-key modalka-mode-map (kbd "c") mode-specific-map)
   (define-key modalka-mode-map (kbd "h") help-map)  ; Help prefix
   (define-key modalka-mode-map (kbd "g") #'keyboard-quit)
 

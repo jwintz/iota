@@ -245,11 +245,11 @@ Only modifies theme specs - does not set user specs."
                                                             rest              ; Flat plist
                                                           (car rest)))        ; Wrapped plist
                                                  (new-attrs '()))
-                                            ;; Process attributes, removing :background
+                                            ;; Process attributes, removing :background, :underline, :overline, :box
                                             (while attrs
                                               (let ((key (car attrs))
                                                     (val (cadr attrs)))
-                                                (unless (eq key :background)
+                                                (unless (memq key '(:background :underline :overline :box))
                                                   (push key new-attrs)
                                                   (push val new-attrs))
                                                 (setq attrs (cddr attrs))))
