@@ -28,6 +28,7 @@
 (require 'iota-timers)
 (require 'iota-cache)
 (require 'iota-utils)
+(require 'iota-modal)
 
 ;;; Theme System Tests
 
@@ -154,6 +155,7 @@
   (should (featurep 'iota-widgets))
   (should (featurep 'iota-config))
   (should (featurep 'iota-perf))
+  (should (featurep 'iota-modal))
   ;; New modules
   (should (featurep 'iota-update))
   (should (featurep 'iota-timers))
@@ -333,6 +335,131 @@
   (should (not (iota-color-valid-p nil)))
   (should (not (iota-color-valid-p "")))
   (should (not (iota-color-valid-p "not-a-color-at-all-xyz"))))
+
+;;; Modal Mode Tests
+
+(ert-deftest iota-test-modal-mode-toggle ()
+  "Test that iota-modal-mode can be toggled."
+  (unwind-protect
+      (progn
+        ;; Enable modal mode
+        (iota-modal-mode 1)
+        (should (bound-and-true-p iota-modal-mode))
+        ;; Disable modal mode
+        (iota-modal-mode -1)
+        (should (not (bound-and-true-p iota-modal-mode))))
+    ;; Cleanup
+    (iota-modal-mode -1)))
+
+(ert-deftest iota-test-modal-state-variable ()
+  "Test modal state variable updates correctly."
+  (unwind-protect
+      (progn
+        (iota-modal-mode 1)
+        ;; In a new buffer with modalka active, state should be command
+        (with-temp-buffer
+          (text-mode)
+          (modalka-mode 1)
+          (iota-modal--on-mode-change)
+          (should (eq iota-modal--current-state 'command))
+          ;; Deactivate modalka
+          (modalka-mode -1)
+          (iota-modal--on-mode-change)
+          (should (eq iota-modal--current-state 'insert))))
+    (iota-modal-mode -1)))
+
+(ert-deftest iota-test-modal-excluded-modes ()
+  "Test that excluded modes don't activate modalka."
+  (unwind-protect
+      (progn
+        (iota-modal-mode 1)
+        ;; special-mode is excluded
+        (with-temp-buffer
+          (special-mode)
+          (should (not (iota-modal--should-activate-p))))
+        ;; text-mode should activate
+        (with-temp-buffer
+          (text-mode)
+          ;; Clear buffer name prefix that might exclude it
+          (rename-buffer "test-buffer" t)
+          (should (iota-modal--should-activate-p))))
+    (iota-modal-mode -1)))
+
+(ert-deftest iota-test-modal-special-mode-excluded ()
+  "Test that special-mode derivatives can be excluded."
+  ;; special-mode is NOT in excluded list by default anymore
+  ;; but buffers starting with * are excluded
+  (should (listp iota-modal-excluded-modes))
+  (should (memq 'dired-mode iota-modal-excluded-modes)))
+
+(ert-deftest iota-test-modal-indicator-format ()
+  "Test modal indicator formatting."
+  (let ((command-indicator (iota-modal--format-indicator 'command 'both))
+        (insert-indicator (iota-modal--format-indicator 'insert 'both)))
+    ;; Command indicator should contain COMMAND
+    (should (string-match-p "COMMAND" command-indicator))
+    ;; Insert indicator should contain INSERT
+    (should (string-match-p "INSERT" insert-indicator))
+    ;; Both should have the bullet glyph
+    (should (string-match-p "[●○]" command-indicator))
+    (should (string-match-p "[●○]" insert-indicator))))
+
+(ert-deftest iota-test-modal-indicator-styles ()
+  "Test different indicator styles."
+  ;; Test 'both style
+  (let ((indicator (iota-modal--format-indicator 'command 'both)))
+    (should (string-match-p "●" indicator))
+    (should (string-match-p "COMMAND" indicator)))
+  ;; Test 'glyph style
+  (let ((indicator (iota-modal--format-indicator 'command 'glyph)))
+    (should (string-match-p "●" indicator))
+    (should (not (string-match-p "COMMAND" indicator))))
+  ;; Test 'label style
+  (let ((indicator (iota-modal--format-indicator 'command 'label)))
+    (should (not (string-match-p "●" indicator)))
+    (should (string-match-p "COMMAND" indicator))))
+
+(ert-deftest iota-test-modal-cursor-types ()
+  "Test cursor type configuration."
+  (should (eq iota-modal-command-cursor-type 'box))
+  (should (equal iota-modal-insert-cursor-type '(bar . 2))))
+
+(ert-deftest iota-test-modal-key-setup ()
+  "Test that key translations are set up correctly."
+  (unwind-protect
+      (progn
+        (iota-modal-mode 1)
+        ;; Check that modalka-mode-map has expected bindings
+        (should (keymapp modalka-mode-map))
+        ;; Check 'i' for insert mode
+        (let ((binding (lookup-key modalka-mode-map (kbd "i"))))
+          (should (functionp binding)))
+        ;; Check 'x' for C-x prefix
+        (let ((binding (lookup-key modalka-mode-map (kbd "x"))))
+          (should (or (keymapp binding) (eq binding ctl-x-map))))
+        ;; Check 'X' for M-x
+        (let ((binding (lookup-key modalka-mode-map (kbd "X"))))
+          (should (eq binding 'execute-extended-command))))
+    (iota-modal-mode -1)))
+
+(ert-deftest iota-test-modal-segment-creation ()
+  "Test modal state segment creation."
+  (let ((segment (iota-modal-state-segment)))
+    (should segment)
+    (should (eq (iota-segment-id segment) 'modal-state))
+    (should (eq (iota-segment-align segment) 'left))))
+
+(ert-deftest iota-test-modal-arrow-keys-passthrough ()
+  "Test that arrow keys work normally in modal mode."
+  (unwind-protect
+      (progn
+        (iota-modal-mode 1)
+        ;; Arrow keys should be bound to their normal navigation commands
+        (should (eq (lookup-key modalka-mode-map (kbd "<up>")) 'previous-line))
+        (should (eq (lookup-key modalka-mode-map (kbd "<down>")) 'next-line))
+        (should (eq (lookup-key modalka-mode-map (kbd "<left>")) 'backward-char))
+        (should (eq (lookup-key modalka-mode-map (kbd "<right>")) 'forward-char)))
+    (iota-modal-mode -1)))
 
 ;;; Test Runner
 
