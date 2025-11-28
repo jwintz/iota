@@ -676,14 +676,6 @@ Visual Feedback:
       (iota-modal--restore-cursor-state)
       (message "Iota modal mode disabled"))))
 
-;;;###autoload
-(define-globalized-minor-mode iota-modal-global-mode
-  modalka-mode
-  (lambda ()
-    (when (iota-modal--should-activate-p)
-      (modalka-mode 1)))
-  :group 'iota-modal)
-
 ;;; Interactive Commands
 
 ;;;###autoload
