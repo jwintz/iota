@@ -72,11 +72,15 @@ Set this to a string like \"C-c p\" to override automatic detection."
   "Last known window height for splash screen.")
 
 (defconst iota-splash--hints
-  '("Press M-x iota-modeline-cycle-style to change box styles"
+  '("Enable modal editing with M-x iota-modal-mode (ESC for COMMAND, i for INSERT)"
+    "Learn modal keys with M-x iota-tutorial - an interactive guide"
+    "Use comma (,) as leader key in COMMAND mode: , f for files, , b for buffers"
+    "Press M-x iota-modeline-cycle-style to change box styles"
     "Use M-x iota-modeline-toggle-position to switch between header and mode line"
     "Try M-x iota-modeline-cycle-preset to explore segment presets"
-    "Customize iota-modeline-box-style for different border styles"
-    "Set iota-modeline-show-in-inactive to see modeline in inactive windows"
+    "Modeline segments automatically adapt to narrow windows"
+    "Enable terminal transparency with iota-theme-transparent-in-terminal"
+    "Run M-x iota-demo to explore all I O T Λ widgets and features"
     "I O T Λ animations use 30fps for smooth visual feedback"
     "I O T Λ automatically adapts to your theme's colors"
     "Create custom segments with iota-segment-simple or iota-segment-dynamic"
