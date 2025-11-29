@@ -395,7 +395,9 @@ Redraws are debounced to prevent performance issues."
                   (setq-local cursor-in-non-selected-windows nil)
                   (setq-local visible-cursor nil)
                   ;; Move point to beginning
-                  (goto-char (point-min)))))))))))
+                  (goto-char (point-min))
+                  ;; Hide cursor at window level (most reliable method)
+                  (internal-show-cursor window nil))))))))))
 
 (defun iota-splash--redraw-on-resize ()
   "Redraw splash screen if window height changed."
@@ -522,7 +524,11 @@ This forces a redraw to ensure the splash screen stays centered."
                (get-buffer-window buffer))
       ;; Update separator and redraw
       (iota-splash--update-separator)
-      (iota-splash--redraw-buffer))))
+      (iota-splash--redraw-buffer)
+      ;; Ensure cursor stays hidden
+      (let ((win (get-buffer-window buffer)))
+        (when win
+          (internal-show-cursor win nil))))))
 
 (defun iota-splash--restore-cursor ()
   "Restore cursor visibility when leaving splash screen."
