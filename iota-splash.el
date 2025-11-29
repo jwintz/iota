@@ -137,6 +137,7 @@ Returns a hex color string."
 
 (defun iota-splash--insert-init-time ()
   "Insert the Emacs init time at the bottom of the splash screen."
+  (insert "\n")  ; Empty line before init time
   (let ((init-time (emacs-init-time "%f")))  ; Get raw seconds as float string
     (when init-time
       (let* ((seconds (string-to-number init-time))
@@ -258,9 +259,15 @@ WINDOW is the window to use for width calculations (defaults to selected window)
              (iota-splash--project-available-p))
     (insert "\n\n\n\n")  ; More vertical space before Quick Actions
 
-    ;; Center the "Quick Actions" header
-    (let ((header-start (point)))
-      (insert (propertize "Quick Actions" 'face 'iota-splash-logo-accent))
+    ;; Center the "Quick Actions in [CWD]" header
+    (let ((header-start (point))
+          (cwd (abbreviate-file-name default-directory)))
+      (let ((cwd-str (if (> (length cwd) 40)
+                         (concat "..." (substring cwd -37))
+                       cwd)))
+        (insert (propertize "Quick Actions" 'face 'iota-splash-logo-accent))
+        (insert (propertize " in " 'face 'default))
+        (insert (propertize cwd-str 'face 'iota-splash-logo-primary)))
       (insert "\n")
       (let ((fill-column (window-width (or window (selected-window)))))
         (center-region header-start (point))))
@@ -268,31 +275,46 @@ WINDOW is the window to use for width calculations (defaults to selected window)
     (insert "\n")
 
     (let* ((prefix (iota-splash--get-project-prefix))
-           (bindings `((,(concat prefix " f") "Find file in project")
-                       (,(concat prefix " p") "Switch project")
-                       (,(concat prefix " d") "Dired in project root")
-                       (,(concat prefix " g") "Search project (grep)")
-                       (,(concat prefix " b") "Switch to project buffer")
-                       (,(concat prefix " k") "Kill project buffers")))
-           (max-key-width (apply 'max (mapcar (lambda (b) (length (car b))) bindings)))
+           (project-bindings `((,(concat prefix " f") "Find file in project")
+                               (,(concat prefix " p") "Switch project")
+                               (,(concat prefix " d") "Dired in project root")
+                               (,(concat prefix " g") "Search project (grep)")))
+           (magit-bindings '(("C-c v v" "Magit status")
+                             ("C-c v l" "Magit log")
+                             ("C-c v d" "Magit diff")
+                             ("C-c v c" "Magit commit")))
+           (all-bindings (append project-bindings magit-bindings))
+           (max-key-width (apply 'max (mapcar (lambda (b) (length (car b))) all-bindings)))
            ;; Calculate the width of the longest line
            (max-line-width (apply 'max
                                   (mapcar (lambda (b)
                                             (+ max-key-width 2 (length (cadr b))))
-                                          bindings)))
+                                          all-bindings)))
            ;; Calculate left margin to center the block
            (left-margin (max 0 (/ (- (window-width (or window (selected-window))) max-line-width) 2))))
-      (dolist (binding bindings)
+      ;; Insert project bindings
+      (dolist (binding project-bindings)
         (let* ((key (car binding))
                (desc (cadr binding))
                (key-padding (make-string (- max-key-width (length key)) ?\s)))
-          ;; Insert left margin for centering
           (insert (make-string left-margin ?\s))
-          ;; Insert key with alignment
           (insert (propertize key 'face 'iota-splash-logo-primary))
           (insert key-padding)
           (insert "  ")
-          (insert desc)  ; Use default face for descriptions
+          (insert desc)
+          (insert "\n")))
+      ;; Empty line between groups
+      (insert "\n")
+      ;; Insert magit bindings
+      (dolist (binding magit-bindings)
+        (let* ((key (car binding))
+               (desc (cadr binding))
+               (key-padding (make-string (- max-key-width (length key)) ?\s)))
+          (insert (make-string left-margin ?\s))
+          (insert (propertize key 'face 'iota-splash-logo-primary))
+          (insert key-padding)
+          (insert "  ")
+          (insert desc)
           (insert "\n"))))))
 
 (defun iota-splash--get-current-hint ()
@@ -366,17 +388,17 @@ Redraws are debounced to prevent performance issues."
                 (let ((inhibit-read-only t))
                   ;; Regenerate the entire buffer with new padding
                   (erase-buffer)
-                  (let* ((content-lines (+ 4
+                  (let* ((content-lines (+ 6  ; logo + footer + empty line + init-time
                                            (if (and iota-splash-show-key-bindings
                                                     (iota-splash--project-available-p))
-                                               13 0)
-                                           (if iota-splash-show-hints 5 0)
-                                           2))  ; +2 for init time line
+                                               16 0)  ; 8 bindings + 1 separator + header + spacing
+                                           (if iota-splash-show-hints 5 0)))
                          (padding (max 0 (/ (- current-height content-lines) 2))))
                     (dotimes (_ padding) (insert "\n")))
                   (let ((logo-start (point)))
                     (iota-splash--insert-tertiary)
                     (iota-splash--insert-footer)
+                    (iota-splash--insert-init-time)
                     (let ((fill-column (window-width window)))
                       (center-region logo-start (point))))
 
@@ -386,13 +408,6 @@ Redraws are debounced to prevent performance issues."
                     (iota-splash--insert-hints)
                     (let ((fill-column (window-width window)))
                       (center-region hints-start (point))))
-
-                  ;; Insert init time at the bottom, centered
-                  (let ((init-time-start (point)))
-                    (insert "\n")
-                    (iota-splash--insert-init-time)
-                    (let ((fill-column (window-width window)))
-                      (center-region init-time-start (point))))
 
                   ;; Ensure cursor remains hidden after redraw
                   (setq-local cursor-type nil)
@@ -626,12 +641,11 @@ Does not display if Emacs was opened with file arguments."
         (add-hook 'kill-buffer-hook #'iota-splash--cleanup-hooks nil t)
 
         ;; Layout Calculations (now in correct window context)
-        (let* ((content-lines (+ 4
+        (let* ((content-lines (+ 6  ; logo + footer + empty line + init-time
                                  (if (and iota-splash-show-key-bindings
                                           (iota-splash--project-available-p))
-                                     13 0)
-                                 (if iota-splash-show-hints 5 0)
-                                 2))  ; +2 for init time line
+                                     16 0)  ; 8 bindings + 1 separator + header + spacing
+                                 (if iota-splash-show-hints 5 0)))
                (padding (max 0 (/ (- (window-body-height) content-lines) 2))))
           (dotimes (_ padding) (insert "\n")))
 
@@ -639,7 +653,8 @@ Does not display if Emacs was opened with file arguments."
         (let ((logo-start (point)))
           (iota-splash--insert-tertiary)
           (iota-splash--insert-footer)
-          ;; Center logo and tagline only
+          (iota-splash--insert-init-time)
+          ;; Center logo, tagline, and init time
           (let ((fill-column (window-width)))
             (center-region logo-start (point))))
 
@@ -650,13 +665,6 @@ Does not display if Emacs was opened with file arguments."
           ;; Center hints only
           (let ((fill-column (window-width)))
             (center-region hints-start (point))))
-
-        ;; Insert init time at the bottom, centered
-        (let ((init-time-start (point)))
-          (insert "\n")
-          (iota-splash--insert-init-time)
-          (let ((fill-column (window-width)))
-            (center-region init-time-start (point))))
 
         ;; Finalize Buffer State
         (read-only-mode 1)

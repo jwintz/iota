@@ -182,17 +182,19 @@ Implements the hierarchy from Section 5.3 of the architecture document."
       "ps" '(project-shell :which-key "project shell")
       "pk" '(project-kill-buffers :which-key "kill project buffers")
 
-      ;; === Git (, g) ===
-      "g"  '(:ignore t :which-key "git")
-      "gg" '(iota-leader--magit-status :which-key "status")
-      "gl" '(iota-leader--magit-log :which-key "log")
-      "gb" '(iota-leader--magit-blame :which-key "blame")
-      "gd" '(iota-leader--magit-diff :which-key "diff")
-      "gf" '(iota-leader--magit-file-log :which-key "file log")
-      "gs" '(iota-leader--magit-stage :which-key "stage file")
-      "gc" '(iota-leader--magit-commit :which-key "commit")
-      "gp" '(iota-leader--magit-push :which-key "push")
-      "gP" '(iota-leader--magit-pull :which-key "pull")
+      ;; === Magit (, v) ===
+      "v"  '(:ignore t :which-key "magit")
+      "vv" '(magit-status :which-key "status")
+      "vl" '(magit-log-current :which-key "log")
+      "vb" '(magit-blame :which-key "blame")
+      "vd" '(magit-diff :which-key "diff")
+      "vf" '(magit-log-buffer-file :which-key "file log")
+      "vs" '(magit-stage-file :which-key "stage file")
+      "vc" '(magit-commit :which-key "commit")
+      "vp" '(magit-push :which-key "push")
+      "vP" '(magit-pull :which-key "pull")
+      "vF" '(magit-fetch :which-key "fetch")
+      "vB" '(magit-branch :which-key "branch")
 
       ;; === Help (, h) ===
       "h"  '(:ignore t :which-key "help")
@@ -243,70 +245,33 @@ Implements the hierarchy from Section 5.3 of the architecture document."
       ;; === Major Mode (, m) ===
       "m"  '(:ignore t :which-key "major mode"))))
 
-;;; Git Command Wrappers
+;;; Magit Prefix Map (C-c v)
 
-(defun iota-leader--magit-status ()
-  "Open magit-status if magit is available."
-  (interactive)
-  (if (fboundp 'magit-status)
-      (magit-status)
-    (message "Magit not installed. Install with: M-x package-install RET magit RET")))
+(defvar iota-vc-map (make-sparse-keymap)
+  "Keymap for Magit commands, bound to C-c v.")
 
-(defun iota-leader--magit-log ()
-  "Open magit-log if magit is available."
-  (interactive)
-  (if (fboundp 'magit-log-current)
-      (magit-log-current)
-    (message "Magit not installed")))
+(defun iota-leader--setup-vc-map ()
+  "Set up the C-c v prefix map for Magit commands.
 
-(defun iota-leader--magit-blame ()
-  "Open magit-blame if magit is available."
-  (interactive)
-  (if (fboundp 'magit-blame)
-      (magit-blame)
-    (message "Magit not installed")))
-
-(defun iota-leader--magit-diff ()
-  "Open magit-diff if magit is available."
-  (interactive)
-  (if (fboundp 'magit-diff)
-      (magit-diff)
-    (message "Magit not installed")))
-
-(defun iota-leader--magit-file-log ()
-  "Open magit file log if magit is available."
-  (interactive)
-  (if (fboundp 'magit-log-buffer-file)
-      (magit-log-buffer-file)
-    (message "Magit not installed")))
-
-(defun iota-leader--magit-stage ()
-  "Stage current file if magit is available."
-  (interactive)
-  (if (fboundp 'magit-stage-file)
-      (magit-stage-file (buffer-file-name))
-    (message "Magit not installed")))
-
-(defun iota-leader--magit-commit ()
-  "Open magit commit if magit is available."
-  (interactive)
-  (if (fboundp 'magit-commit)
-      (magit-commit)
-    (message "Magit not installed")))
-
-(defun iota-leader--magit-push ()
-  "Push with magit if available."
-  (interactive)
-  (if (fboundp 'magit-push)
-      (magit-push)
-    (message "Magit not installed")))
-
-(defun iota-leader--magit-pull ()
-  "Pull with magit if available."
-  (interactive)
-  (if (fboundp 'magit-pull)
-      (magit-pull)
-    (message "Magit not installed")))
+This mirrors the structure of project.el's C-c p prefix,
+providing consistent access to version control commands."
+  ;; Define Magit commands in the prefix map
+  (define-key iota-vc-map (kbd "v") #'magit-status)        ; status
+  (define-key iota-vc-map (kbd "l") #'magit-log-current)   ; log
+  (define-key iota-vc-map (kbd "L") #'magit-log-all)       ; log all
+  (define-key iota-vc-map (kbd "b") #'magit-blame)         ; blame
+  (define-key iota-vc-map (kbd "d") #'magit-diff)          ; diff
+  (define-key iota-vc-map (kbd "D") #'magit-diff-buffer-file) ; diff file
+  (define-key iota-vc-map (kbd "s") #'magit-stage-file)    ; stage
+  (define-key iota-vc-map (kbd "c") #'magit-commit)        ; commit
+  (define-key iota-vc-map (kbd "p") #'magit-push)          ; push
+  (define-key iota-vc-map (kbd "P") #'magit-pull)          ; pull
+  (define-key iota-vc-map (kbd "f") #'magit-fetch)         ; fetch
+  (define-key iota-vc-map (kbd "B") #'magit-branch)        ; branch
+  (define-key iota-vc-map (kbd "r") #'magit-rebase)        ; rebase
+  (define-key iota-vc-map (kbd "z") #'magit-stash)         ; stash
+  ;; Bind the map to C-c v
+  (global-set-key (kbd "C-c v") iota-vc-map))
 
 ;;; Which-Key Integration
 
@@ -339,13 +304,15 @@ Categories:
   , b  - Buffers (switch, kill, list, revert)
   , w  - Windows (split, delete, move, balance)
   , p  - Projects (find-file, switch, buffer)
-  , g  - Git (status, log, blame, diff, commit)
+  , v  - Magit (status, log, blame, diff, commit)
   , h  - Help (describe function/variable/key)
   , s  - Search (forward, backward, replace, grep)
   , t  - Toggle (line numbers, whitespace, etc.)
   , i  - Iota (demo, setup, config)
   , q  - Quit (save & quit, restart)
   , m  - Major mode specific commands
+
+Also sets up C-c v as a prefix for Magit commands (similar to C-c p for projects).
 
 Press the leader key and wait for which-key popup (if installed)."
   :global t
@@ -357,6 +324,8 @@ Press the leader key and wait for which-key popup (if installed)."
         (iota-leader--setup-general)
         ;; Define all key bindings
         (iota-leader--define-keys)
+        ;; Set up C-c v prefix for VC
+        (iota-leader--setup-vc-map)
         ;; Configure which-key
         (iota-leader--setup-which-key)
         (message "Iota leader mode enabled - Press %s for commands" iota-leader-key))
