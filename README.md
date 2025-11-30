@@ -13,7 +13,7 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
 - **Native Semantic Modal Editing**: Ergonomic modal editing preserving Emacs semantics
   - Built on modalka for reliable key translation
   - Single-key commands mapped to standard Emacs bindings (n→C-n, w→M-w, etc.)
-  - **Leader Key Framework**: Hierarchical command menu via general.el
+  - **Leader Key Framework**: Delegates to your C-c bindings for full compatibility
   - Smart prefix simulation for C-x, C-h with multi-key sequence support
   - Visual feedback with mode-aware cursor shapes and modeline indicator
   - Automatic activation in text/programming buffers
@@ -267,26 +267,47 @@ The `x` prefix provides convenient access to common C-x commands:
 
 **Leader Key Framework:**
 
-The `c` key activates the leader menu providing organized access to common operations:
+The `c` key activates the leader menu, which **delegates to your C-c bindings** for full compatibility with your configuration:
 
 ```elisp
 ;; Leader key is automatically enabled with iota-modal-mode
-;; Press 'c' in COMMAND mode to see all options
+;; Press 'c' in COMMAND mode followed by a key to access C-c prefixes
 ```
 
-| Prefix | Category | Example Commands |
-|--------|----------|-----------------|
-| `c f` | Files | `c f f` find-file, `c f s` save, `c f r` recent files |
-| `c b` | Buffers | `c b b` switch, `c b k` kill, `c b i` ibuffer |
-| `c w` | Windows | `c w /` split right, `c w -` split below, `c w d` delete |
-| `c p` | Projects | `c p f` find-file, `c p p` switch project |
-| `c v` | Magit | `c v v` status, `c v l` log, `c v c` commit |
-| `c h` | Help | `c h f` describe-function, `c h k` describe-key |
-| `c s` | Search | `c s s` search forward, `c s R` replace |
-| `c t` | Toggle | `c t l` line numbers, `c t i` modal indicator style |
-| `c i` | IOTA | `c i d` demo, `c i s` setup, `c i c` config |
-| `c q` | Quit | `c q q` save & quit, `c q r` restart |
-| `c c` | C-c prefix | Access mode-specific commands |
+| Key | Delegates To | Description |
+|-----|--------------|-------------|
+| `c <key>` | `C-c <key>` | Any C-c prefix you've configured |
+| `c i` | — | Iota-specific commands |
+| `c c` | `C-c` | Full C-c simulation |
+
+**Example with your config:**
+
+If you have these bindings in your init.el:
+```elisp
+(general-define-key :prefix "C-c v" "v" 'magit-status)
+(general-define-key :prefix "C-c p" ...)  ; project.el
+(general-define-key :prefix "C-c n" ...)  ; denote
+(general-define-key :prefix "C-c t" ...)  ; themes
+```
+
+Then in COMMAND mode:
+- `c v v` → `magit-status`
+- `c p f` → `project-find-file`
+- `c n n` → `denote`
+- `c t l` → `load-theme`
+
+**Iota commands (`c i`):**
+
+| Key | Command |
+|-----|---------|
+| `c i d` | iota-demo |
+| `c i s` | iota-setup |
+| `c i c` | iota-config-choose-preset |
+| `c i m` | iota-modeline-mode |
+| `c i w` | iota-window-mode |
+| `c i t` | iota-tutorial |
+| `c i v` | iota-version |
+| `c i r` | iota-reload |
 
 **Modal Indicator Styles:**
 ```elisp
@@ -304,15 +325,6 @@ M-x iota-modal-cycle-indicator-style
 - INSERT mode: Bar cursor (|), gray indicator (○ INSERT)
 - Cursor updates automatically when switching buffers
 - Terminal cursor shapes are properly managed
-
-**Global Key Bindings:**
-
-IOTA modal mode also sets up convenient global prefixes:
-- `C-c v` → Magit prefix (similar to `C-c p` for projects)
-  - `C-c v v` → magit-status
-  - `C-c v l` → magit-log
-  - `C-c v c` → magit-commit
-  - And more (see `iota-leader.el` for full list)
 
 ### Terminal Emacs Configuration
 
@@ -528,7 +540,7 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 - **Display**: Terminal and GUI Emacs
 - **Platforms**: macOS, Linux, Windows
 - **Modal Editing**: Native modalka-based system with leader key support
-- **Dependencies**: modalka (0.1.5+), general.el (0.1+) for modal editing
+- **Dependencies**: modalka (0.1.5+) for modal editing
 - **Integrations**: Flycheck, Flymake, VC, Magit, all-the-icons, project.el, which-key
 
 ## Development
@@ -542,7 +554,7 @@ iota/
 ├── iota-box.el          # Box drawing engine and style definitions
 ├── iota-demo.el         # Feature demonstrations
 ├── iota-faces.el        # Face definitions
-├── iota-leader.el       # Leader key framework (general.el-based)
+├── iota-leader.el       # Leader key framework (C-c delegation)
 ├── iota-logos.el        # Branding and logos
 ├── iota-modal.el        # Native semantic modal editing (modalka-based)
 ├── iota-modeline.el     # Modeline implementation and overlay management
