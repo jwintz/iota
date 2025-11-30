@@ -315,6 +315,9 @@ This implements the Iota Semantic Specification from the architecture document."
   ;; Recentering
   (define-key modalka-mode-map (kbd "l") #'recenter-top-bottom)
 
+  ;; Buffer management
+  (define-key modalka-mode-map (kbd "q") #'kill-current-buffer)
+
   ;; === Editing Layer (Section 3.2) ===
   ;; Copy/Paste/Cut - THE CORE REQUIREMENT
   (define-key modalka-mode-map (kbd "w") #'kill-ring-save)    ; COPY
@@ -430,20 +433,29 @@ This implements the Iota Semantic Specification from the architecture document."
 (defun iota-modal--simulate-prefix (prefix-key prefix-name &optional convenience-map)
   "Simulate PREFIX-KEY (like \"C-x\") and execute the resulting command.
 PREFIX-NAME is used for the prompt.
-CONVENIENCE-MAP is an optional keymap checked first for convenience bindings."
-  (let* ((key (read-key-sequence-vector (concat prefix-name "-")))
+CONVENIENCE-MAP is an optional keymap checked first for convenience bindings.
+This function continues reading keys until a command is found, supporting
+multi-key sequences like C-c v v."
+  (let* ((keys (read-key-sequence-vector (concat prefix-name "-")))
          ;; First check convenience map for single-key shortcuts
          (convenience-cmd (and convenience-map
-                               (lookup-key convenience-map key)))
-         ;; Then check full C-x <key> binding (for user overrides like windmove)
-         (full-key (vconcat (kbd prefix-key) key))
+                               (lookup-key convenience-map keys)))
+         ;; Build the full key sequence with prefix
+         (full-key (vconcat (kbd prefix-key) keys))
          (cmd (or (and (commandp convenience-cmd) convenience-cmd)
                   (key-binding full-key))))
+    ;; If the binding is a keymap, continue reading keys
+    (while (keymapp cmd)
+      (let ((next-keys (read-key-sequence-vector 
+                        (concat prefix-name " " (key-description keys) "-"))))
+        (setq keys (vconcat keys next-keys))
+        (setq full-key (vconcat (kbd prefix-key) keys))
+        (setq cmd (key-binding full-key))))
     (if cmd
         (if (commandp cmd)
             (call-interactively cmd)
-          (error "%s %s is not a command" prefix-name (key-description key)))
-      (message "%s %s is undefined" prefix-name (key-description key)))))
+          (error "%s %s is not a command" prefix-name (key-description keys)))
+      (message "%s %s is undefined" prefix-name (key-description keys)))))
 
 (defun iota-modal--simulate-C-x ()
   "Simulate C-x prefix and execute the following command.
