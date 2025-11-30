@@ -174,14 +174,22 @@ FN will be called once after Emacs has been idle for `iota-update-idle-delay'."
   (iota-update--ensure-idle-timer))
 
 (defun iota-update--ensure-idle-timer ()
-  "Ensure the idle timer is running."
-  (unless iota-update--idle-timer
+  "Ensure the idle timer is scheduled for the next idle period.
+This uses a one-shot timer that reschedules itself only when there are
+pending tasks, avoiding continuous activity when idle (important for SSH)."
+  ;; Only schedule if we have pending tasks and no timer is already scheduled
+  (when (and iota-update--idle-tasks
+             (not iota-update--idle-timer))
     (setq iota-update--idle-timer
-          (run-with-idle-timer iota-update-idle-delay t
+          (run-with-idle-timer iota-update-idle-delay nil
                                #'iota-update--process-idle-tasks))))
 
 (defun iota-update--process-idle-tasks ()
-  "Process pending idle tasks."
+  "Process pending idle tasks.
+This is a one-shot timer callback; it clears the timer reference
+so a new timer can be scheduled when new tasks arrive."
+  ;; Clear timer reference (one-shot timer has fired)
+  (setq iota-update--idle-timer nil)
   (when iota-update--idle-tasks
     (let ((tasks iota-update--idle-tasks))
       (setq iota-update--idle-tasks nil)
@@ -231,7 +239,9 @@ Used for time, battery, and similar slowly-changing information."
 
 (defun iota-update-install-hooks ()
   "Install efficient hooks for update triggering.
-Uses minimal hooks with proper debouncing."
+Uses minimal hooks with proper debouncing.
+Note: Idle timer is now scheduled on-demand when tasks are added,
+not continuously, to avoid unnecessary activity when idle (SSH-friendly)."
   (unless iota-update--hooks-installed
     ;; Window configuration changes need immediate response
     (add-hook 'window-configuration-change-hook 
@@ -241,8 +251,8 @@ Uses minimal hooks with proper debouncing."
     (add-hook 'window-size-change-functions
               #'iota-update--on-window-size-change)
     
-    ;; Idle timer for less urgent updates (replaces post-command-hook)
-    (iota-update--ensure-idle-timer)
+    ;; Note: Idle timer is now scheduled on-demand by iota-update-schedule-idle
+    ;; instead of running continuously. This avoids constant activity when idle.
     
     ;; Start periodic updates
     (iota-update-start-periodic)

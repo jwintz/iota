@@ -35,15 +35,17 @@
                  (const :tag "Hidden" hidden))
   :group 'iota)
 
-(defcustom iota-window-animate-transitions t
+(defcustom iota-window-animate-transitions nil
   "Enable animated transitions when switching windows.
 When non-nil, modeline and accent faces will animate smoothly
-between active and inactive states."
+between active and inactive states.
+Note: Animations can cause lag, especially over SSH. Disabled by default."
   :type 'boolean
   :group 'iota)
 
-(defcustom iota-window-transition-duration 0.5
-  "Duration of window focus transition animations in seconds."
+(defcustom iota-window-transition-duration 0.15
+  "Duration of window focus transition animations in seconds.
+Shorter durations are less laggy. Only used when `iota-window-animate-transitions' is non-nil."
   :type 'float
   :group 'iota)
 
@@ -144,29 +146,40 @@ Now that modal post-command-hook is removed, animations work smoothly."
 
 ;;; Window Selection Hook
 
-(defun iota-window--on-selection-change ()
+(defun iota-window--on-selection-change (&optional _frame)
   "Handle window selection change.
-Updates window parameters and triggers modeline updates."
+Updates window parameters for active/inactive face selection.
+This is intentionally lightweight to avoid lag on window switches."
   (let ((current-window (selected-window)))
-    (when (not (eq current-window iota-window--last-selected))
-
-      (iota-window--cancel-animations)
-
-      (let ((inactive-win iota-window--last-selected)
-            (active-win current-window))
-
-        (when (and iota-animate-enabled iota-window-animate-transitions iota-window-animate-modeline)
-          (let ((active-color (face-attribute 'iota-active-box-face :foreground nil t))
-                (inactive-color (face-attribute 'iota-inactive-box-face :foreground nil t)))
-            (when (and active-color inactive-color)
-              (when (and inactive-win (window-live-p inactive-win))
-                (iota-window--animate-window-modeline inactive-win active-color inactive-color))
-              (iota-window--animate-window-modeline active-win inactive-color active-color))))
-
-        (dolist (win (window-list nil 'no-minibuf))
-          (set-window-parameter win 'iota-active nil))
-        (set-window-parameter active-win 'iota-active t)
-        (setq iota-window--last-selected active-win)))))
+    ;; Skip minibuffer windows
+    (when (and (not (minibufferp (window-buffer current-window)))
+               (not (eq current-window iota-window--last-selected)))
+      ;; Update window parameters for active/inactive detection
+      ;; This is what iota-theme-window-active-p checks
+      (dolist (win (window-list nil 'no-minibuf))
+        (set-window-parameter win 'iota-active nil))
+      (set-window-parameter current-window 'iota-active t)
+      
+      ;; Optional animations (disabled by default for performance)
+      (when (and iota-animate-enabled 
+                 iota-window-animate-transitions 
+                 iota-window-animate-modeline)
+        (iota-window--cancel-animations)
+        (let ((active-color (face-attribute 'iota-active-box-face :foreground nil t))
+              (inactive-color (face-attribute 'iota-inactive-box-face :foreground nil t)))
+          (when (and active-color inactive-color
+                     (stringp active-color) (stringp inactive-color))
+            (when (and iota-window--last-selected 
+                       (window-live-p iota-window--last-selected))
+              (iota-window--animate-window-modeline 
+               iota-window--last-selected active-color inactive-color))
+            (iota-window--animate-window-modeline 
+             current-window inactive-color active-color))))
+      
+      (setq iota-window--last-selected current-window)
+      ;; Update all modeline overlays to reflect new active/inactive state
+      ;; force-mode-line-update alone doesn't update the overlay contents
+      (iota-modeline--update))))
 
 ;;; Minor Mode
 
@@ -193,17 +206,17 @@ When enabled, tracks window active/inactive state for visual distinction."
           (set-window-parameter win 'iota-active
                                 (eq win (selected-window))))
         ;; Enable window focus tracking
+        ;; Use only window-selection-change-functions - it's efficient and sufficient
+        ;; Do NOT use buffer-list-update-hook as it fires too frequently and causes lag
         (setq iota-window--last-selected (selected-window))
         (add-hook 'window-selection-change-functions
-                  (lambda (_frame) (iota-window--on-selection-change)))
-        (add-hook 'buffer-list-update-hook #'iota-window--on-selection-change)
+                  #'iota-window--on-selection-change)
         ;; Force modeline update
         (force-mode-line-update t)
         (message "IOTA window mode enabled"))
     ;; Disable window focus tracking
     (remove-hook 'window-selection-change-functions
-                 (lambda (_frame) (iota-window--on-selection-change)))
-    (remove-hook 'buffer-list-update-hook #'iota-window--on-selection-change)
+                 #'iota-window--on-selection-change)
     (iota-window--cancel-animations)
     ;; Restore original divider settings
     (iota-window--restore-dividers)
