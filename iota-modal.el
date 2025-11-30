@@ -353,8 +353,8 @@ This implements the Iota Semantic Specification from the architecture document."
   ;; We create a command that simulates C-x and then reads the next key.
   (define-key modalka-mode-map (kbd "x") #'iota-modal--simulate-C-x)
   (define-key modalka-mode-map (kbd "X") #'execute-extended-command)  ; M-x
-  ;; C-c prefix: simulate C-c for mode-specific commands
-  (define-key modalka-mode-map (kbd "c") #'iota-modal--simulate-C-c)
+  ;; Note: 'c' is reserved for the leader key (iota-leader.el)
+  ;; C-c prefix is accessible via leader: c c
   ;; Help prefix: simulate C-h
   (define-key modalka-mode-map (kbd "h") #'iota-modal--simulate-C-h)
   (define-key modalka-mode-map (kbd "g") #'keyboard-quit)
@@ -642,7 +642,7 @@ Search:
 
 Prefix Delegation:
   x       → C-x (command prefix)
-  c       → C-c (mode-specific prefix)
+  c       → Leader key (iota commands menu)
   h       → C-h (help prefix)
 
 Mode Switching:

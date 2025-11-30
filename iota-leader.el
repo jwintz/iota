@@ -16,19 +16,19 @@
 ;; This file is part of I O T Λ.
 ;;
 ;; Implements a hierarchical leader key system using general.el.
-;; The comma (,) key serves as the global leader prefix in COMMAND mode.
+;; The 'c' key serves as the global leader prefix in COMMAND mode.
 ;;
 ;; The Space (SPC) key is reserved for set-mark-command (C-SPC) in Iota
-;; to maintain Emacs semantics, so comma is used instead.
+;; to maintain Emacs semantics.
 ;;
 ;; Leader Hierarchy (Section 5.3):
-;;   , f  - Files (find-file, save, recentf)
-;;   , b  - Buffers (switch, kill, list)
-;;   , w  - Windows (split, delete, maximize)
-;;   , p  - Projects (project-find-file, switch)
-;;   , g  - Git (magit-status, log)
-;;   , h  - Help (describe-function/variable/key)
-;;   , q  - Quit (save-buffers-kill, restart)
+;;   c f  - Files (find-file, save, recentf)
+;;   c b  - Buffers (switch, kill, list)
+;;   c w  - Windows (split, delete, maximize)
+;;   c p  - Projects (project-find-file, switch)
+;;   c g  - Git (magit-status, log)
+;;   c h  - Help (describe-function/variable/key)
+;;   c q  - Quit (save-buffers-kill, restart)
 ;;
 ;; Usage:
 ;;   (require 'iota-leader)
@@ -89,16 +89,17 @@
   :group 'iota
   :prefix "iota-leader-")
 
-(defcustom iota-leader-key ","
+(defcustom iota-leader-key "c"
   "Leader key for IOTA commands in COMMAND mode.
-Comma is chosen because:
+'c' is chosen because:
 1. SPC is reserved for set-mark-command (C-SPC)
-2. Comma is unshifted and accessible on home row
-3. Rarely used as a prefix in standard Emacs"
+2. 'c' is accessible on home row
+3. Mnemonically suggests 'command' or 'control'
+4. C-c prefix is available via 'c c' in the leader menu"
   :type 'string
   :group 'iota-leader)
 
-(defcustom iota-leader-major-mode-key ", m"
+(defcustom iota-leader-major-mode-key "c m"
   "Leader key for major-mode specific commands."
   :type 'string
   :group 'iota-leader)
@@ -231,7 +232,7 @@ Implements the hierarchy from Section 5.3 of the architecture document."
       "tv" '(visual-line-mode :which-key "visual line")
       "ti" '(iota-modal-cycle-indicator-style :which-key "modal indicator")
 
-      ;; === Iota (, i) ===
+      ;; === Iota (c i) ===
       "i"  '(:ignore t :which-key "iota")
       "id" '(iota-demo :which-key "demo")
       "is" '(iota-setup :which-key "setup wizard")
@@ -242,7 +243,10 @@ Implements the hierarchy from Section 5.3 of the architecture document."
       "iv" '(iota-version :which-key "version")
       "ir" '(iota-reload :which-key "reload")
 
-      ;; === Major Mode (, m) ===
+      ;; === C-c Prefix (c c) ===
+      "c"  '(iota-modal--simulate-C-c :which-key "C-c prefix")
+
+      ;; === Major Mode (c m) ===
       "m"  '(:ignore t :which-key "major mode"))))
 
 ;;; Magit Prefix Map (C-c v)
@@ -294,23 +298,24 @@ providing consistent access to version control commands."
 (define-minor-mode iota-leader-mode
   "Enable Iota leader key framework.
 
-Provides a hierarchical menu of commands accessible via the comma key
+Provides a hierarchical menu of commands accessible via the 'c' key
 in COMMAND mode (when modalka is active).
 
-Leader Key: , (comma)
+Leader Key: c
 
 Categories:
-  , f  - Files (find, save, delete, rename)
-  , b  - Buffers (switch, kill, list, revert)
-  , w  - Windows (split, delete, move, balance)
-  , p  - Projects (find-file, switch, buffer)
-  , v  - Magit (status, log, blame, diff, commit)
-  , h  - Help (describe function/variable/key)
-  , s  - Search (forward, backward, replace, grep)
-  , t  - Toggle (line numbers, whitespace, etc.)
-  , i  - Iota (demo, setup, config)
-  , q  - Quit (save & quit, restart)
-  , m  - Major mode specific commands
+  c f  - Files (find, save, delete, rename)
+  c b  - Buffers (switch, kill, list, revert)
+  c w  - Windows (split, delete, move, balance)
+  c p  - Projects (find-file, switch, buffer)
+  c v  - Magit (status, log, blame, diff, commit)
+  c h  - Help (describe function/variable/key)
+  c s  - Search (forward, backward, replace, grep)
+  c t  - Toggle (line numbers, whitespace, etc.)
+  c i  - Iota (demo, setup, config)
+  c q  - Quit (save & quit, restart)
+  c c  - C-c prefix (mode-specific commands)
+  c m  - Major mode specific commands
 
 Also sets up C-c v as a prefix for Magit commands (similar to C-c p for projects).
 
