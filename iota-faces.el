@@ -186,6 +186,22 @@ Full brightness warning color."
 Dimmed warning color."
   :group 'iota-faces)
 
+;;; Keycast Faces
+
+(defface iota-keycast-key-face
+  '((t :inherit font-lock-keyword-face :weight bold))
+  "Face for keycast key binding display in modeline.
+Bold and prominent to highlight the key sequence.
+Adapts to current theme via inheritance from font-lock-keyword-face."
+  :group 'iota-faces)
+
+(defface iota-keycast-command-face
+  '((t :inherit shadow :weight light))
+  "Face for keycast command name display in modeline.
+Subtle and muted to de-emphasize compared to the key sequence.
+Adapts to current theme via inheritance from shadow."
+  :group 'iota-faces)
+
 ;;; Splash Screen Faces
 
 (defface iota-splash-logo-primary

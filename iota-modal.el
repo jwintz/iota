@@ -590,8 +590,7 @@ This ensures cursor reflects the modal state of the newly selected buffer."
             (cons (iota-modal-state-segment) current-segments))))
 
   (when (bound-and-true-p iota-modeline-mode)
-    (iota-modeline-refresh))
-  (message "Iota modal indicator added to modeline"))
+    (iota-modeline-refresh)))
 
 (defun iota-modal-remove-segment ()
   "Remove modal state indicator and restore original preset."
@@ -609,8 +608,7 @@ This ensures cursor reflects the modal state of the newly selected buffer."
       (setq iota-modal--original-preset nil))
 
     (when (bound-and-true-p iota-modeline-mode)
-      (iota-modeline-refresh))
-    (message "Iota modal indicator removed from modeline")))
+      (iota-modeline-refresh))))
 
 ;;; Minor Mode Definition
 
@@ -687,8 +685,7 @@ Visual Feedback:
             (when (and (iota-modal--should-activate-p)
                        (or (derived-mode-p 'text-mode)
                            (derived-mode-p 'prog-mode)))
-              (modalka-mode 1))))
-        (message "Iota modal mode enabled - COMMAND mode active"))
+              (modalka-mode 1))))))
     (progn
       ;; Remove global ESC and C-] bindings
       (global-unset-key (kbd "<escape>"))

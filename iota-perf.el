@@ -135,20 +135,17 @@ When enabled, records timing data for operations."
 (defun iota-perf-reset ()
   "Reset performance metrics."
   (interactive)
-  (setq iota-perf-timings nil)
-  (message "IOTA: Performance data cleared"))
+  (setq iota-perf-timings nil))
 
 (defun iota-perf-enable ()
   "Enable performance monitoring."
   (interactive)
-  (setq iota-perf-enabled t)
-  (message "IOTA: Performance monitoring enabled"))
+  (setq iota-perf-enabled t))
 
 (defun iota-perf-disable ()
   "Disable performance monitoring."
   (interactive)
-  (setq iota-perf-enabled nil)
-  (message "IOTA: Performance monitoring disabled"))
+  (setq iota-perf-enabled nil))
 
 ;;; Benchmarks
 

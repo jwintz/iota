@@ -116,7 +116,7 @@
                               (- (point-max) (point-min))))))
    :face #'iota-theme-get-modeline-face
    :align 'right
-   :priority 70
+   :priority 50  ; Lower priority - drop this first when space is tight
    :update-on 'point
    :help-echo "Position in buffer"))
 
@@ -434,6 +434,74 @@ Format: ⎇ main*+? where:
    :visible-fn (lambda () (bound-and-true-p flycheck-mode))
    :help-echo "Flycheck errors and warnings"))
 
+;;; Keycast Segment
+
+(defun iota-segment-keycast--format-keys (keys)
+  "Format KEYS for display, converting vectors/sequences to strings."
+  (cond
+   ((stringp keys) keys)
+   ((vectorp keys) (key-description keys))
+   ((listp keys) (mapconcat #'key-description keys " "))
+   (t (format "%s" keys))))
+
+(defun iota-segment-keycast--get-text ()
+  "Get keycast text for display."
+  (when (and (boundp 'keycast--this-command-keys)
+             (boundp 'keycast--this-command-desc))
+    (let ((keys (ignore-errors (symbol-value 'keycast--this-command-keys)))
+          (desc (ignore-errors (symbol-value 'keycast--this-command-desc))))
+      (when keys
+        (let* ((keys-str (iota-segment-keycast--format-keys keys))
+               ;; Get command description, fallback to this-command if desc is nil
+               (desc-str (cond
+                          ;; If desc is a symbol and not nil, use it
+                          ((and desc (symbolp desc) (not (eq desc 'nil)))
+                           (symbol-name desc))
+                          ;; If desc is a string, use it
+                          ((stringp desc) desc)
+                          ;; If desc is nil, try to get this-command as fallback
+                          ((and (boundp 'this-command) this-command)
+                           (symbol-name this-command))
+                          ;; Otherwise format whatever we have
+                          (desc (format "%s" desc))
+                          ;; Last resort
+                          (t "self-insert-command"))))
+          (when (and keys-str (not (string-empty-p keys-str)))
+            (concat
+             (propertize keys-str 'face 'iota-keycast-key-face)
+             " "
+             (propertize desc-str 'face 'iota-keycast-command-face))))))))
+
+(defun iota-segment-keycast ()
+  "Create keycast segment showing recent key sequences and commands."
+  (iota-segment-create
+   :id 'keycast
+   :text (lambda ()
+           (or (iota-segment-keycast--get-text) ""))
+   :short-text (lambda ()
+                 ;; Short version still shows command name - never omit it
+                 (or (iota-segment-keycast--get-text) ""))
+   :face nil  ; Face is applied directly in the text, don't override
+   :align 'right
+   :priority 85  ; High but not highest - allow truncation when space is tight
+   :update-on 'always  ; Update on every command
+   :visible-fn (lambda ()
+                 ;; Only show if: keycast enabled AND wide enough AND active window
+                 (let* ((keycast-enabled (or (bound-and-true-p keycast-mode-line-mode)
+                                             (bound-and-true-p keycast-header-line-mode)))
+                        (wide-enough (>= (window-width) 80))
+                        ;; Get the window being rendered
+                        (current-win (and (boundp 'iota-modeline--current-window)
+                                         iota-modeline--current-window))
+                        ;; Get the truly selected window (captured before with-selected-window)
+                        (selected-win (and (boundp 'iota-modeline--selected-window)
+                                          iota-modeline--selected-window))
+                        ;; Window is active if it matches the truly selected window
+                        (is-active (and current-win selected-win
+                                       (eq current-win selected-win))))
+                   (and keycast-enabled wide-enough is-active)))
+   :help-echo "Recent key sequence and command"))
+
 ;;; Segment Collections
 
 (defun iota-segments-minimal ()
@@ -446,6 +514,7 @@ Format: ⎇ main*+? where:
   "Return standard segment set."
   (list (iota-segment-buffer-name)
         (iota-segment-vcs)
+        (iota-segment-keycast)
         (iota-segment-major-mode)
         (iota-segment-position)
         (iota-segment-position-percent)))
@@ -455,6 +524,7 @@ Format: ⎇ main*+? where:
   (list (iota-segment-buffer-name)
         (iota-segment-vcs)
         (iota-segment-buffer-size)
+        (iota-segment-keycast)
         (iota-segment-major-mode)
         (iota-segment-region-info)
         (iota-segment-position)

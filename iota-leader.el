@@ -327,9 +327,7 @@ Press the leader key and wait for which-key popup (if installed)."
         ;; Set up C-c v prefix for VC
         (iota-leader--setup-vc-map)
         ;; Configure which-key
-        (iota-leader--setup-which-key)
-        (message "Iota leader mode enabled - Press %s for commands" iota-leader-key))
-    (message "Iota leader mode disabled")))
+        (iota-leader--setup-which-key))))
 
 ;;; Utility Commands
 

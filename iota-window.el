@@ -212,8 +212,7 @@ When enabled, tracks window active/inactive state for visual distinction."
         (add-hook 'window-selection-change-functions
                   #'iota-window--on-selection-change)
         ;; Force modeline update
-        (force-mode-line-update t)
-        (message "IOTA window mode enabled"))
+        (force-mode-line-update t))
     ;; Disable window focus tracking
     (remove-hook 'window-selection-change-functions
                  #'iota-window--on-selection-change)

@@ -73,9 +73,7 @@ Options: minimal, standard, modern, cyberpunk, custom"
   (when (and (fboundp 'iota-theme-transparent-mode)
              (not (display-graphic-p)))
     (unless iota-theme-transparent-mode
-      (iota-theme-transparent-mode 1)))
-
-  (message "IOTA: Applied '%s' preset (box style: %s)" preset iota-box-default-style))
+      (iota-theme-transparent-mode 1))))
 
 ;;; Interactive Configuration
 

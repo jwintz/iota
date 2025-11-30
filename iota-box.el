@@ -139,8 +139,7 @@ modern-thin, modern-thick, or ascii."
 (defun iota-box-init-style ()
   "Initialize box style based on terminal capabilities."
   (let ((selected (iota-box-select-best-style)))
-    (setq iota-box-default-style selected)
-    (message "IOTA: Using box style '%s'" selected)))
+    (setq iota-box-default-style selected)))
 
 (defun iota-box-char (style char-key)
   "Get specific character CHAR-KEY from STYLE char set.
@@ -300,9 +299,9 @@ Returns: String with box decorations."
          (right-content (mapconcat #'identity right-parts sep))
          
          (content-width (- width 4)) ; borders (2) + padding (2)
-         (left-len (length left-content))
-         (center-len (length center-content))
-         (right-len (length right-content))
+         (left-len (string-width left-content))
+         (center-len (string-width center-content))
+         (right-len (string-width right-content))
          (used-width (+ left-len center-len right-len))
          (remaining (max 0 (- content-width used-width)))
          
@@ -317,7 +316,7 @@ Returns: String with box decorations."
       ;; Track positions of separators within left content
       (let ((pos 0))
         (dolist (part left-parts)
-          (setq pos (+ pos (length part)))
+          (setq pos (+ pos (string-width part)))
           (when (not (eq part (car (last left-parts))))
             (push (+ current-pos pos 1) dividers) ; +1 for space before separator
             (setq pos (+ pos 3))))) ; +3 for " │ "
@@ -339,7 +338,7 @@ Returns: String with box decorations."
         (push center-content content-parts)
         (let ((pos 0))
           (dolist (part center-parts)
-            (setq pos (+ pos (length part)))
+            (setq pos (+ pos (string-width part)))
             (when (not (eq part (car (last center-parts))))
               (push (+ current-pos pos 1) dividers)
               (setq pos (+ pos 3)))))
@@ -361,7 +360,7 @@ Returns: String with box decorations."
       ;; Track positions of separators within right content
       (let ((pos 0))
         (dolist (part right-parts)
-          (setq pos (+ pos (length part)))
+          (setq pos (+ pos (string-width part)))
           (when (not (eq part (car (last right-parts))))
             (push (+ current-pos pos 1) dividers)
             (setq pos (+ pos 3))))))
@@ -370,8 +369,9 @@ Returns: String with box decorations."
     (setq content-parts (nreverse content-parts))
     (let* ((left-border (if face (propertize vert 'face face) vert))
            (right-border (if face (propertize vert 'face face) vert))
-           (content-line (concat left-border " " (apply #'concat content-parts) " " right-border)))
-      
+           (content-str (apply #'concat content-parts))
+           (content-line (concat left-border " " content-str " " right-border)))
+
       (if compact
           content-line
         (let ((top (iota-box-top-border width style face dividers))

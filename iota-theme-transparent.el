@@ -279,13 +279,11 @@ Only modifies theme specs - does not set user specs."
                           (iota-theme-transparent--log "    %s: no theme specs, skipping (preserving defaults/inheritance)" face)))))
                 (error
                  (iota-theme-transparent--log "    ERROR: Failed to remove background from %s: %s" face err)
-                 (message "IOTA: Error removing background from face %s: %s" face err)))))))
+                 (message "I O T Λ: Error removing background from face %s: %s" face err)))))))
       (setq iota-theme-transparent--active t)
       (iota-theme-transparent--log "=== Background removal complete ===")
       (iota-theme-transparent--log "Summary: checked=%d modified=%d excluded=%d no-bg=%d"
-                                   faces-checked faces-modified faces-skipped-excluded faces-skipped-no-bg)
-      (message "IOTA: Transparency applied - checked %d faces, modified %d"
-               faces-checked faces-modified))))
+                                   faces-checked faces-modified faces-skipped-excluded faces-skipped-no-bg))))
 
 (defun iota-theme-transparent-restore-backgrounds ()
   "Restore original background colors."
@@ -296,8 +294,7 @@ Only modifies theme specs - does not set user specs."
       (when-let ((bg (plist-get attrs :background)))
         (set-face-attribute face nil :background bg))))
   (setq iota-theme-transparent--original-specs nil)
-  (setq iota-theme-transparent--active nil)
-  (message "IOTA: Theme transparency removed"))
+  (setq iota-theme-transparent--active nil))
 
 (defun iota-theme-transparent-advice (theme &optional no-confirm no-enable &rest args)
   "Advice for `load-theme' to apply transparency after theme loads.

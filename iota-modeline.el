@@ -104,6 +104,16 @@ If nil, inactive windows use default modeline."
 (defvar iota-modeline--last-update-time 0
   "Time of last modeline update.")
 
+(defvar iota-modeline--current-window nil
+  "The window currently being rendered.
+This is dynamically bound during modeline rendering to allow
+segments to check if they're rendering for the selected window.")
+
+(defvar iota-modeline--selected-window nil
+  "The truly selected window at the time of rendering.
+This is captured BEFORE any with-selected-window context switches,
+allowing segments to determine if they're in the active window.")
+
 ;;; Segment Management
 
 (defun iota-modeline--get-segments ()
@@ -132,22 +142,38 @@ Each fitted list contains (segment . use-short) cons cells."
                       segments))
          ;; Box borders take 4 chars (2 borders + 2 spaces), separator is 3 chars " │ "
          (content-width (- width 4))
-         (separator-width 3)
-         ;; Calculate minimum required width for highest priority segments
-         (left-fitted (iota-segment-fit-to-width left-segs
-                                                  (/ content-width 3)
-                                                  separator-width))
-         (right-fitted (iota-segment-fit-to-width right-segs
-                                                   (/ content-width 3)
-                                                   separator-width))
-         ;; Calculate remaining width for center after left and right
-         (left-width (iota-segment--calculate-total-width left-fitted separator-width))
-         (right-width (iota-segment--calculate-total-width right-fitted separator-width))
-         (center-available (max 0 (- content-width left-width right-width 2))) ; 2 for min spacing
-         (center-fitted (iota-segment-fit-to-width center-segs
-                                                    center-available
-                                                    separator-width)))
-    (list left-fitted center-fitted right-fitted)))
+         (separator-width 3))
+
+    ;; Iteratively fit segments - may need multiple passes if left+right overflow
+    (let ((left-fitted nil)
+          (right-fitted nil)
+          (center-fitted nil)
+          (left-width 0)
+          (right-width 0))
+
+      ;; Initial fit - give each side full content width
+      (setq left-fitted (iota-segment-fit-to-width left-segs content-width separator-width))
+      (setq right-fitted (iota-segment-fit-to-width right-segs content-width separator-width))
+      (setq left-width (iota-segment--calculate-total-width left-fitted separator-width))
+      (setq right-width (iota-segment--calculate-total-width right-fitted separator-width))
+
+      ;; If left + right exceeds available width, refit proportionally
+      (when (> (+ left-width right-width) content-width)
+        (let* ((total (+ left-width right-width))
+               (left-ratio (/ (float left-width) total))
+               (right-ratio (/ (float right-width) total))
+               (left-budget (floor (* content-width left-ratio 0.9))) ; 90% to leave margin
+               (right-budget (floor (* content-width right-ratio 0.9))))
+          (setq left-fitted (iota-segment-fit-to-width left-segs left-budget separator-width))
+          (setq right-fitted (iota-segment-fit-to-width right-segs right-budget separator-width))
+          (setq left-width (iota-segment--calculate-total-width left-fitted separator-width))
+          (setq right-width (iota-segment--calculate-total-width right-fitted separator-width))))
+
+      ;; Fit center with remaining space
+      (let ((center-available (max 0 (- content-width left-width right-width 2))))
+        (setq center-fitted (iota-segment-fit-to-width center-segs center-available separator-width)))
+
+      (list left-fitted center-fitted right-fitted))))
 
 (defun iota-modeline--render (&optional override-box-face window)
   "Render IOTA modeline format string for WINDOW.
@@ -156,9 +182,18 @@ If WINDOW is nil, use selected window."
       "" ; Return empty string for minibuffer
     (let* ((target-window (or window (selected-window)))
            ;; Use window-body-width which excludes margins, fringes, and scroll bars
-           ;; Subtract 1 to prevent line wrapping at exact boundary
+           ;; Subtract 2 to prevent line wrapping (more conservative)
            (raw-width (window-body-width target-window))
-           (width (if raw-width (max 1 (1- raw-width)) 80))  ; Fallback to 80 if nil
+           (width (if raw-width (max 1 (- raw-width 2)) 80))  ; Fallback to 80 if nil
+           ;; Bind current window for segments to check
+           (iota-modeline--current-window target-window)
+           ;; Keep existing selected-window binding if already set by caller,
+           ;; otherwise use (selected-window) for :eval path
+           (selected-win-value (if (and (boundp 'iota-modeline--selected-window)
+                                        iota-modeline--selected-window)
+                                   iota-modeline--selected-window
+                                 (selected-window)))
+           (iota-modeline--selected-window selected-win-value)
            (segments (iota-modeline--get-segments))
            (style iota-modeline-box-style)
            (box-face (or override-box-face
@@ -218,11 +253,14 @@ Returns nil if window or buffer is invalid."
           (puthash window overlay iota-modeline--window-overlays)))
       overlay)))
 
-(defun iota-modeline--update-overlay (&optional window)
+(defun iota-modeline--update-overlay (&optional window selected-window)
   "Update the simulated header overlay for WINDOW.
-If WINDOW is nil, use selected window."
+If WINDOW is nil, use selected window.
+If SELECTED-WINDOW is provided, use it as the truly selected window."
   (condition-case err
-      (let ((win (or window (selected-window))))
+      (let ((win (or window (selected-window)))
+            ;; Use provided selected-window or capture it now
+            (truly-selected (or selected-window (selected-window))))
         (when (and (window-live-p win)
                    (window-buffer win)
                    (buffer-live-p (window-buffer win)))
@@ -237,8 +275,12 @@ If WINDOW is nil, use selected window."
                 (when (and overlay (overlayp overlay)
                            start (integer-or-marker-p start))
                   (condition-case render-err
-                      (let ((box (with-selected-window win
-                                   (iota-modeline--render nil win))))
+                      ;; Pass the truly selected window via dynamic binding
+                      ;; MUST use let* so iota-modeline--selected-window is bound
+                      ;; before box is evaluated
+                      (let* ((iota-modeline--selected-window truly-selected)
+                             (box (with-selected-window win
+                                    (iota-modeline--render nil win))))
                         (move-overlay overlay start start (current-buffer))
                         (overlay-put overlay 'before-string
                                      (if (and box (stringp box) (not (string= box "")))
@@ -247,10 +289,10 @@ If WINDOW is nil, use selected window."
                         (overlay-put overlay 'window win))
                     (error
                      ;; Log detailed error with backtrace info
-                     (message "IOTA Error in render for buffer %s: %s"
+                     (message "I O T Λ: Error in render for buffer %s: %s"
                               (buffer-name) (error-message-string render-err))))))))))
     (error
-     (message "IOTA Error in update-overlay for window %s: %s"
+     (message "I O T Λ: Error in update-overlay for window %s: %s"
               (if (windowp window) (window-buffer window) "nil")
               (error-message-string err)))))
 
@@ -314,8 +356,10 @@ Returns nil if window or buffer is invalid."
 
 (defun iota-modeline--update ()
   "Update modeline display."
-  (dolist (win (window-list))
-    (iota-modeline--update-overlay win)))
+  ;; Capture the truly selected window once at the start
+  (let ((truly-selected (selected-window)))
+    (dolist (win (window-list))
+      (iota-modeline--update-overlay win truly-selected))))
 
 (defun iota-modeline--do-update ()
   "Perform modeline update (called by centralized update system).

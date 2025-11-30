@@ -74,6 +74,7 @@
 (require 'iota-modal)
 (require 'iota-leader)
 (require 'iota-tutorial)
+(require 'iota-keycast)
 
 ;;; Configuration
 
@@ -201,8 +202,7 @@ This prevents any code (including meow-tutor) from enabling line numbers."
   ;; Then prevent them from being enabled again
   (advice-add 'display-line-numbers-mode :override #'iota-prevent-line-numbers)
   (advice-add 'global-display-line-numbers-mode :override #'iota-prevent-line-numbers)
-  (advice-add 'linum-mode :override #'iota-prevent-line-numbers)
-  (message "Line numbers permanently disabled"))
+  (advice-add 'linum-mode :override #'iota-prevent-line-numbers))
 
 ;;;###autoload
 (defun iota-enable-line-numbers ()

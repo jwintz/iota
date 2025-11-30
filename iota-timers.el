@@ -256,7 +256,8 @@ Returns list of suspicious timers."
   (let ((orphans (iota-timers-find-orphans)))
     (dolist (timer orphans)
       (cancel-timer timer))
-    (message "IOTA: Cancelled %d orphaned timers" (length orphans))))
+    (when (> (length orphans) 0)
+      (message "I O T Λ: Cancelled %d orphaned timers" (length orphans)))))
 
 (provide 'iota-timers)
 ;;; iota-timers.el ends here
