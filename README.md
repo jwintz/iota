@@ -9,6 +9,16 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
 
 ## Features
 
+### Modal Editing System
+- **Native Semantic Modal Editing**: Ergonomic modal editing preserving Emacs semantics
+  - Built on modalka for reliable key translation
+  - Single-key commands mapped to standard Emacs bindings (n→C-n, w→M-w, etc.)
+  - **Leader Key Framework**: Hierarchical command menu via general.el
+  - Smart prefix simulation for C-x, C-h with multi-key sequence support
+  - Visual feedback with mode-aware cursor shapes and modeline indicator
+  - Automatic activation in text/programming buffers
+  - Terminal cursor shape management
+
 ### Syntax Theme Transparency
 - **Syntax Theme Transparency**: Automatic background removal in terminal
   - Preserves IOTA UI element backgrounds while making syntax transparent
@@ -33,7 +43,8 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
 - Header-line or mode-line positioning
 - Dynamic width calculation
 - Active/inactive window distinction
-- Modal editing integration (Meow & Evil)
+- Modal state indicator with customizable styles
+- Keycast display for active windows
 
 ### Theme Integration
 - Automatic color extraction from any theme
@@ -212,27 +223,70 @@ IOTA provides native semantic modal editing built on `modalka`, eliminating modi
 
 **Key Bindings (COMMAND mode):**
 
-| Key | Command | Emacs Equivalent |
-|-----|---------|------------------|
-| `n/p` | next/previous line | C-n/C-p |
-| `f/b` | forward/backward char | C-f/C-b |
-| `F/B` | forward/backward word | M-f/M-b |
-| `a/e` | beginning/end of line | C-a/C-e |
-| `v/V` | scroll down/up | C-v/M-v |
-| `w` | copy (kill-ring-save) | M-w |
-| `y` | paste (yank) | C-y |
-| `W` | cut (kill-region) | C-w |
-| `k` | kill line | C-k |
-| `d` | delete char | C-d |
-| `u/U` | undo/redo | C-/ |
-| `SPC` | set mark | C-SPC |
-| `s/r` | isearch forward/backward | C-s/C-r |
-| `x` | C-x prefix | C-x |
-| `x f` | find-file | C-x C-f |
-| `x s` | save-buffer | C-x C-s |
-| `x b` | switch-to-buffer | C-x b |
-| `i` | enter INSERT mode | — |
-| `ESC` | enter COMMAND mode | — |
+| Category | Key | Command | Emacs Equivalent |
+|----------|-----|---------|------------------|
+| **Navigation** | `n/p` | next/previous line | C-n/C-p |
+| | `f/b` | forward/backward char | C-f/C-b |
+| | `F/B` | forward/backward word | M-f/M-b |
+| | `a/e` | beginning/end of line | C-a/C-e |
+| | `v/V` | page down/up | C-v/M-v |
+| | `</> ` | beginning/end of buffer | M-</M-> |
+| | `[/]` | backward/forward sexp | - |
+| | `{/}` | backward/forward paragraph | - |
+| | `l` | recenter | C-l |
+| **Editing** | `w` | copy (kill-ring-save) | M-w |
+| | `y` | paste (yank) | C-y |
+| | `W` | cut (kill-region) | C-w |
+| | `Y` | yank-pop | M-y |
+| | `k` | kill line | C-k |
+| | `d` | delete char | C-d |
+| | `D` | kill word | M-d |
+| | `u/U` | undo/redo | C-//C-? |
+| | `t` | transpose chars | C-t |
+| | `/` | completion (dabbrev) | M-/ |
+| | `SPC` | set mark | C-SPC |
+| | `o/O` | open line below/above | - |
+| **Search** | `s/r` | isearch forward/backward | C-s/C-r |
+| **Prefixes** | `x` | C-x prefix (smart) | C-x |
+| | `h` | C-h prefix (help) | C-h |
+| | `c` | Leader key menu | - |
+| | `g` | keyboard-quit | C-g |
+| **Buffer** | `q` | kill current buffer | - |
+| **Mode** | `i` | enter INSERT mode | — |
+| | `ESC` | enter COMMAND mode | — |
+
+**Smart Prefix Keys:**
+
+The `x` prefix provides convenient access to common C-x commands:
+- `x f` → C-x C-f (find-file)
+- `x s` → C-x C-s (save-buffer)
+- `x w` → C-x C-w (write-file)
+- `x e` → C-x C-e (eval-last-sexp)
+- `x c` → C-x C-c (quit)
+- `x <other>` → C-x <other> (all other C-x bindings including custom ones)
+
+**Leader Key Framework:**
+
+The `c` key activates the leader menu providing organized access to common operations:
+
+```elisp
+;; Leader key is automatically enabled with iota-modal-mode
+;; Press 'c' in COMMAND mode to see all options
+```
+
+| Prefix | Category | Example Commands |
+|--------|----------|-----------------|
+| `c f` | Files | `c f f` find-file, `c f s` save, `c f r` recent files |
+| `c b` | Buffers | `c b b` switch, `c b k` kill, `c b i` ibuffer |
+| `c w` | Windows | `c w /` split right, `c w -` split below, `c w d` delete |
+| `c p` | Projects | `c p f` find-file, `c p p` switch project |
+| `c v` | Magit | `c v v` status, `c v l` log, `c v c` commit |
+| `c h` | Help | `c h f` describe-function, `c h k` describe-key |
+| `c s` | Search | `c s s` search forward, `c s R` replace |
+| `c t` | Toggle | `c t l` line numbers, `c t i` modal indicator style |
+| `c i` | IOTA | `c i d` demo, `c i s` setup, `c i c` config |
+| `c q` | Quit | `c q q` save & quit, `c q r` restart |
+| `c c` | C-c prefix | Access mode-specific commands |
 
 **Modal Indicator Styles:**
 ```elisp
@@ -242,12 +296,23 @@ IOTA provides native semantic modal editing built on `modalka`, eliminating modi
 
 ;; Cycle through styles
 M-x iota-modal-cycle-indicator-style
+;; Or use leader: c t i
 ```
 
 **Visual Feedback:**
 - COMMAND mode: Box cursor (█), green indicator (● COMMAND)
 - INSERT mode: Bar cursor (|), gray indicator (○ INSERT)
 - Cursor updates automatically when switching buffers
+- Terminal cursor shapes are properly managed
+
+**Global Key Bindings:**
+
+IOTA modal mode also sets up convenient global prefixes:
+- `C-c v` → Magit prefix (similar to `C-c p` for projects)
+  - `C-c v v` → magit-status
+  - `C-c v l` → magit-log
+  - `C-c v c` → magit-commit
+  - And more (see `iota-leader.el` for full list)
 
 ### Terminal Emacs Configuration
 
@@ -380,6 +445,8 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 
 ## Interactive Commands
 
+### Core Commands
+
 | Command | Description |
 |---------|-------------|
 | `M-x iota-setup` | Interactive setup wizard |
@@ -387,14 +454,34 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 | `M-x iota-splash-screen` | Display splash screen |
 | `M-x iota-version` | Show version |
 | `M-x iota-reload` | Reload package (dev) |
+
+### Modeline Commands
+
+| Command | Description |
+|---------|-------------|
 | `M-x iota-modeline-mode` | Toggle IOTA modeline |
 | `M-x iota-modeline-refresh` | Refresh modeline |
 | `M-x iota-modeline-toggle-position` | Toggle header/mode-line |
 | `M-x iota-modeline-cycle-preset` | Cycle through presets |
 | `M-x iota-modeline-cycle-style` | Cycle through box styles |
-| `M-x iota-modal-mode` | Toggle modal editing (COMMAND/INSERT) |
+
+### Modal Editing Commands
+
+| Command | Description |
+|---------|-------------|
+| `M-x iota-modal-mode` | Toggle modal editing system (global) |
 | `M-x iota-modal-toggle` | Toggle between COMMAND and INSERT |
+| `M-x iota-modal-enter-command-mode` | Enter COMMAND mode |
+| `M-x iota-modal-enter-insert-mode` | Enter INSERT mode |
 | `M-x iota-modal-cycle-indicator-style` | Cycle indicator styles (both/glyph/label) |
+| `M-x iota-modal-toggle-debug` | Toggle keystroke debugging |
+| `M-x iota-leader-mode` | Toggle leader key framework |
+| `M-x iota-leader-show-menu` | Show leader key menu (requires which-key) |
+
+### Theme Commands
+
+| Command | Description |
+|---------|-------------|
 | `M-x iota-refresh-faces` | Refresh faces from theme |
 | `M-x iota-theme-transparent-diagnose` | Diagnose terminal transparency support |
 
@@ -416,6 +503,10 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 - **`iota-window.el`** — Window management and transitions
 - **`iota-splash.el`** — Splash screen implementation
 
+### Modal Editing
+- **`iota-modal.el`** — Native semantic modal editing (modalka-based)
+- **`iota-leader.el`** — Hierarchical leader key framework (general.el-based)
+
 ### Features
 - **`iota-widgets.el`** — UI components (progress bars, tables, dialogs)
 - **`iota-animate.el`** — Animation framework and color interpolation
@@ -432,12 +523,13 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 
 ## Compatibility
 
-- Emacs: 30.0+
-- Themes: All themes (automatic adaptation)
-- Terminal and GUI Emacs
-- Platforms: macOS, Linux, Windows
-- Modal Editing: Native (modalka-based), also works alongside Meow/Evil
-- Integrations: Flycheck, Flymake, VC, all-the-icons
+- **Emacs**: 30.0+
+- **Themes**: All themes (automatic adaptation)
+- **Display**: Terminal and GUI Emacs
+- **Platforms**: macOS, Linux, Windows
+- **Modal Editing**: Native modalka-based system with leader key support
+- **Dependencies**: modalka (0.1.5+), general.el (0.1+) for modal editing
+- **Integrations**: Flycheck, Flymake, VC, Magit, all-the-icons, project.el, which-key
 
 ## Development
 
@@ -445,21 +537,22 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 
 ```
 iota/
-├── iota.el              # Main entry point
-├── iota-animate.el      # Animation framework
-├── iota-box.el          # Box drawing
+├── iota.el              # Main entry point and initialization
+├── iota-animate.el      # Animation framework and color interpolation
+├── iota-box.el          # Box drawing engine and style definitions
 ├── iota-demo.el         # Feature demonstrations
 ├── iota-faces.el        # Face definitions
+├── iota-leader.el       # Leader key framework (general.el-based)
 ├── iota-logos.el        # Branding and logos
-├── iota-modal.el        # Modal editing integration (Meow, Evil)
-├── iota-modeline.el     # Modeline implementation
-├── iota-segment.el      # Segment system
-├── iota-segments.el     # Built-in segments
-├── iota-splash.el       # Splash screen
-├── iota-theme.el        # Theme utilities
-├── iota-tui.el          # Core TUI library
-├── iota-widgets.el      # Widget library
-└── iota-window.el       # Window management
+├── iota-modal.el        # Native semantic modal editing (modalka-based)
+├── iota-modeline.el     # Modeline implementation and overlay management
+├── iota-segment.el      # Segment protocol and caching system
+├── iota-segments.el     # Built-in segments library
+├── iota-splash.el       # Splash screen implementation
+├── iota-theme.el        # Theme introspection and color utilities
+├── iota-tui.el          # Core TUI library and component rendering
+├── iota-widgets.el      # Widget library (progress bars, tables, etc.)
+└── iota-window.el       # Window management and transitions
 ```
 
 ## Philosophy
