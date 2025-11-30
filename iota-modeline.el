@@ -182,9 +182,9 @@ If WINDOW is nil, use selected window."
       "" ; Return empty string for minibuffer
     (let* ((target-window (or window (selected-window)))
            ;; Use window-body-width which excludes margins, fringes, and scroll bars
-           ;; Subtract 2 to prevent line wrapping (more conservative)
+           ;; Subtract 1 to prevent line wrapping
            (raw-width (window-body-width target-window))
-           (width (if raw-width (max 1 (- raw-width 2)) 80))  ; Fallback to 80 if nil
+           (width (if raw-width (max 1 (1- raw-width)) 80))  ; Fallback to 80 if nil
            ;; Bind current window for segments to check
            (iota-modeline--current-window target-window)
            ;; Keep existing selected-window binding if already set by caller,
