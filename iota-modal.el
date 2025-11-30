@@ -422,11 +422,12 @@ This implements the Iota Semantic Specification from the architecture document."
   (let ((map (make-sparse-keymap)))
     ;; Convenience mappings: x <key> -> C-x C-<key>
     ;; These are the most common C-x C-* commands accessed without Control
-    (define-key map (kbd "f") #'find-file)              ; C-x C-f
-    (define-key map (kbd "s") #'save-buffer)            ; C-x C-s
-    (define-key map (kbd "w") #'write-file)             ; C-x C-w
-    (define-key map (kbd "e") #'eval-last-sexp)         ; C-x C-e
-    (define-key map (kbd "c") #'save-buffers-kill-terminal)  ; C-x C-c
+    ;; Use vectors since read-key-sequence-vector returns vectors
+    (define-key map [?f] #'find-file)              ; C-x C-f
+    (define-key map [?s] #'save-buffer)            ; C-x C-s
+    (define-key map [?w] #'write-file)             ; C-x C-w
+    (define-key map [?e] #'eval-last-sexp)         ; C-x C-e
+    (define-key map [?c] #'save-buffers-kill-terminal)  ; C-x C-c
     map)
   "Convenience keymap for common C-x C-* commands.")
 
@@ -436,7 +437,8 @@ PREFIX-NAME is used for the prompt.
 CONVENIENCE-MAP is an optional keymap checked first for convenience bindings.
 This function continues reading keys until a command is found, supporting
 multi-key sequences like C-c v v."
-  (let* ((keys (read-key-sequence-vector (concat prefix-name "-")))
+  (let* ((key (read-event (concat prefix-name "-")))
+         (keys (vector key))
          ;; First check convenience map for single-key shortcuts
          (convenience-cmd (and convenience-map
                                (lookup-key convenience-map keys)))
@@ -446,9 +448,8 @@ multi-key sequences like C-c v v."
                   (key-binding full-key))))
     ;; If the binding is a keymap, continue reading keys
     (while (keymapp cmd)
-      (let ((next-keys (read-key-sequence-vector 
-                        (concat prefix-name " " (key-description keys) "-"))))
-        (setq keys (vconcat keys next-keys))
+      (let ((next-key (read-event (concat prefix-name " " (key-description keys) "-"))))
+        (setq keys (vconcat keys (vector next-key)))
         (setq full-key (vconcat (kbd prefix-key) keys))
         (setq cmd (key-binding full-key))))
     (if cmd
