@@ -108,7 +108,9 @@ When enabled, accent elements will fade between active/inactive colors."
      ;; Set vertical-border face to fully transparent
      (set-face-attribute 'vertical-border nil 
                          :foreground 'unspecified 
-                         :background 'unspecified))))(defun iota-window--restore-dividers ()
+                         :background 'unspecified))))
+
+(defun iota-window--restore-dividers ()
   "Restore original window divider settings."
   (when iota-window--original-display-table
     (setq standard-display-table iota-window--original-display-table))
@@ -154,32 +156,36 @@ This is intentionally lightweight to avoid lag on window switches."
     ;; Skip minibuffer windows
     (when (and (not (minibufferp (window-buffer current-window)))
                (not (eq current-window iota-window--last-selected)))
-      ;; Update window parameters for active/inactive detection
-      ;; This is what iota-theme-window-active-p checks
-      (dolist (win (window-list nil 'no-minibuf))
-        (set-window-parameter win 'iota-active nil))
-      (set-window-parameter current-window 'iota-active t)
-      
-      ;; Optional animations (disabled by default for performance)
-      (when (and iota-animate-enabled 
-                 iota-window-animate-transitions 
-                 iota-window-animate-modeline)
-        (iota-window--cancel-animations)
-        (let ((active-color (face-attribute 'iota-active-box-face :foreground nil t))
-              (inactive-color (face-attribute 'iota-inactive-box-face :foreground nil t)))
-          (when (and active-color inactive-color
-                     (stringp active-color) (stringp inactive-color))
-            (when (and iota-window--last-selected 
-                       (window-live-p iota-window--last-selected))
+      (let ((prev-window iota-window--last-selected))
+        ;; Update window parameters for active/inactive detection
+        ;; This is what iota-theme-window-active-p checks
+        (dolist (win (window-list nil 'no-minibuf))
+          (set-window-parameter win 'iota-active nil))
+        (set-window-parameter current-window 'iota-active t)
+        
+        ;; Optional animations (disabled by default for performance)
+        (when (and iota-animate-enabled 
+                   iota-window-animate-transitions 
+                   iota-window-animate-modeline)
+          (iota-window--cancel-animations)
+          (let ((active-color (face-attribute 'iota-active-box-face :foreground nil t))
+                (inactive-color (face-attribute 'iota-inactive-box-face :foreground nil t)))
+            (when (and active-color inactive-color
+                       (stringp active-color) (stringp inactive-color))
+              (when (and prev-window (window-live-p prev-window))
+                (iota-window--animate-window-modeline 
+                 prev-window active-color inactive-color))
               (iota-window--animate-window-modeline 
-               iota-window--last-selected active-color inactive-color))
-            (iota-window--animate-window-modeline 
-             current-window inactive-color active-color))))
-      
-      (setq iota-window--last-selected current-window)
-      ;; Update all modeline overlays to reflect new active/inactive state
-      ;; force-mode-line-update alone doesn't update the overlay contents
-      (iota-modeline--update))))
+               current-window inactive-color active-color))))
+        
+        (setq iota-window--last-selected current-window)
+        ;; Update only the affected windows for better performance
+        ;; This avoids re-rendering all windows on every switch
+        (when (fboundp 'iota-modeline--update-windows)
+          (let ((windows-to-update (list current-window)))
+            (when (and prev-window (window-live-p prev-window))
+              (push prev-window windows-to-update))
+            (iota-modeline--update-windows windows-to-update)))))))
 
 ;;; Minor Mode
 

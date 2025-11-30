@@ -685,7 +685,7 @@ Visual Feedback:
             (when (and (iota-modal--should-activate-p)
                        (or (derived-mode-p 'text-mode)
                            (derived-mode-p 'prog-mode)))
-              (modalka-mode 1))))))
+              (modalka-mode 1)))))
     (progn
       ;; Remove global ESC and C-] bindings
       (global-unset-key (kbd "<escape>"))

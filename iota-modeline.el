@@ -361,6 +361,15 @@ Returns nil if window or buffer is invalid."
     (dolist (win (window-list))
       (iota-modeline--update-overlay win truly-selected))))
 
+(defun iota-modeline--update-windows (windows)
+  "Update modeline display for specific WINDOWS only.
+This is more efficient than updating all windows when only
+a few need to change (e.g., on window selection change)."
+  (let ((truly-selected (selected-window)))
+    (dolist (win windows)
+      (when (window-live-p win)
+        (iota-modeline--update-overlay win truly-selected)))))
+
 (defun iota-modeline--do-update ()
   "Perform modeline update (called by centralized update system).
 This is the main entry point for the iota-update system."
