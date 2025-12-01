@@ -289,9 +289,9 @@ Returns: String with box decorations."
          (right-parts (if (listp right) right (list right)))
          
          ;; Filter out nil and empty strings
-         (left-parts (delq nil (delq "" left-parts)))
-         (center-parts (delq nil (delq "" center-parts)))
-         (right-parts (delq nil (delq "" right-parts)))
+         (left-parts (cl-remove-if (lambda (s) (or (null s) (string-empty-p s))) left-parts))
+         (center-parts (cl-remove-if (lambda (s) (or (null s) (string-empty-p s))) center-parts))
+         (right-parts (cl-remove-if (lambda (s) (or (null s) (string-empty-p s))) right-parts))
          
          ;; Join segments with separator
          (left-content (mapconcat #'identity left-parts sep))

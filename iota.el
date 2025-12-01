@@ -7,7 +7,7 @@
 ;; URL: https://github.com/jwintz/iota
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "30.0") (use-package "2.4"))
-;; Keywords: faces, modeline, tui, modal
+;; Keywords: faces, modeline, tui
 
 ;; This file is not part of GNU Emacs.
 
@@ -22,22 +22,10 @@
 ;; - A decorated header-line modeline with box-drawing characters
 ;; - A theme-agnostic TUI library for various UI components
 ;; - Animation support for color transitions and visual feedback
-;; - Native semantic modal editing via modalka
-;;
-;; Modal Editing (NEW):
-;;   IOTA now includes a native semantic modal system built on modalka.
-;;   Keys map directly to Emacs commands while eliminating modifier chords:
-;;     n → C-n (next-line)     w → M-w (copy)
-;;     p → C-p (previous-line) y → C-y (paste)
-;;     SPC → C-SPC (set-mark)  W → C-w (cut)
 ;;
 ;; Quick Start:
 ;;   (require 'iota)
 ;;   (iota-modeline-mode 1)  ; Enable styled modeline
-;;   (iota-modal-mode 1)     ; Enable modal editing
-;;
-;; Tutorial:
-;;   M-x iota-tutorial       ; Interactive modal editing tutorial
 ;;
 ;; Customize:
 ;;   M-x customize-group RET iota RET
@@ -55,8 +43,6 @@
 
 ;; UI components
 (require 'iota-box)
-(require 'iota-segment)
-(require 'iota-segments)
 (require 'iota-theme)
 (require 'iota-tui)
 (require 'iota-animate)
@@ -71,10 +57,6 @@
 
 ;; Optional modules
 (require 'iota-theme-transparent)
-(require 'iota-modal)
-(require 'iota-leader)
-(require 'iota-tutorial)
-(require 'iota-keycast)
 
 ;;; Configuration
 
@@ -137,23 +119,11 @@
         (message "Style: %s" style)
         (sit-for 0.5)))
     
-    ;; Ask about modal editing
-    (when (y-or-n-p "Enable modal editing (ergonomic keys without modifier chords)? ")
-      (iota-modal-mode 1)
-      (iota-leader-mode 1)
-      (message "Modal editing enabled! Press ESC for COMMAND mode, 'i' for INSERT mode.")
-      (sit-for 1))
-
     ;; Enable modeline
     (iota-modeline-mode 1)
 
     ;; Enable window mode for active/inactive distinction
     (iota-window-mode 1)
-
-    ;; Offer tutorial
-    (when (and (bound-and-true-p iota-modal-mode)
-               (y-or-n-p "Would you like to take the modal editing tutorial? "))
-      (iota-tutorial))
 
     (message "I O T Λ setup complete! Modeline and window tracking enabled.")))
 
@@ -164,17 +134,12 @@ This is the easiest way to start using IOTA."
   (interactive)
   ;; Enable modeline with rounded style
   (setq iota-modeline-box-style 'rounded)
-  (setq iota-modeline-segments-preset 'standard)
   (iota-modeline-mode 1)
   
   ;; Enable window mode for active/inactive distinction
   (iota-window-mode 1)
   
-  ;; Enable modal editing
-  (iota-modal-mode 1)
-  (iota-leader-mode 1)
-  
-  (message "IOTA quickstart complete! Modal editing enabled. Press ESC for COMMAND mode."))
+  (message "IOTA quickstart complete! Modeline and window tracking enabled."))
 
 ;;; Quick Commands
 
@@ -234,17 +199,12 @@ When enabled, line number modes will be permanently disabled."
   (interactive)
   (when iota-modeline-mode
     (iota-modeline-mode -1))
-  (when (bound-and-true-p iota-modal-mode)
-    (iota-modal-mode -1))
-  (when (bound-and-true-p iota-leader-mode)
-    (iota-leader-mode -1))
   (mapc (lambda (feature)
           (when (featurep feature)
             (unload-feature feature t)))
-        '(iota-tutorial iota-leader iota-modal
-          iota-perf iota-config iota-demo iota-window iota-logos 
+        '(iota-perf iota-config iota-demo iota-window iota-logos 
           iota-splash iota-faces iota-widgets iota-modeline 
-          iota-animate iota-segments iota-segment iota-tui 
+          iota-animate iota-tui 
           iota-theme-transparent iota-theme 
           iota-box iota))
   (require 'iota)

@@ -23,7 +23,6 @@
 ;; combining functionality from:
 ;;   - iota-box:     Box drawing and borders
 ;;   - iota-widgets: Interactive components
-;;   - iota-segment: Modeline/header segments
 ;;   - iota-theme:   Color management
 ;;   - iota-animate: Animations and transitions
 ;;
@@ -37,7 +36,6 @@
 ;;; Code:
 
 (require 'iota-box)
-(require 'iota-segment)
 (require 'iota-theme)
 (require 'iota-widgets)
 
@@ -104,59 +102,25 @@ Example:
    :face (or face 'iota-box-face)
    :align align))
 
-;;; Segment Rendering
-
-(cl-defun iota-render-segments (segments &key width layout)
-  "Render SEGMENTS with optional WIDTH and LAYOUT.
-
-Arguments:
-  segments  List of segment structs
-  :width    Total width (default: window-width)
-  :layout   Layout style: horizontal, box (default: horizontal)
-
-Example:
-  (iota-render-segments
-    (list (iota-segment-simple \"Left\" \\='bold)
-          (iota-segment-simple \"Right\" nil))
-    :width 80)"
-  (let ((width (or width (window-width))))
-    (pcase layout
-      ('box
-       (iota-box-render-single-line
-        :left (iota-segment-compose
-               (cl-remove-if-not
-                (lambda (s) (eq (iota-segment-align s) 'left))
-                segments))
-        :center (iota-segment-compose
-                 (cl-remove-if-not
-                  (lambda (s) (eq (iota-segment-align s) 'center))
-                  segments))
-        :right (iota-segment-compose
-                (cl-remove-if-not
-                 (lambda (s) (eq (iota-segment-align s) 'right))
-                 segments))
-        :width width
-        :style iota-style
-        :face 'iota-box-face))
-      (_
-       (iota-segment-layout segments width)))))
-
 ;;; ============================================================
 ;;; Interactive Components (Convenience Wrappers)
 ;;; ============================================================
 
 (defun iota-button (label action &optional help-text)
-  "Create an interactive button segment.
+  "Create an interactive button.
 LABEL is the button text, ACTION is called on click.
 Optional HELP-TEXT shows on hover."
-  (iota-segment-clickable
-   label
-   action
-   '(:foreground "#39bae6" :weight bold :box t)
-   (or help-text (format "Click: %s" label))))
+  (propertize label
+              'face '(:foreground "#39bae6" :weight bold :box t)
+              'mouse-face 'highlight
+              'help-echo (or help-text (format "Click: %s" label))
+              'keymap (let ((map (make-sparse-keymap)))
+                        (define-key map [mouse-1] action)
+                        (define-key map (kbd "RET") action)
+                        map)))
 
 (defun iota-toggle (label state &optional on-toggle)
-  "Create a toggle segment.
+  "Create a toggle widget.
 LABEL is the toggle text, STATE is current boolean state.
 ON-TOGGLE is called when clicked."
   (let* ((indicator (if state "●" "○"))
@@ -164,11 +128,14 @@ ON-TOGGLE is called when clicked."
          (face (if state
                    '(:foreground "#51cf66" :weight bold)
                  '(:foreground "#888"))))
-    (iota-segment-clickable
-     text
-     (or on-toggle (lambda () (interactive) (message "Toggled!")))
-     face
-     (format "Toggle %s (currently %s)" label (if state "ON" "OFF")))))
+    (propertize text
+                'face face
+                'mouse-face 'highlight
+                'help-echo (format "Toggle %s (currently %s)" label (if state "ON" "OFF"))
+                'keymap (let ((map (make-sparse-keymap)))
+                          (define-key map [mouse-1] (or on-toggle (lambda () (interactive) (message "Toggled!"))))
+                          (define-key map (kbd "RET") (or on-toggle (lambda () (interactive) (message "Toggled!"))))
+                          map))))
 
 (defun iota-badge (text &optional type)
   "Create a badge segment.
@@ -189,28 +156,26 @@ Optional WIDTH (default 20) and STYLE (blocks, dots, line, etc.)."
                              :show-percent nil))
 
 (defun iota-progress-segment (label value total &optional width)
-  "Create a progress segment with LABEL.
+  "Create a progress string with LABEL.
 Shows progress bar and percentage."
-  (let ((bar (iota-widget-progress-bar value total
-                                        :width (or width 15)
-                                        :style 'blocks
-                                        :label label)))
-    (iota-segment-simple bar)))
+  (iota-widget-progress-bar value total
+                            :width (or width 15)
+                            :style 'blocks
+                            :label label))
 
 (defun iota-spinner (index &optional style)
-  "Create a spinner segment.
+  "Create a spinner string.
 INDEX rotates through spinner frames.
 Optional STYLE: braille, dots, line, arc, etc."
-  (iota-segment-simple
-   (iota-widget-spinner index style)
-   'iota-accent-face))
+  (propertize (iota-widget-spinner index style)
+              'face 'iota-accent-face))
 
 ;;; ============================================================
 ;;; Status Indicators
 ;;; ============================================================
 
 (defun iota-status-icon (status)
-  "Create a status icon segment.
+  "Create a status icon string.
 STATUS can be: success, error, warning, info, loading, pending."
   (let ((icon-map '((success . ("✓" iota-success-face))
                     (error   . ("✗" iota-error-face))
@@ -220,7 +185,7 @@ STATUS can be: success, error, warning, info, loading, pending."
                     (pending . ("○" iota-muted-face)))))
     (pcase-let ((`(,icon ,face) (or (alist-get status icon-map)
                                      '("?" default))))
-      (iota-segment-simple icon face))))
+      (propertize icon 'face face))))
 
 ;;; ============================================================
 ;;; Utility Functions
@@ -257,7 +222,8 @@ Wrapper around `iota-theme-get-color'."
 (defun iota-refresh-faces ()
   "Refresh IOTA faces after theme change."
   (interactive)
-  (iota-segment-cache-clear))
+  ;; Force redisplay
+  (force-mode-line-update t))
 
 ;; Auto-refresh on theme change
 (add-hook 'iota-theme-change-hook #'iota-refresh-faces)

@@ -72,19 +72,16 @@ Set this to a string like \"C-c p\" to override automatic detection."
   "Last known window height for splash screen.")
 
 (defconst iota-splash--hints
-  '("Enable modal editing with M-x iota-modal-mode (ESC for COMMAND, i for INSERT)"
-    "Learn modal keys with M-x iota-tutorial - an interactive guide"
-    "Use comma (,) as leader key in COMMAND mode: , f for files, , b for buffers"
-    "Press M-x iota-modeline-cycle-style to change box styles"
+  '("Press M-x iota-modeline-cycle-style to change box styles"
     "Use M-x iota-modeline-toggle-position to switch between header and mode line"
-    "Try M-x iota-modeline-cycle-preset to explore segment presets"
-    "Modeline segments automatically adapt to narrow windows"
+    "Modeline content is provided via iota-modeline-left/center/right-function"
+    "I O T Λ automatically adapts to your theme's colors"
     "Enable terminal transparency with iota-theme-transparent-in-terminal"
     "Run M-x iota-demo to explore all I O T Λ widgets and features"
     "I O T Λ animations use 30fps for smooth visual feedback"
-    "I O T Λ automatically adapts to your theme's colors"
-    "Create custom segments with iota-segment-simple or iota-segment-dynamic"
-    "I O T Λ works in both terminal and GUI Emacs")
+    "I O T Λ works in both terminal and GUI Emacs"
+    "Customize box style with iota-modeline-box-style variable"
+    "Use iota-box-render-single-line for custom TUI layouts")
   "List of hints about I O T Λ features.")
 
 (defconst iota-splash--base-colors
@@ -670,12 +667,6 @@ Does not display if Emacs was opened with file arguments."
         (read-only-mode 1)
         (local-set-key (kbd "q") 'quit-window)
         (local-set-key (kbd "RET") 'quit-window)
-
-        ;; Enable modalka for command mode in splash screen
-        ;; This allows x f, x b, etc. to work
-        (when (and (boundp 'iota-modal-mode) iota-modal-mode
-                   (fboundp 'modalka-mode))
-          (modalka-mode 1))
 
         ;; Hide both mode-line and header-line in splash screen
         (setq-local mode-line-format nil)
