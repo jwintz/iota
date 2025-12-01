@@ -26,6 +26,8 @@
 ;;   - Automatic separator lines between windows
 ;;   - Theme-aware face integration
 ;;   - Centralized update system integration
+;;   - T-junction separators between segments
+;;   - Right-aligned segments support (configurable count)
 
 ;;; Code:
 
@@ -91,6 +93,13 @@ If nil, inactive windows use default modeline."
 When non-nil, segments are separated by │ characters with
 T-junctions (┬/┴) in the top and bottom borders."
   :type 'boolean
+  :group 'iota-modeline)
+
+(defcustom iota-modeline-right-segment-count 2
+  "Number of segments to place on the right side of the modeline.
+Segments are identified by splitting mode-line content on runs of 2+ spaces.
+For doom-modeline, typically 2 (major-mode and VCS info)."
+  :type 'integer
   :group 'iota-modeline)
 
 ;;; State
@@ -160,27 +169,31 @@ Returns a list of segments that will fit."
 
 (defun iota-modeline--render-box (&optional window)
   "Render complete IOTA modeline box for WINDOW.
-Uses `iota-box-render-single-line' for proper T-junction handling."
+Uses `iota-box-render-single-line' for proper T-junction handling.
+Parses mode-line content into segments and distributes them between
+left and right sides based on `iota-modeline-right-segment-count'."
   (let* ((win (or window (selected-window)))
          (width (max 10 (1- (window-body-width win))))
          (style iota-modeline-box-style)
          (face (iota-theme-get-box-face win))
-         ;; Render the original modeline content
+         ;; Render the original modeline content and strip properties
          (content (format-mode-line iota-modeline--original-mode-line-format nil win))
-         ;; Remove ALL text properties
          (content (substring-no-properties content))
          (content (string-trim content))
-         ;; Parse into segments if separators enabled
-         (segments (if iota-modeline-show-separators
-                       (iota-modeline--parse-segments content)
-                     (list content)))
-         ;; Fit segments to available width
-         (fitted-segments (iota-modeline--fit-segments-to-width segments width style)))
-    ;; Use iota-box-render-single-line for proper box with T-junctions
+         ;; Parse into segments
+         (all-segments (if iota-modeline-show-separators
+                           (iota-modeline--parse-segments content)
+                         (list content)))
+         ;; Split into left and right segments
+         (right-count (min iota-modeline-right-segment-count (length all-segments)))
+         (left-count (- (length all-segments) right-count))
+         (left-segments (seq-take all-segments left-count))
+         (right-segments (seq-drop all-segments left-count)))
+    ;; Use iota-box-render-single-line with left and right
     (iota-box-render-single-line
-     :left fitted-segments
+     :left left-segments
      :center nil
-     :right nil
+     :right right-segments
      :width width
      :style style
      :face face
@@ -286,12 +299,12 @@ If SELECTED-WINDOW is provided, use it as the truly selected window."
                       (let* ((iota-modeline--selected-window truly-selected)
                              ;; Render complete box (top + content + bottom)
                              (box (with-selected-window win
-                                    (iota-modeline--render nil win))))
+                                    (iota-modeline--render nil win)))
+                             (box-str (if (and box (stringp box) (not (string= box "")))
+                                          (concat box "\n")
+                                        "")))
                         (move-overlay overlay start start (current-buffer))
-                        (overlay-put overlay 'before-string
-                                     (if (and box (stringp box) (not (string= box "")))
-                                         (concat box "\n")
-                                       ""))
+                        (overlay-put overlay 'before-string box-str)
                         (overlay-put overlay 'window win))
                     (error
                      (message "I O T Λ: Error in render for buffer %s: %s"
