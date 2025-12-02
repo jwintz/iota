@@ -378,6 +378,21 @@ Returns: String with box decorations."
                                                     `(:inherit ,face :slant normal :weight normal)
                                                   '(:inherit mode-line :slant normal :weight normal))))
            (content-str (apply #'concat content-parts))
+           ;; SAFETY: Truncate content if it exceeds available width
+           ;; This prevents line overflow and broken box rendering
+           (content-max-width (- width 4))  ; Account for borders and padding
+           (content-str (if (> (string-width content-str) content-max-width)
+                            (truncate-string-to-width content-str content-max-width nil nil "…")
+                          content-str))
+           ;; Pad content if it's shorter than expected (to maintain box width)
+           (content-str (let ((current-width (string-width content-str)))
+                          (if (< current-width content-max-width)
+                              (concat content-str
+                                      (propertize (make-string (- content-max-width current-width) ?\s)
+                                                  'face (if face
+                                                            `(:inherit ,face :slant normal :weight normal)
+                                                          '(:inherit mode-line :slant normal :weight normal))))
+                            content-str)))
            (content-line (concat left-border padding-space content-str padding-space right-border)))
 
       (if compact

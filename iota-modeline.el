@@ -157,10 +157,19 @@ allowing content to determine if it's in the active window.")
 (defvar iota-modeline--saved-mode-line-faces nil
   "Saved mode-line face attributes for restoration.")
 
+(defvar iota-modeline--frame-focus-state t
+  "Whether the current frame has focus.
+Updated by focus hooks to prevent rendering issues when terminal is unfocused.")
+
 ;;; Wrapping Logic
 
 (defcustom iota-modeline-debug nil
-  "Enable debug logging for modeline face processing."
+  "Enable debug logging for modeline rendering."
+  :type 'boolean
+  :group 'iota-modeline)
+
+(defcustom iota-modeline-debug-faces nil
+  "Enable debug logging for face normalization (very verbose)."
   :type 'boolean
   :group 'iota-modeline)
 
@@ -191,7 +200,7 @@ first non-unspecified color found, or nil."
 Returns a face specification with explicit values for all inheritable attributes.
 Critically, this ensures that foreground/background colors are resolved from
 the face definition and set explicitly to prevent color inheritance."
-  (when iota-modeline-debug
+  (when iota-modeline-debug-faces
     (message "IOTA: Normalizing face: %S" face))
   (let ((result
          (cond
@@ -216,13 +225,11 @@ the face definition and set explicitly to prevent color inheritance."
                (if (plist-member normalized :inherit)
                    (let* ((inherited-face (plist-get normalized :inherit))
                           (fg (iota-modeline--resolve-face-color inherited-face :foreground)))
-                     (when iota-modeline-debug
-                       (message "IOTA:   Inherited face %S has foreground: %S" inherited-face fg))
                      (if fg
                          (setq normalized (append normalized (list :foreground fg)))
                        ;; No color found - use mode-line default to prevent inheritance
                        (let ((default-fg (face-attribute 'mode-line :foreground nil t)))
-                         (when iota-modeline-debug
+                         (when iota-modeline-debug-faces
                            (message "IOTA:   No foreground found, using mode-line default: %S" default-fg))
                          (when (and default-fg (not (eq default-fg 'unspecified)))
                            (setq normalized (append normalized (list :foreground default-fg)))))))
@@ -241,7 +248,7 @@ the face definition and set explicitly to prevent color inheritance."
                                   :weight 'normal
                                   :underline nil
                                   :inverse-video nil)))
-             (when iota-modeline-debug
+             (when iota-modeline-debug-faces
                (message "IOTA:   Face %S has fg=%S bg=%S" face fg bg))
              ;; Add explicit foreground if the face has one
              (when (and fg (not (eq fg 'unspecified)))
@@ -262,7 +269,7 @@ the face definition and set explicitly to prevent color inheritance."
                        :inverse-video nil
                        :foreground default-fg)
                'iota-modeline-default))))))
-    (when iota-modeline-debug
+    (when iota-modeline-debug-faces
       (message "IOTA:   Result: %S" result))
     result))
 
@@ -271,7 +278,7 @@ the face definition and set explicitly to prevent color inheritance."
 Applies face normalization to prevent any attribute inheritance from buffer text."
   (if (or (null segment) (string-empty-p segment))
       segment
-    (when iota-modeline-debug
+    (when iota-modeline-debug-faces
       (message "IOTA: Processing segment: %S" (substring-no-properties segment)))
     (let ((result (copy-sequence segment))
           (len (length segment))
@@ -280,7 +287,7 @@ Applies face normalization to prevent any attribute inheritance from buffer text
         (let* ((next-change (or (next-single-property-change pos 'face result) len))
                (current-face (get-text-property pos 'face result))
                (segment-text (substring-no-properties result pos next-change)))
-          (when iota-modeline-debug
+          (when iota-modeline-debug-faces
             (message "IOTA:   Text '%s' has face: %S" segment-text current-face))
           (if current-face
               ;; Normalize the face to prevent inheritance
@@ -288,7 +295,7 @@ Applies face normalization to prevent any attribute inheritance from buffer text
                                (iota-modeline--normalize-face current-face) result)
             ;; No face - apply our default face
             (progn
-              (when iota-modeline-debug
+              (when iota-modeline-debug-faces
                 (message "IOTA:   No face found, applying default"))
               (put-text-property pos next-change 'face 'iota-modeline-default result)))
           (setq pos next-change)))
@@ -348,6 +355,50 @@ Splits on runs of 2+ spaces to identify logical segments.
 Merges segments that match `iota-modeline-merge-patterns' with their successor."
   (iota-modeline--parse-segments-preserve-faces content))
 
+(defun iota-modeline--is-keycast-segment-p (segment)
+  "Return t if SEGMENT appears to be a keycast segment.
+Detects segments containing key-like patterns (C-x, M-x, etc.) followed by commands."
+  (let ((plain (substring-no-properties segment)))
+    (or
+     ;; Matches patterns like "C-x b switch-to-buffer" or "M-x" or "S-<return>"
+     ;; Key bindings: C-x, M-x, C-M-x, A-x, S-x, s-x (super), H-x (hyper)
+     (string-match-p "^\\([CMASsH]-\\|<[^>]+>\\)" plain)
+     ;; Matches common command names that appear in keycast
+     ;; These are functions that are typically shown by keycast
+     (string-match-p "\\b\\(self-insert-command\\|next-line\\|previous-line\\|forward-char\\|backward-char\\|delete-char\\|delete-backward-char\\|newline\\|keyboard-quit\\|save-buffer\\|find-file\\|switch-to-buffer\\)\\b" plain)
+     ;; Matches segments with keycast faces
+     (catch 'found
+       (dotimes (i (length segment))
+         (let ((face (get-text-property i 'face segment)))
+           (when (iota-modeline--face-is-keycast-p face)
+             (throw 'found t))))
+       nil))))
+
+(defun iota-modeline--face-is-keycast-p (face)
+  "Return t if FACE is or inherits from a keycast face."
+  (cond
+   ((null face) nil)
+   ((eq face 'keycast-key) t)
+   ((eq face 'keycast-command) t)
+   ((symbolp face)
+    ;; Check if face inherits from keycast faces
+    (let ((inherit (ignore-errors (face-attribute face :inherit nil t))))
+      (and inherit (not (eq inherit 'unspecified))
+           (iota-modeline--face-is-keycast-p inherit))))
+   ((and (listp face) (not (keywordp (car face))))
+    ;; List of faces - check each
+    (cl-some #'iota-modeline--face-is-keycast-p face))
+   ((and (listp face) (keywordp (car face)))
+    ;; Plist - check :inherit
+    (let ((inherit (plist-get face :inherit)))
+      (and inherit (iota-modeline--face-is-keycast-p inherit))))
+   (t nil)))
+
+(defun iota-modeline--filter-keycast-segments (segments)
+  "Filter out keycast-related segments from SEGMENTS list.
+Returns segments without keycast information for inactive windows."
+  (cl-remove-if #'iota-modeline--is-keycast-segment-p segments))
+
 (defun iota-modeline--fit-segments-to-width (segments width style)
   "Fit SEGMENTS list into WIDTH, truncating as needed.
 STYLE is the box style for separator width calculation.
@@ -377,39 +428,158 @@ Returns a list of segments that will fit."
          (t nil))))
     (nreverse result)))
 
-(defun iota-modeline--render-box (&optional window)
+(defun iota-modeline--calculate-segments-width (segments)
+  "Calculate total width needed for SEGMENTS including separators."
+  (let ((sep-width 3)  ; " │ " = 3 chars
+        (total 0)
+        (first t))
+    (dolist (seg segments)
+      (unless first
+        (setq total (+ total sep-width)))
+      (setq total (+ total (string-width seg)))
+      (setq first nil))
+    total))
+
+(defun iota-modeline--fit-segments-to-box (left-segments right-segments width style)
+  "Fit LEFT-SEGMENTS and RIGHT-SEGMENTS into box of WIDTH.
+STYLE is the box style.
+Returns a cons cell (left . right) with fitted segments.
+Drops low-priority segments (like keycast) if content doesn't fit.
+Keycast segments are identified and dropped first when space is tight."
+  (ignore style)  ; Style is for API consistency but not used here
+  (let* ((border-width 4)  ; "│ " + " │" = 4 chars
+         (min-gap 1)       ; Minimum gap between left and right
+         (available (- width border-width))
+         (left-width (iota-modeline--calculate-segments-width left-segments))
+         (right-width (iota-modeline--calculate-segments-width right-segments))
+         (total-needed (+ left-width
+                          (if (and (> left-width 0) (> right-width 0)) min-gap 0)
+                          right-width)))
+    
+    ;; If everything fits, return as-is
+    (if (<= total-needed available)
+        (cons left-segments right-segments)
+      
+      ;; Content doesn't fit - need to drop/truncate segments
+      ;; Priority order for dropping (lowest priority first):
+      ;; 1. Keycast segments from right side
+      ;; 2. Other segments from right side (from end)
+      ;; 3. Truncate remaining segments
+      
+      (let ((new-right right-segments)
+            (new-left left-segments))
+        
+        ;; First, try dropping keycast segments from right
+        (when (> total-needed available)
+          (setq new-right (cl-remove-if #'iota-modeline--is-keycast-segment-p new-right))
+          (setq right-width (iota-modeline--calculate-segments-width new-right))
+          (setq total-needed (+ left-width
+                                (if (and (> left-width 0) (> right-width 0)) min-gap 0)
+                                right-width)))
+        
+        ;; Then try dropping keycast segments from left
+        (when (> total-needed available)
+          (setq new-left (cl-remove-if #'iota-modeline--is-keycast-segment-p new-left))
+          (setq left-width (iota-modeline--calculate-segments-width new-left))
+          (setq total-needed (+ left-width
+                                (if (and (> left-width 0) (> right-width 0)) min-gap 0)
+                                right-width)))
+        
+        ;; If still doesn't fit, drop right segments one by one (from end)
+        (while (and (> total-needed available) (> (length new-right) 1))
+          (setq new-right (butlast new-right))
+          (setq right-width (iota-modeline--calculate-segments-width new-right))
+          (setq total-needed (+ left-width
+                                (if (and (> left-width 0) (> right-width 0)) min-gap 0)
+                                right-width)))
+        
+        ;; If still doesn't fit, drop left segments one by one (from end)
+        (while (and (> total-needed available) (> (length new-left) 1))
+          (setq new-left (butlast new-left))
+          (setq left-width (iota-modeline--calculate-segments-width new-left))
+          (setq total-needed (+ left-width
+                                (if (and (> left-width 0) (> right-width 0)) min-gap 0)
+                                right-width)))
+        
+        ;; If still doesn't fit, truncate remaining segments
+        (when (> total-needed available)
+          (let* ((left-available (max 10 (- available right-width min-gap)))
+                 (truncated-left (iota-modeline--fit-segments-to-width new-left left-available style)))
+            (setq new-left truncated-left)))
+        
+        (cons new-left new-right)))))
+
+(defun iota-modeline--render-box (&optional window truly-selected-window)
   "Render complete IOTA modeline box for WINDOW.
 Uses `iota-box-render-single-line' for proper T-junction handling.
 Parses mode-line content into segments and distributes them between
 left and right sides based on `iota-modeline-right-segment-count'.
-Preserves face properties from the original modeline."
+Preserves face properties from the original modeline.
+TRULY-SELECTED-WINDOW is the actual selected window for active/inactive detection."
   (let* ((win (or window (selected-window)))
+         (truly-selected (or truly-selected-window (selected-window)))
          (width (max 10 (1- (window-body-width win))))
          (style iota-modeline-box-style)
          (face (iota-theme-get-box-face win))
          ;; Render the original modeline content (preserve properties!)
-         (content (format-mode-line iota-modeline--original-mode-line-format nil win))
+         ;; CRITICAL: doom-modeline--active checks:
+         ;;   (eq (doom-modeline--selected-window) doom-modeline-current-window)
+         ;; where doom-modeline--selected-window calls (frame-selected-window)
+         ;; 
+         ;; We need to make both values match for the active window:
+         ;; - Set doom-modeline-current-window to the window we're rendering
+         ;; - Override doom-modeline--selected-window to return the same value
+         (content (let* ((is-active (eq win truly-selected))
+                         ;; Save original doom-modeline state
+                         (saved-current-window (and (boundp 'doom-modeline-current-window)
+                                                    doom-modeline-current-window))
+                         ;; For keycast: save predicate
+                         (saved-keycast-predicate (and (boundp 'keycast-mode-line-window-predicate)
+                                                       keycast-mode-line-window-predicate)))
+                    ;; Set doom-modeline-current-window to the window we're rendering
+                    (when (boundp 'doom-modeline-current-window)
+                      (setq doom-modeline-current-window win))
+                    ;; Override keycast predicate
+                    (when (boundp 'keycast-mode-line-window-predicate)
+                      (setq keycast-mode-line-window-predicate
+                            (if is-active
+                                (lambda () t)    ; Active: always show keycast
+                              (lambda () nil)))) ; Inactive: never show keycast
+                    (unwind-protect
+                        ;; Use cl-letf to temporarily override doom-modeline--selected-window
+                        ;; This ensures doom-modeline--active returns correct value
+                        (if (and is-active (fboundp 'doom-modeline--selected-window))
+                            (cl-letf (((symbol-function 'doom-modeline--selected-window)
+                                       (lambda () win)))
+                              (format-mode-line iota-modeline--original-mode-line-format nil win))
+                          ;; For inactive windows, let doom-modeline think it's inactive
+                          (format-mode-line iota-modeline--original-mode-line-format nil win))
+                      ;; Restore original state
+                      (when (boundp 'doom-modeline-current-window)
+                        (setq doom-modeline-current-window saved-current-window))
+                      (when (boundp 'keycast-mode-line-window-predicate)
+                        (setq keycast-mode-line-window-predicate saved-keycast-predicate)))))
          (content (string-trim content))
          ;; Parse into segments (preserves faces)
-         (all-segments (progn
-                        (when iota-modeline-debug
-                          (message "IOTA: Raw modeline content: %S" content)
-                          (message "IOTA: Content length: %d" (length content))
-                          ;; Show face properties at a few positions
-                          (let ((sample-positions (list 0 (min 10 (1- (length content)))
-                                                       (min 20 (1- (length content))))))
-                            (dolist (pos sample-positions)
-                              (when (< pos (length content))
-                                (message "IOTA:   Pos %d char '%c' face: %S"
-                                        pos (aref content pos) (get-text-property pos 'face content))))))
-                        (if iota-modeline-show-separators
-                            (iota-modeline--parse-segments content)
-                          (list content))))
+         (all-segments (let ((segs (if iota-modeline-show-separators
+                                       (iota-modeline--parse-segments content)
+                                     (list content))))
+                         segs))
+         ;; Filter out keycast segments from inactive windows
+         (all-segments (if (and (not (eq win truly-selected))
+                                (or (bound-and-true-p keycast-mode)
+                                    (bound-and-true-p keycast-mode-line-mode)))
+                           (iota-modeline--filter-keycast-segments all-segments)
+                         all-segments))
          ;; Split into left and right segments
          (right-count (min iota-modeline-right-segment-count (length all-segments)))
          (left-count (- (length all-segments) right-count))
          (left-segments (seq-take all-segments left-count))
-         (right-segments (seq-drop all-segments left-count)))
+         (right-segments (seq-drop all-segments left-count))
+         ;; Fit segments to available width, dropping low-priority segments if needed
+         (fitted (iota-modeline--fit-segments-to-box left-segments right-segments width style))
+         (left-segments (car fitted))
+         (right-segments (cdr fitted)))
     ;; Use iota-box-render-single-line with left and right
     (iota-box-render-single-line
      :left left-segments
@@ -420,22 +590,24 @@ Preserves face properties from the original modeline."
      :face face
      :compact nil)))
 
-(defun iota-modeline--render (&optional override-box-face window)
+(defun iota-modeline--render (&optional override-box-face window truly-selected-window)
   "Render IOTA modeline format string for WINDOW.
 If WINDOW is nil, use selected window.
 OVERRIDE-BOX-FACE can override the box face.
+TRULY-SELECTED-WINDOW is the actual selected window for active/inactive detection.
 Returns complete box: top border + content + bottom border."
   (if (not (iota-modeline--should-show-p))
       "" ; Return empty string for minibuffer
     (let* ((target-window (or window (selected-window)))
            (iota-modeline--current-window target-window)
-           (selected-win-value (if (and (boundp 'iota-modeline--selected-window)
-                                        iota-modeline--selected-window)
-                                   iota-modeline--selected-window
-                                 (selected-window)))
+           (selected-win-value (or truly-selected-window
+                                  (if (and (boundp 'iota-modeline--selected-window)
+                                           iota-modeline--selected-window)
+                                      iota-modeline--selected-window
+                                    (selected-window))))
            (iota-modeline--selected-window selected-win-value))
       ;; Use new box rendering function
-      (iota-modeline--render-box target-window))))
+      (iota-modeline--render-box target-window selected-win-value))))
 
 (defun iota-modeline--top-border (&optional window)
   "Render top border for WINDOW."
@@ -540,8 +712,14 @@ If SELECTED-WINDOW is provided, use it as the truly selected window."
                   (condition-case render-err
                       (let* ((iota-modeline--selected-window truly-selected)
                              ;; Render complete box (top + content + bottom)
-                             (box (with-selected-window win
-                                    (iota-modeline--render nil win)))
+                             ;; Pass truly-selected so doom-modeline knows which window is active
+                             (box (progn
+                                    (when iota-modeline-debug
+                                      (message "IOTA: update-overlay for win=%S truly-selected=%S" win truly-selected)
+                                      (message "IOTA:   (selected-window)=%S eq?=%S"
+                                               (selected-window) (eq win truly-selected)))
+                                    (with-selected-window win
+                                      (iota-modeline--render nil win truly-selected))))
                              ;; Apply default face to unfaced parts to prevent
                              ;; inheritance from buffer text at overlay position
                              (box-str (if (and box (stringp box) (not (string= box "")))
@@ -790,6 +968,18 @@ Shows horizontal line separator (no corners) between stacked windows."
 
 ;;; Face Management
 
+(defun iota-modeline--on-focus-change ()
+  "Handle frame focus changes."
+  (let ((dominated (frame-focus-state)))
+    (if dominated
+        (progn
+          (setq iota-modeline--frame-focus-state t)
+          ;; Force redraw of all overlays with correct state
+          (iota-modeline--update))
+      (setq iota-modeline--frame-focus-state nil)
+      ;; Force redraw to ensure consistent state
+      (iota-modeline--update))))
+
 (defun iota-modeline--save-face-attributes ()
   "Save current mode-line face attributes for later restoration."
   (setq iota-modeline--saved-mode-line-faces
@@ -887,6 +1077,9 @@ Shows horizontal line separator (no corners) between stacked windows."
   ;; Add post-command-hook for immediate keycast updates
   (add-hook 'post-command-hook #'iota-modeline--post-command)
   
+  ;; Add focus change function for proper rendering when terminal focus changes
+  (add-function :after after-focus-change-function #'iota-modeline--on-focus-change)
+  
   (add-hook 'after-change-major-mode-hook #'iota-modeline--after-change-major-mode)
   (add-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
   
@@ -930,6 +1123,7 @@ Shows horizontal line separator (no corners) between stacked windows."
   ;; Remove hooks
   (remove-hook 'buffer-list-update-hook #'iota-modeline--buffer-list-update)
   (remove-hook 'post-command-hook #'iota-modeline--post-command)
+  (remove-function after-focus-change-function #'iota-modeline--on-focus-change)
   (remove-hook 'after-change-major-mode-hook #'iota-modeline--after-change-major-mode)
   (remove-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
   (remove-hook 'window-scroll-functions #'iota-modeline--window-scroll)
