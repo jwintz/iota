@@ -665,8 +665,11 @@ Does not display if Emacs was opened with file arguments."
 
         ;; Finalize Buffer State
         (read-only-mode 1)
-        (local-set-key (kbd "q") 'quit-window)
-        (local-set-key (kbd "RET") 'quit-window)
+        ;; Use a minimal keymap that doesn't inherit global C-c bindings
+        (use-local-map (let ((map (make-sparse-keymap)))
+                         (define-key map (kbd "q") 'quit-window)
+                         (define-key map (kbd "RET") 'quit-window)
+                         map))
 
         ;; Hide both mode-line and header-line in splash screen
         (setq-local mode-line-format nil)
