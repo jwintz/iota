@@ -1,4 +1,4 @@
-;;; iota-window.el --- I O T Λ window focus management -*- lexical-binding: t -*-
+;;; iota-window.el --- I O T Λ window focus management -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

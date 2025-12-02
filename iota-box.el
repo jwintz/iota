@@ -1,4 +1,4 @@
-;;; iota-box.el --- Box drawing utilities -*- lexical-binding: t; -*-
+;;; iota-box.el --- Box drawing utilities -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz
@@ -356,6 +356,8 @@ Returns: String with box decorations."
        
        ;; Case 2: No center content - all space between left and right
        (t
+        ;; Add the gap as spaces between left and right content
+        ;; No extra separator - right content segments have their own separators
         (when (> remaining 0)
           (push (propertize (make-string remaining ?\s) 'face space-face) content-parts)
           (setq current-pos (+ current-pos remaining))))))    ;; Add right content

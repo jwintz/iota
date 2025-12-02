@@ -1,4 +1,4 @@
-;;; iota-demo.el --- I O T Λ demo and testing utilities -*- lexical-binding: t -*-
+;;; iota-demo.el --- I O T Λ demo and testing utilities -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

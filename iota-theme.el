@@ -1,4 +1,4 @@
-;;; iota-theme.el --- Theme introspection and adaptation -*- lexical-binding: t; -*-
+;;; iota-theme.el --- Theme introspection and adaptation -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

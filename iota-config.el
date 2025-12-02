@@ -1,4 +1,4 @@
-;;; iota-config.el --- Unified configuration interface -*- lexical-binding: t; -*-
+;;; iota-config.el --- Unified configuration interface -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

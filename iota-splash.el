@@ -1,4 +1,4 @@
-;;; iota-splash.el --- I O T Λ splash screen -*- lexical-binding: t -*-
+;;; iota-splash.el --- I O T Λ splash screen -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

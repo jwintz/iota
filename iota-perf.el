@@ -1,4 +1,4 @@
-;;; iota-perf.el --- Performance monitoring -*- lexical-binding: t; -*-
+;;; iota-perf.el --- Performance monitoring -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

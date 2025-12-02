@@ -1,4 +1,4 @@
-;;; iota-modeline.el --- I O T Λ modeline wrapper -*- lexical-binding: t; -*-
+;;; iota-modeline.el --- I O T Λ modeline wrapper -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz
@@ -114,11 +114,11 @@ T-junctions (┬/┴) in the top and bottom borders."
   :type 'boolean
   :group 'iota-modeline)
 
-(defcustom iota-modeline-right-segment-count 3
+(defcustom iota-modeline-right-segment-count 2
   "Number of segments to place on the right side of the modeline.
 Segments are identified by splitting mode-line content on runs of 2+ spaces.
-For doom-modeline with keycast, typically 3 (keycast, major-mode, VCS info).
-Without keycast, use 2."
+Default is 2 (typically major-mode and VCS info). When keycast is active,
+keycast segments are automatically added to the right count."
   :type 'integer
   :group 'iota-modeline)
 
@@ -634,21 +634,18 @@ TRULY-SELECTED-WINDOW is the actual selected window for active/inactive detectio
                        (length all-segments) filtered-count (eq win truly-selected))
               (message "IOTA:   Segments: %S" (mapcar #'substring-no-properties all-segments))))
          ;; Split into left and right segments
-         ;; Reduce right-count by the number of filtered segments to maintain balance
-         ;; For inactive windows without keycast, use fewer right segments
-         ;; CRITICAL: Ensure at least 1 segment on the left to prevent content pushed to right
+         ;; Left always gets at least 2 segments (buffer + position) when available
+         ;; Right gets keycast + mode + vc, preserving doom-modeline order
          (total-segments (length all-segments))
-         (right-count (if (eq win truly-selected)
-                          ;; Active window: use configured count
-                          (min iota-modeline-right-segment-count total-segments)
-                        ;; Inactive window: reduce by number of filtered segments
-                        ;; But ensure left-count >= 1 when we have segments
-                        (min (max 2 (- iota-modeline-right-segment-count filtered-count))
-                             (max 0 (- total-segments 1)))))  ; Ensure at least 1 left
+         ;; Count keycast segments to adjust right-count
+         (keycast-count (cl-count-if #'iota-modeline--is-keycast-segment-p all-segments))
+         ;; Base right count + keycast count ensures keycast ends up on right
+         (effective-right-count (+ iota-modeline-right-segment-count keycast-count))
+         ;; Ensure left gets at least 2 segments (buffer + position) when available
+         (min-left-count (min 2 total-segments))
+         (max-right-count (max 0 (- total-segments min-left-count)))
+         (right-count (min effective-right-count max-right-count))
          (left-count (- total-segments right-count))
-         ;; Safety: ensure left-count is at least 1 when we have segments
-         (left-count (if (and (> total-segments 0) (= left-count 0)) 1 left-count))
-         (right-count (- total-segments left-count))
          (left-segments (seq-take all-segments left-count))
          (right-segments (seq-drop all-segments left-count))
          ;; Fit segments to available width, dropping low-priority segments if needed

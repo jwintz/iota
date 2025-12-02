@@ -1,4 +1,4 @@
-;;; iota-logos.el --- I O T Λ logo rendering utilities -*- lexical-binding: t -*-
+;;; iota-logos.el --- I O T Λ logo rendering utilities -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

@@ -1,4 +1,4 @@
-;;; iota-theme-transparent.el --- Transparent theme handling -*- lexical-binding: t; -*-
+;;; iota-theme-transparent.el --- Transparent theme handling -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

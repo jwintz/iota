@@ -1,4 +1,4 @@
-;;; iota-faces.el --- I O T Λ face definitions -*- lexical-binding: t -*-
+;;; iota-faces.el --- I O T Λ face definitions -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

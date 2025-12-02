@@ -1,4 +1,4 @@
-;;; iota.el --- Minimal Terminal Interface for Emacs -*- lexical-binding: t; -*-
+;;; iota.el --- Minimal Terminal Interface for Emacs -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

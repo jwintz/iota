@@ -1,4 +1,4 @@
-;;; iota-cache.el --- Unified caching system for I O T Λ -*- lexical-binding: t; -*-
+;;; iota-cache.el --- Unified caching system for I O T Λ -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

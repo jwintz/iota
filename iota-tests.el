@@ -1,4 +1,4 @@
-;;; iota-tests.el --- Test suite for IOTA -*- lexical-binding: t; -*-
+;;; iota-tests.el --- Test suite for IOTA -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

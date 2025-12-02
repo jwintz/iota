@@ -1,4 +1,4 @@
-;;; iota-utils.el --- Utility functions for I O T Λ -*- lexical-binding: t; -*-
+;;; iota-utils.el --- Utility functions for I O T Λ -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz

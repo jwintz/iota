@@ -1,4 +1,4 @@
-;;; iota-timers.el --- Timer management for I O T Λ -*- lexical-binding: t; -*-
+;;; iota-timers.el --- Timer management for I O T Λ -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Julien Wintz
 ;; Author: Julien Wintz
