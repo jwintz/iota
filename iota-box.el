@@ -322,39 +322,39 @@ Returns: String with box decorations."
             (setq pos (+ pos 3))))) ; +3 for " │ "
       (setq current-pos (+ current-pos left-len)))
     
-    ;; Calculate spacing distribution
+     ;; Calculate spacing distribution
     ;; If we have center content, split space around it
     ;; Otherwise, all space goes between left and right
-    (cond
-     ;; Case 1: We have center content - distribute space around it
-     ((> center-len 0)
-      (let* ((left-gap (/ remaining 2))
-             (right-gap (- remaining left-gap)))
-        ;; Add left gap
-        (when (> left-gap 0)
-          (push (make-string left-gap ?\s) content-parts)
-          (setq current-pos (+ current-pos left-gap)))
-        ;; Add center content
-        (push center-content content-parts)
-        (let ((pos 0))
-          (dolist (part center-parts)
-            (setq pos (+ pos (string-width part)))
-            (when (not (eq part (car (last center-parts))))
-              (push (+ current-pos pos 1) dividers)
-              (setq pos (+ pos 3)))))
-        (setq current-pos (+ current-pos center-len))
-        ;; Add right gap
-        (when (> right-gap 0)
-          (push (make-string right-gap ?\s) content-parts)
-          (setq current-pos (+ current-pos right-gap)))))
-     
-     ;; Case 2: No center content - all space between left and right
-     (t
-      (when (> remaining 0)
-        (push (make-string remaining ?\s) content-parts)
-        (setq current-pos (+ current-pos remaining)))))
-    
-    ;; Add right content
+    ;; Use explicit face spec to prevent inheritance from buffer
+    (let ((space-face '(:inherit mode-line :slant normal :weight normal)))
+      (cond
+       ;; Case 1: We have center content - distribute space around it
+       ((> center-len 0)
+        (let* ((left-gap (/ remaining 2))
+               (right-gap (- remaining left-gap)))
+          ;; Add left gap (with explicit face to prevent inheritance)
+          (when (> left-gap 0)
+            (push (propertize (make-string left-gap ?\s) 'face space-face) content-parts)
+            (setq current-pos (+ current-pos left-gap)))
+          ;; Add center content
+          (push center-content content-parts)
+          (let ((pos 0))
+            (dolist (part center-parts)
+              (setq pos (+ pos (string-width part)))
+              (when (not (eq part (car (last center-parts))))
+                (push (+ current-pos pos 1) dividers)
+                (setq pos (+ pos 3)))))
+          (setq current-pos (+ current-pos center-len))
+          ;; Add right gap (with explicit face)
+          (when (> right-gap 0)
+            (push (propertize (make-string right-gap ?\s) 'face space-face) content-parts)
+            (setq current-pos (+ current-pos right-gap)))))
+       
+       ;; Case 2: No center content - all space between left and right
+       (t
+        (when (> remaining 0)
+          (push (propertize (make-string remaining ?\s) 'face space-face) content-parts)
+          (setq current-pos (+ current-pos remaining))))))    ;; Add right content
     (when (> right-len 0)
       (push right-content content-parts)
       ;; Track positions of separators within right content
@@ -369,8 +369,10 @@ Returns: String with box decorations."
     (setq content-parts (nreverse content-parts))
     (let* ((left-border (if face (propertize vert 'face face) vert))
            (right-border (if face (propertize vert 'face face) vert))
+           ;; Padding spaces need explicit face spec to prevent buffer face inheritance
+           (padding-space (propertize " " 'face '(:inherit mode-line :slant normal :weight normal)))
            (content-str (apply #'concat content-parts))
-           (content-line (concat left-border " " content-str " " right-border)))
+           (content-line (concat left-border padding-space content-str padding-space right-border)))
 
       (if compact
           content-line

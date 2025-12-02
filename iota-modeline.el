@@ -39,6 +39,19 @@
 (require 'iota-timers)
 (require 'iota-utils)
 
+;;; Faces
+
+(defface iota-modeline-default
+  '((t :inherit mode-line
+       :slant normal
+       :weight normal
+       :underline nil
+       :overline nil
+       :strike-through nil))
+  "Default face for modeline content without a specific face.
+This face explicitly sets attributes to prevent inheritance from buffer text."
+  :group 'iota-modeline)
+
 ;;; Customization
 
 (defgroup iota-modeline nil
@@ -95,11 +108,20 @@ T-junctions (┬/┴) in the top and bottom borders."
   :type 'boolean
   :group 'iota-modeline)
 
-(defcustom iota-modeline-right-segment-count 2
+(defcustom iota-modeline-right-segment-count 3
   "Number of segments to place on the right side of the modeline.
 Segments are identified by splitting mode-line content on runs of 2+ spaces.
-For doom-modeline, typically 2 (major-mode and VCS info)."
+For doom-modeline with keycast, typically 3 (keycast, major-mode, VCS info).
+Without keycast, use 2."
   :type 'integer
+  :group 'iota-modeline)
+
+(defcustom iota-modeline-merge-patterns '("^[CMSA]-" "^<[^>]+>$")
+  "Patterns to identify segments that should be merged with the next.
+When a segment matches one of these patterns, it will be merged with
+the following segment. Useful for keycast where key and command
+should stay together."
+  :type '(repeat regexp)
   :group 'iota-modeline)
 
 ;;; State
@@ -131,12 +153,56 @@ allowing content to determine if it's in the active window.")
 
 ;;; Wrapping Logic
 
+(defun iota-modeline--parse-segments-preserve-faces (content)
+  "Parse CONTENT string into segments, preserving face properties.
+Splits on runs of 2+ spaces to identify logical segments.
+Merges segments that match `iota-modeline-merge-patterns' with their successor."
+  (let* ((result nil)
+         (pending nil)
+         (start 0)
+         (len (length content)))
+    ;; Find segments by looking for runs of 2+ spaces
+    (while (< start len)
+      ;; Skip leading spaces
+      (while (and (< start len) (eq (aref content start) ?\s))
+        (setq start (1+ start)))
+      (when (< start len)
+        ;; Find end of segment (next run of 2+ spaces or end)
+        (let ((end start)
+              (space-run 0))
+          (while (and (< end len) (< space-run 2))
+            (if (eq (aref content end) ?\s)
+                (setq space-run (1+ space-run))
+              (setq space-run 0))
+            (setq end (1+ end)))
+          ;; Adjust end to exclude trailing spaces
+          (when (>= space-run 2)
+            (setq end (- end space-run)))
+          ;; Extract segment with properties preserved
+          (let ((seg (string-trim (substring content start end))))
+            (when (> (length seg) 0)
+              (let ((plain-seg (substring-no-properties seg)))
+                (if pending
+                    ;; Merge with pending segment
+                    (progn
+                      (push (concat pending " " seg) result)
+                      (setq pending nil))
+                  ;; Check if this segment should be merged with next
+                  (if (cl-some (lambda (pat) (string-match-p pat plain-seg))
+                               iota-modeline-merge-patterns)
+                      (setq pending seg)
+                    (push seg result))))))
+          (setq start end))))
+    ;; Handle trailing pending segment
+    (when pending
+      (push pending result))
+    (nreverse result)))
+
 (defun iota-modeline--parse-segments (content)
   "Parse CONTENT string into a list of segments.
-Splits on runs of 2+ spaces to identify logical segments."
-  (let ((segments (split-string content "  +" t)))
-    ;; Trim each segment
-    (mapcar #'string-trim segments)))
+Splits on runs of 2+ spaces to identify logical segments.
+Merges segments that match `iota-modeline-merge-patterns' with their successor."
+  (iota-modeline--parse-segments-preserve-faces content))
 
 (defun iota-modeline--fit-segments-to-width (segments width style)
   "Fit SEGMENTS list into WIDTH, truncating as needed.
@@ -171,16 +237,16 @@ Returns a list of segments that will fit."
   "Render complete IOTA modeline box for WINDOW.
 Uses `iota-box-render-single-line' for proper T-junction handling.
 Parses mode-line content into segments and distributes them between
-left and right sides based on `iota-modeline-right-segment-count'."
+left and right sides based on `iota-modeline-right-segment-count'.
+Preserves face properties from the original modeline."
   (let* ((win (or window (selected-window)))
          (width (max 10 (1- (window-body-width win))))
          (style iota-modeline-box-style)
          (face (iota-theme-get-box-face win))
-         ;; Render the original modeline content and strip properties
+         ;; Render the original modeline content (preserve properties!)
          (content (format-mode-line iota-modeline--original-mode-line-format nil win))
-         (content (substring-no-properties content))
          (content (string-trim content))
-         ;; Parse into segments
+         ;; Parse into segments (preserves faces)
          (all-segments (if iota-modeline-show-separators
                            (iota-modeline--parse-segments content)
                          (list content)))
@@ -278,6 +344,33 @@ Returns nil if window or buffer is invalid."
           (puthash window overlay iota-modeline--window-overlays)))
       overlay)))
 
+(defun iota-modeline--apply-default-face (str)
+  "Apply `iota-modeline-default' face to parts of STR that have no face.
+This prevents inheritance from buffer text at overlay position.
+Parts that already have a face are preserved but get explicit
+slant/weight to prevent italic/bold inheritance."
+  (if (or (null str) (string-empty-p str))
+      str
+    (let ((result (copy-sequence str))
+          (len (length str))
+          (pos 0))
+      (while (< pos len)
+        (let* ((next-change (or (next-single-property-change pos 'face result) len))
+               (current-face (get-text-property pos 'face result)))
+          (if current-face
+              ;; Has a face - but ensure slant/weight don't inherit from buffer
+              ;; by wrapping in a list with explicit overrides if needed
+              (let ((new-face (if (listp current-face)
+                                  (if (memq :slant current-face)
+                                      current-face
+                                    (append current-face (list :slant 'normal)))
+                                (list :inherit current-face :slant 'normal))))
+                (put-text-property pos next-change 'face new-face result))
+            ;; No face - apply our default face
+            (put-text-property pos next-change 'face 'iota-modeline-default result))
+          (setq pos next-change)))
+      result)))
+
 (defun iota-modeline--update-overlay (&optional window selected-window)
   "Update the simulated header overlay for WINDOW.
 If WINDOW is nil, use selected window.
@@ -300,8 +393,11 @@ If SELECTED-WINDOW is provided, use it as the truly selected window."
                              ;; Render complete box (top + content + bottom)
                              (box (with-selected-window win
                                     (iota-modeline--render nil win)))
+                             ;; Apply default face to unfaced parts to prevent
+                             ;; inheritance from buffer text at overlay position
                              (box-str (if (and box (stringp box) (not (string= box "")))
-                                          (concat box "\n")
+                                          (iota-modeline--apply-default-face
+                                           (concat box "\n"))
                                         "")))
                         (move-overlay overlay start start (current-buffer))
                         (overlay-put overlay 'before-string box-str)
@@ -422,8 +518,12 @@ Returns nil if window or buffer is invalid."
 ;;; Hooks
 
 (defun iota-modeline--post-command ()
-  "Post-command hook for modeline updates."
-  (iota-modeline--debounced-update))
+  "Post-command hook for modeline updates.
+Forces immediate update to ensure keycast and other real-time
+segments are displayed without delay."
+  ;; Force immediate update, bypassing debounce
+  (setq iota-modeline--last-update-time (float-time))
+  (iota-modeline--update))
 
 (defun iota-modeline--should-show-p ()
   "Return t if IOTA modeline should be shown in current buffer."
@@ -635,6 +735,9 @@ Shows horizontal line separator (no corners) between stacked windows."
   (unless (featurep 'iota-update)
     (add-hook 'buffer-list-update-hook #'iota-modeline--buffer-list-update))
   
+  ;; Add post-command-hook for immediate keycast updates
+  (add-hook 'post-command-hook #'iota-modeline--post-command)
+  
   (add-hook 'after-change-major-mode-hook #'iota-modeline--after-change-major-mode)
   (add-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
   
@@ -677,6 +780,7 @@ Shows horizontal line separator (no corners) between stacked windows."
   
   ;; Remove hooks
   (remove-hook 'buffer-list-update-hook #'iota-modeline--buffer-list-update)
+  (remove-hook 'post-command-hook #'iota-modeline--post-command)
   (remove-hook 'after-change-major-mode-hook #'iota-modeline--after-change-major-mode)
   (remove-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
   (remove-hook 'window-scroll-functions #'iota-modeline--window-scroll)
