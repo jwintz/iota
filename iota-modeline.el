@@ -43,13 +43,19 @@
 
 (defface iota-modeline-default
   '((t :inherit mode-line
+       :foreground unspecified
+       :background unspecified
        :slant normal
        :weight normal
        :underline nil
        :overline nil
-       :strike-through nil))
+       :strike-through nil
+       :inverse-video nil
+       :stipple nil
+       :extend nil))
   "Default face for modeline content without a specific face.
-This face explicitly sets attributes to prevent inheritance from buffer text."
+This face explicitly sets attributes to prevent inheritance from buffer text.
+The unspecified foreground/background allows mode-line colors to show through."
   :group 'iota-modeline)
 
 ;;; Customization
@@ -153,10 +159,146 @@ allowing content to determine if it's in the active window.")
 
 ;;; Wrapping Logic
 
+(defcustom iota-modeline-debug nil
+  "Enable debug logging for modeline face processing."
+  :type 'boolean
+  :group 'iota-modeline)
+
+(defun iota-modeline--resolve-face-color (face attr)
+  "Resolve color attribute ATTR (:foreground or :background) from FACE.
+FACE can be a symbol, a list of faces, or a nested plist. Returns the
+first non-unspecified color found, or nil."
+  (cond
+   ;; Single face symbol - get attribute directly
+   ((facep face)
+    (let ((val (face-attribute face attr nil t)))
+      (if (eq val 'unspecified) nil val)))
+
+   ;; List of faces - try each in order
+   ((and (listp face) (not (keywordp (car face))))
+    (cl-some (lambda (f) (iota-modeline--resolve-face-color f attr)) face))
+
+   ;; Plist with :inherit - resolve from inherited face
+   ((and (listp face) (plist-member face :inherit))
+    (let ((inherited (plist-get face :inherit)))
+      (iota-modeline--resolve-face-color inherited attr)))
+
+   ;; Otherwise
+   (t nil)))
+
+(defun iota-modeline--normalize-face (face)
+  "Normalize FACE to prevent any attribute inheritance from buffer text.
+Returns a face specification with explicit values for all inheritable attributes.
+Critically, this ensures that foreground/background colors are resolved from
+the face definition and set explicitly to prevent color inheritance."
+  (when iota-modeline-debug
+    (message "IOTA: Normalizing face: %S" face))
+  (let ((result
+         (cond
+          ;; List of faces - process each recursively
+          ((and (listp face) (not (keywordp (car face))))
+           (mapcar #'iota-modeline--normalize-face face))
+
+          ;; Already a plist with explicit attributes - check if it's complete
+          ((and (listp face) (keywordp (car face)))
+           (let ((normalized (copy-sequence face)))
+             ;; Ensure critical attributes that can inherit are explicitly set
+             (unless (plist-member normalized :slant)
+               (setq normalized (append normalized (list :slant 'normal))))
+             (unless (plist-member normalized :weight)
+               (setq normalized (append normalized (list :weight 'normal))))
+             (unless (plist-member normalized :underline)
+               (setq normalized (append normalized (list :underline nil))))
+             (unless (plist-member normalized :inverse-video)
+               (setq normalized (append normalized (list :inverse-video nil))))
+             ;; CRITICAL: If foreground isn't explicitly set, resolve it from inherited face
+             (when (not (plist-member normalized :foreground))
+               (if (plist-member normalized :inherit)
+                   (let* ((inherited-face (plist-get normalized :inherit))
+                          (fg (iota-modeline--resolve-face-color inherited-face :foreground)))
+                     (when iota-modeline-debug
+                       (message "IOTA:   Inherited face %S has foreground: %S" inherited-face fg))
+                     (if fg
+                         (setq normalized (append normalized (list :foreground fg)))
+                       ;; No color found - use mode-line default to prevent inheritance
+                       (let ((default-fg (face-attribute 'mode-line :foreground nil t)))
+                         (when iota-modeline-debug
+                           (message "IOTA:   No foreground found, using mode-line default: %S" default-fg))
+                         (when (and default-fg (not (eq default-fg 'unspecified)))
+                           (setq normalized (append normalized (list :foreground default-fg)))))))
+                 ;; No inherit - use mode-line default
+                 (let ((default-fg (face-attribute 'mode-line :foreground nil t)))
+                   (when (and default-fg (not (eq default-fg 'unspecified)))
+                     (setq normalized (append normalized (list :foreground default-fg)))))))
+             normalized))
+
+          ;; Single face symbol - expand it to explicit plist with resolved colors
+          ((facep face)
+           (let* ((fg (face-attribute face :foreground nil t))
+                  (bg (face-attribute face :background nil t))
+                  (base-spec (list :inherit face
+                                  :slant 'normal
+                                  :weight 'normal
+                                  :underline nil
+                                  :inverse-video nil)))
+             (when iota-modeline-debug
+               (message "IOTA:   Face %S has fg=%S bg=%S" face fg bg))
+             ;; Add explicit foreground if the face has one
+             (when (and fg (not (eq fg 'unspecified)))
+               (setq base-spec (append base-spec (list :foreground fg))))
+             ;; Add explicit background if the face has one
+             (when (and bg (not (eq bg 'unspecified)))
+               (setq base-spec (append base-spec (list :background bg))))
+             base-spec))
+
+          ;; Fallback for anything else - return default with explicit foreground
+          (t
+           (let ((default-fg (face-attribute 'mode-line :foreground nil t)))
+             (if (and default-fg (not (eq default-fg 'unspecified)))
+                 (list :inherit 'iota-modeline-default
+                       :slant 'normal
+                       :weight 'normal
+                       :underline nil
+                       :inverse-video nil
+                       :foreground default-fg)
+               'iota-modeline-default))))))
+    (when iota-modeline-debug
+      (message "IOTA:   Result: %S" result))
+    result))
+
+(defun iota-modeline--ensure-segment-face (segment)
+  "Ensure SEGMENT has explicit face properties to prevent inheritance.
+Applies face normalization to prevent any attribute inheritance from buffer text."
+  (if (or (null segment) (string-empty-p segment))
+      segment
+    (when iota-modeline-debug
+      (message "IOTA: Processing segment: %S" (substring-no-properties segment)))
+    (let ((result (copy-sequence segment))
+          (len (length segment))
+          (pos 0))
+      (while (< pos len)
+        (let* ((next-change (or (next-single-property-change pos 'face result) len))
+               (current-face (get-text-property pos 'face result))
+               (segment-text (substring-no-properties result pos next-change)))
+          (when iota-modeline-debug
+            (message "IOTA:   Text '%s' has face: %S" segment-text current-face))
+          (if current-face
+              ;; Normalize the face to prevent inheritance
+              (put-text-property pos next-change 'face
+                               (iota-modeline--normalize-face current-face) result)
+            ;; No face - apply our default face
+            (progn
+              (when iota-modeline-debug
+                (message "IOTA:   No face found, applying default"))
+              (put-text-property pos next-change 'face 'iota-modeline-default result)))
+          (setq pos next-change)))
+      result)))
+
 (defun iota-modeline--parse-segments-preserve-faces (content)
   "Parse CONTENT string into segments, preserving face properties.
 Splits on runs of 2+ spaces to identify logical segments.
-Merges segments that match `iota-modeline-merge-patterns' with their successor."
+Merges segments that match `iota-modeline-merge-patterns' with their successor.
+Ensures each segment has explicit face properties to prevent inheritance."
   (let* ((result nil)
          (pending nil)
          (start 0)
@@ -181,6 +323,8 @@ Merges segments that match `iota-modeline-merge-patterns' with their successor."
           ;; Extract segment with properties preserved
           (let ((seg (string-trim (substring content start end))))
             (when (> (length seg) 0)
+              ;; Ensure segment has explicit face properties
+              (setq seg (iota-modeline--ensure-segment-face seg))
               (let ((plain-seg (substring-no-properties seg)))
                 (if pending
                     ;; Merge with pending segment
@@ -247,9 +391,20 @@ Preserves face properties from the original modeline."
          (content (format-mode-line iota-modeline--original-mode-line-format nil win))
          (content (string-trim content))
          ;; Parse into segments (preserves faces)
-         (all-segments (if iota-modeline-show-separators
-                           (iota-modeline--parse-segments content)
-                         (list content)))
+         (all-segments (progn
+                        (when iota-modeline-debug
+                          (message "IOTA: Raw modeline content: %S" content)
+                          (message "IOTA: Content length: %d" (length content))
+                          ;; Show face properties at a few positions
+                          (let ((sample-positions (list 0 (min 10 (1- (length content)))
+                                                       (min 20 (1- (length content))))))
+                            (dolist (pos sample-positions)
+                              (when (< pos (length content))
+                                (message "IOTA:   Pos %d char '%c' face: %S"
+                                        pos (aref content pos) (get-text-property pos 'face content))))))
+                        (if iota-modeline-show-separators
+                            (iota-modeline--parse-segments content)
+                          (list content))))
          ;; Split into left and right segments
          (right-count (min iota-modeline-right-segment-count (length all-segments)))
          (left-count (- (length all-segments) right-count))
@@ -347,8 +502,7 @@ Returns nil if window or buffer is invalid."
 (defun iota-modeline--apply-default-face (str)
   "Apply `iota-modeline-default' face to parts of STR that have no face.
 This prevents inheritance from buffer text at overlay position.
-Parts that already have a face are preserved but get explicit
-slant/weight to prevent italic/bold inheritance."
+Parts that already have a face get normalized to prevent attribute inheritance."
   (if (or (null str) (string-empty-p str))
       str
     (let ((result (copy-sequence str))
@@ -358,14 +512,9 @@ slant/weight to prevent italic/bold inheritance."
         (let* ((next-change (or (next-single-property-change pos 'face result) len))
                (current-face (get-text-property pos 'face result)))
           (if current-face
-              ;; Has a face - but ensure slant/weight don't inherit from buffer
-              ;; by wrapping in a list with explicit overrides if needed
-              (let ((new-face (if (listp current-face)
-                                  (if (memq :slant current-face)
-                                      current-face
-                                    (append current-face (list :slant 'normal)))
-                                (list :inherit current-face :slant 'normal))))
-                (put-text-property pos next-change 'face new-face result))
+              ;; Normalize face to prevent inheritance
+              (put-text-property pos next-change 'face
+                               (iota-modeline--normalize-face current-face) result)
             ;; No face - apply our default face
             (put-text-property pos next-change 'face 'iota-modeline-default result))
           (setq pos next-change)))

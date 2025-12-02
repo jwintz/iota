@@ -326,7 +326,11 @@ Returns: String with box decorations."
     ;; If we have center content, split space around it
     ;; Otherwise, all space goes between left and right
     ;; Use explicit face spec to prevent inheritance from buffer
-    (let ((space-face '(:inherit mode-line :slant normal :weight normal)))
+    (let ((space-face (if face
+                          ;; If we have a box face, apply similar attributes to spacing
+                          `(:inherit ,face :slant normal :weight normal)
+                        ;; Otherwise use mode-line with explicit attributes
+                        '(:inherit mode-line :slant normal :weight normal))))
       (cond
        ;; Case 1: We have center content - distribute space around it
        ((> center-len 0)
@@ -370,7 +374,9 @@ Returns: String with box decorations."
     (let* ((left-border (if face (propertize vert 'face face) vert))
            (right-border (if face (propertize vert 'face face) vert))
            ;; Padding spaces need explicit face spec to prevent buffer face inheritance
-           (padding-space (propertize " " 'face '(:inherit mode-line :slant normal :weight normal)))
+           (padding-space (propertize " " 'face (if face
+                                                    `(:inherit ,face :slant normal :weight normal)
+                                                  '(:inherit mode-line :slant normal :weight normal))))
            (content-str (apply #'concat content-parts))
            (content-line (concat left-border padding-space content-str padding-space right-border)))
 
