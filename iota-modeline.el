@@ -273,9 +273,48 @@ the face definition and set explicitly to prevent color inheritance."
       (message "IOTA:   Result: %S" result))
     result))
 
-(defun iota-modeline--ensure-segment-face (segment)
+(defun iota-modeline--dim-face-for-inactive (face)
+  "Modify FACE to use inactive/dimmed appearance.
+Returns a face specification that inherits from mode-line-inactive."
+  (cond
+   ;; List of faces - wrap each one
+   ((and (listp face) (not (keywordp (car face))))
+    (mapcar #'iota-modeline--dim-face-for-inactive face))
+   ;; Plist with attributes - add mode-line-inactive inheritance
+   ((and (listp face) (keywordp (car face)))
+    (let ((dimmed (copy-sequence face)))
+      ;; If it has :foreground, blend it towards mode-line-inactive foreground
+      (when (plist-member dimmed :foreground)
+        (let* ((fg (plist-get dimmed :foreground))
+               (inactive-fg (face-attribute 'mode-line-inactive :foreground nil t)))
+          (when (and fg inactive-fg
+                     (not (eq fg 'unspecified))
+                     (not (eq inactive-fg 'unspecified)))
+            ;; Blend original color with inactive foreground
+            (condition-case nil
+                (let ((blended (iota-theme-color-blend fg inactive-fg 0.6)))
+                  (setq dimmed (plist-put dimmed :foreground blended)))
+              (error nil)))))
+      dimmed))
+   ;; Single face symbol - create plist that dims it
+   ((facep face)
+    (let* ((fg (face-attribute face :foreground nil t))
+           (inactive-fg (face-attribute 'mode-line-inactive :foreground nil t)))
+      (if (and fg inactive-fg
+               (not (eq fg 'unspecified))
+               (not (eq inactive-fg 'unspecified)))
+          (condition-case nil
+              (let ((blended (iota-theme-color-blend fg inactive-fg 0.6)))
+                (list :inherit face :foreground blended))
+            (error (list :inherit 'mode-line-inactive)))
+        (list :inherit 'mode-line-inactive))))
+   ;; Fallback
+   (t 'mode-line-inactive)))
+
+(defun iota-modeline--ensure-segment-face (segment &optional inactive)
   "Ensure SEGMENT has explicit face properties to prevent inheritance.
-Applies face normalization to prevent any attribute inheritance from buffer text."
+Applies face normalization to prevent any attribute inheritance from buffer text.
+If INACTIVE is non-nil, dim faces for inactive window appearance."
   (if (or (null segment) (string-empty-p segment))
       segment
     (when iota-modeline-debug-faces
@@ -291,21 +330,27 @@ Applies face normalization to prevent any attribute inheritance from buffer text
             (message "IOTA:   Text '%s' has face: %S" segment-text current-face))
           (if current-face
               ;; Normalize the face to prevent inheritance
-              (put-text-property pos next-change 'face
-                               (iota-modeline--normalize-face current-face) result)
-            ;; No face - apply our default face
+              (let ((normalized (iota-modeline--normalize-face current-face)))
+                ;; If inactive, dim the face
+                (when inactive
+                  (setq normalized (iota-modeline--dim-face-for-inactive normalized)))
+                (put-text-property pos next-change 'face normalized result))
+            ;; No face - apply our default face (or inactive face)
             (progn
               (when iota-modeline-debug-faces
                 (message "IOTA:   No face found, applying default"))
-              (put-text-property pos next-change 'face 'iota-modeline-default result)))
+              (put-text-property pos next-change 'face
+                               (if inactive 'mode-line-inactive 'iota-modeline-default)
+                               result)))
           (setq pos next-change)))
       result)))
 
-(defun iota-modeline--parse-segments-preserve-faces (content)
+(defun iota-modeline--parse-segments-preserve-faces (content &optional inactive)
   "Parse CONTENT string into segments, preserving face properties.
 Splits on runs of 2+ spaces to identify logical segments.
 Merges segments that match `iota-modeline-merge-patterns' with their successor.
-Ensures each segment has explicit face properties to prevent inheritance."
+Ensures each segment has explicit face properties to prevent inheritance.
+If INACTIVE is non-nil, dim faces for inactive window appearance."
   (let* ((result nil)
          (pending nil)
          (start 0)
@@ -330,8 +375,8 @@ Ensures each segment has explicit face properties to prevent inheritance."
           ;; Extract segment with properties preserved
           (let ((seg (string-trim (substring content start end))))
             (when (> (length seg) 0)
-              ;; Ensure segment has explicit face properties
-              (setq seg (iota-modeline--ensure-segment-face seg))
+              ;; Ensure segment has explicit face properties (pass inactive flag)
+              (setq seg (iota-modeline--ensure-segment-face seg inactive))
               (let ((plain-seg (substring-no-properties seg)))
                 (if pending
                     ;; Merge with pending segment
@@ -349,11 +394,12 @@ Ensures each segment has explicit face properties to prevent inheritance."
       (push pending result))
     (nreverse result)))
 
-(defun iota-modeline--parse-segments (content)
+(defun iota-modeline--parse-segments (content &optional inactive)
   "Parse CONTENT string into a list of segments.
 Splits on runs of 2+ spaces to identify logical segments.
-Merges segments that match `iota-modeline-merge-patterns' with their successor."
-  (iota-modeline--parse-segments-preserve-faces content))
+Merges segments that match `iota-modeline-merge-patterns' with their successor.
+If INACTIVE is non-nil, dim faces for inactive window appearance."
+  (iota-modeline--parse-segments-preserve-faces content inactive))
 
 (defun iota-modeline--is-keycast-segment-p (segment)
   "Return t if SEGMENT appears to be a keycast segment.
@@ -536,9 +582,11 @@ TRULY-SELECTED-WINDOW is the actual selected window for active/inactive detectio
                          ;; For keycast: save predicate
                          (saved-keycast-predicate (and (boundp 'keycast-mode-line-window-predicate)
                                                        keycast-mode-line-window-predicate)))
-                    ;; Set doom-modeline-current-window to the window we're rendering
+                    ;; Set doom-modeline-current-window appropriately
+                    ;; For active: set to win so doom-modeline--active returns t
+                    ;; For inactive: set to nil so doom-modeline--active returns nil
                     (when (boundp 'doom-modeline-current-window)
-                      (setq doom-modeline-current-window win))
+                      (setq doom-modeline-current-window (if is-active win nil)))
                     ;; Override keycast predicate
                     (when (boundp 'keycast-mode-line-window-predicate)
                       (setq keycast-mode-line-window-predicate
@@ -560,20 +608,47 @@ TRULY-SELECTED-WINDOW is the actual selected window for active/inactive detectio
                       (when (boundp 'keycast-mode-line-window-predicate)
                         (setq keycast-mode-line-window-predicate saved-keycast-predicate)))))
          (content (string-trim content))
-         ;; Parse into segments (preserves faces)
+         ;; Debug: check content for active vs inactive
+         (_ (when nil  ; Set to t to enable debug
+              (message "IOTA: Window %s (active=%s)" win is-active)
+              (message "IOTA:   Content: %S" content)
+              (message "IOTA:   Length: %d" (length content))))
+         ;; Determine if this is an inactive window
+         (is-inactive (not (eq win truly-selected)))
+         ;; Parse into segments (preserves faces, dims for inactive windows)
          (all-segments (let ((segs (if iota-modeline-show-separators
-                                       (iota-modeline--parse-segments content)
-                                     (list content))))
+                                       (iota-modeline--parse-segments content is-inactive)
+                                     (list (iota-modeline--ensure-segment-face content is-inactive)))))
                          segs))
          ;; Filter out keycast segments from inactive windows
-         (all-segments (if (and (not (eq win truly-selected))
-                                (or (bound-and-true-p keycast-mode)
-                                    (bound-and-true-p keycast-mode-line-mode)))
-                           (iota-modeline--filter-keycast-segments all-segments)
-                         all-segments))
+         (filtered-segments (if (and (not (eq win truly-selected))
+                                     (or (bound-and-true-p keycast-mode)
+                                         (bound-and-true-p keycast-mode-line-mode)))
+                                (iota-modeline--filter-keycast-segments all-segments)
+                              all-segments))
+         ;; Adjust right-count based on how many segments were filtered
+         (filtered-count (- (length all-segments) (length filtered-segments)))
+         (all-segments filtered-segments)
+         (_ (when nil  ; Set to t for debug
+              (message "IOTA: Segments total=%d filtered=%d is-active=%s"
+                       (length all-segments) filtered-count (eq win truly-selected))
+              (message "IOTA:   Segments: %S" (mapcar #'substring-no-properties all-segments))))
          ;; Split into left and right segments
-         (right-count (min iota-modeline-right-segment-count (length all-segments)))
-         (left-count (- (length all-segments) right-count))
+         ;; Reduce right-count by the number of filtered segments to maintain balance
+         ;; For inactive windows without keycast, use fewer right segments
+         ;; CRITICAL: Ensure at least 1 segment on the left to prevent content pushed to right
+         (total-segments (length all-segments))
+         (right-count (if (eq win truly-selected)
+                          ;; Active window: use configured count
+                          (min iota-modeline-right-segment-count total-segments)
+                        ;; Inactive window: reduce by number of filtered segments
+                        ;; But ensure left-count >= 1 when we have segments
+                        (min (max 2 (- iota-modeline-right-segment-count filtered-count))
+                             (max 0 (- total-segments 1)))))  ; Ensure at least 1 left
+         (left-count (- total-segments right-count))
+         ;; Safety: ensure left-count is at least 1 when we have segments
+         (left-count (if (and (> total-segments 0) (= left-count 0)) 1 left-count))
+         (right-count (- total-segments left-count))
          (left-segments (seq-take all-segments left-count))
          (right-segments (seq-drop all-segments left-count))
          ;; Fit segments to available width, dropping low-priority segments if needed
@@ -713,13 +788,8 @@ If SELECTED-WINDOW is provided, use it as the truly selected window."
                       (let* ((iota-modeline--selected-window truly-selected)
                              ;; Render complete box (top + content + bottom)
                              ;; Pass truly-selected so doom-modeline knows which window is active
-                             (box (progn
-                                    (when iota-modeline-debug
-                                      (message "IOTA: update-overlay for win=%S truly-selected=%S" win truly-selected)
-                                      (message "IOTA:   (selected-window)=%S eq?=%S"
-                                               (selected-window) (eq win truly-selected)))
-                                    (with-selected-window win
-                                      (iota-modeline--render nil win truly-selected))))
+                             (box (with-selected-window win
+                                    (iota-modeline--render nil win truly-selected)))
                              ;; Apply default face to unfaced parts to prevent
                              ;; inheritance from buffer text at overlay position
                              (box-str (if (and box (stringp box) (not (string= box "")))
