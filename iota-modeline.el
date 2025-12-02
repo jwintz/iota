@@ -122,12 +122,11 @@ keycast segments are automatically added to the right count."
   :type 'integer
   :group 'iota-modeline)
 
-(defcustom iota-modeline-merge-patterns '("^[CMSA]-" "^<[^>]+>$")
-  "Patterns to identify segments that should be merged with the next.
-When a segment matches one of these patterns, it will be merged with
-the following segment. Useful for keycast where key and command
-should stay together."
-  :type '(repeat regexp)
+(defcustom iota-modeline-merge-keycast t
+  "Whether to merge keycast key and command segments.
+When non-nil, segments with keycast faces are merged with the following
+segment to keep key and command together."
+  :type 'boolean
   :group 'iota-modeline)
 
 ;;; State
@@ -377,17 +376,16 @@ If INACTIVE is non-nil, dim faces for inactive window appearance."
             (when (> (length seg) 0)
               ;; Ensure segment has explicit face properties (pass inactive flag)
               (setq seg (iota-modeline--ensure-segment-face seg inactive))
-              (let ((plain-seg (substring-no-properties seg)))
-                (if pending
-                    ;; Merge with pending segment
-                    (progn
-                      (push (concat pending " " seg) result)
-                      (setq pending nil))
-                  ;; Check if this segment should be merged with next
-                  (if (cl-some (lambda (pat) (string-match-p pat plain-seg))
-                               iota-modeline-merge-patterns)
-                      (setq pending seg)
-                    (push seg result))))))
+              (if pending
+                  ;; Merge with pending segment (keycast key + command)
+                  (progn
+                    (push (concat pending " " seg) result)
+                    (setq pending nil))
+                ;; Check if this segment has keycast face (should merge with next)
+                (if (and iota-modeline-merge-keycast
+                         (iota-modeline--segment-has-keycast-face-p seg))
+                    (setq pending seg)
+                  (push seg result)))))
           (setq start end))))
     ;; Handle trailing pending segment
     (when pending
@@ -439,6 +437,16 @@ Detects segments containing key-like patterns (C-x, M-x, etc.) followed by comma
     (let ((inherit (plist-get face :inherit)))
       (and inherit (iota-modeline--face-is-keycast-p inherit))))
    (t nil)))
+
+(defun iota-modeline--segment-has-keycast-face-p (segment)
+  "Return t if SEGMENT contains any text with keycast face.
+Used to detect keycast key segments that should be merged with command."
+  (catch 'found
+    (dotimes (i (length segment))
+      (let ((face (get-text-property i 'face segment)))
+        (when (iota-modeline--face-is-keycast-p face)
+          (throw 'found t))))
+    nil))
 
 (defun iota-modeline--filter-keycast-segments (segments)
   "Filter out keycast-related segments from SEGMENTS list.
