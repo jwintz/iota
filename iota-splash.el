@@ -41,6 +41,17 @@ When non-nil, display rotating hints about IOTA functionality."
   :type 'boolean
   :group 'iota)
 
+(defcustom iota-splash-hints-random nil
+  "When non-nil, show hints in random order instead of sequential."
+  :type 'boolean
+  :group 'iota)
+
+(defcustom iota-splash-hint-prefixes '("C-c e" "C-c v" "C-c f" "C-c g" "C-c p" "C-c s" "C-c t" "C-c w" "C-c b" "C-c h")
+  "List of key prefixes to scan for bound commands.
+These prefixes are used to discover commands bound via general.el or other methods."
+  :type '(repeat string)
+  :group 'iota)
+
 (defvar iota-splash--animation-timer nil
   "Timer for splash screen animation.")
 
@@ -56,17 +67,169 @@ When non-nil, display rotating hints about IOTA functionality."
 (defvar-local iota-splash--last-window-height nil
   "Last known window height for splash screen.")
 
-(defconst iota-splash--hints
-  '("Press M-x iota-modeline-cycle-style to change box styles"
-    "Use M-x iota-modeline-toggle-position to switch between header and mode line"
-    "Modeline content is provided via iota-modeline-left/center/right-function"
-    "I O T Λ automatically adapts to your theme's colors"
-    "Enable terminal transparency with iota-theme-transparent-in-terminal"
-    "I O T Λ animations use 30fps for smooth visual feedback"
-    "I O T Λ works in both terminal and GUI Emacs"
-    "Customize box style with iota-modeline-box-style variable"
-    "Use iota-box-render-single-line for custom box layouts")
-  "List of hints about I O T Λ features.")
+(defvar iota-splash--hints nil
+  "Dynamically generated hints from commands.
+Populated by `iota-splash-generate-hints' when available.")
+
+(defun iota-splash--extract-keymap-commands (keymap)
+  "Extract all command symbols from KEYMAP recursively.
+Returns a list of unique command symbols."
+  (let ((commands nil))
+    (when (keymapp keymap)
+      (map-keymap
+       (lambda (_key binding)
+         (cond
+          ;; Direct command
+          ((commandp binding)
+           (push binding commands))
+          ;; Nested keymap
+          ((keymapp binding)
+           (setq commands (append commands (iota-splash--extract-keymap-commands binding))))
+          ;; cons cell (for extended menu items, etc)
+          ((and (consp binding)
+                (commandp (cdr binding)))
+           (push (cdr binding) commands))))
+       keymap))
+    (delete-dups commands)))
+
+(defun iota-splash--extract-general-commands ()
+  "Extract command symbols from general.el keybindings.
+Returns a list of unique command symbols bound via general.el."
+  (when (featurep 'general)
+    (let ((commands nil))
+      ;; Method 1: Try general-keybindings variable (nested alist)
+      (when (boundp 'general-keybindings)
+        (dolist (entry general-keybindings)
+          ;; Try different possible structures
+          (let ((data (cdr entry)))
+            (cond
+             ;; If data is a list of bindings
+             ((listp data)
+              (dolist (item data)
+                (let ((binding-data (if (consp item) (cdr item) item)))
+                  (cond
+                   ;; Direct symbol
+                   ((and (symbolp binding-data) (commandp binding-data))
+                    (push binding-data commands))
+                   ;; Quoted symbol
+                   ((and (consp binding-data)
+                         (eq (car binding-data) 'quote)
+                         (symbolp (cadr binding-data))
+                         (commandp (cadr binding-data)))
+                    (push (cadr binding-data) commands))
+                   ;; Nested list
+                   ((listp binding-data)
+                    (dolist (nested-item binding-data)
+                      (when (consp nested-item)
+                        (let ((def (cdr nested-item)))
+                          (cond
+                           ((and (symbolp def) (commandp def))
+                            (push def commands))
+                           ((and (consp def)
+                                 (eq (car def) 'quote)
+                                 (symbolp (cadr def))
+                                 (commandp (cadr def)))
+                            (push (cadr def) commands)))))))))))
+             ;; If data itself is a keymap
+             ((keymapp data)
+              (setq commands (append commands (iota-splash--extract-keymap-commands data))))))))
+
+      ;; Method 2: Extract from configured prefix keymaps
+      (dolist (prefix iota-splash-hint-prefixes)
+        (condition-case nil
+            (let ((binding (key-binding (kbd prefix))))
+              (when (keymapp binding)
+                (setq commands (append commands
+                                       (iota-splash--extract-keymap-commands binding)))))
+          (error nil)))
+
+      ;; Return unique commands
+      (delete-dups commands))))
+
+(defun iota-splash--get-command-description (command)
+  "Get a description for COMMAND, preferring marginalia if available."
+  (let ((doc nil))
+    ;; Try marginalia first if available
+    (when (and (featurep 'marginalia)
+               (fboundp 'marginalia-annotate-command))
+      (let ((annotation (marginalia-annotate-command (symbol-name command))))
+        (when (and annotation (stringp annotation))
+          ;; Clean up marginalia annotation (remove properties and extra whitespace)
+          (setq doc (substring-no-properties annotation))
+          ;; Collapse multiple spaces into single space
+          (setq doc (replace-regexp-in-string "[ \t]+" " " doc))
+          ;; Trim whitespace
+          (setq doc (string-trim doc)))))
+    ;; Fall back to first line of documentation
+    (unless doc
+      (when-let ((docstring (documentation command)))
+        (setq doc (car (split-string docstring "\n")))))
+    ;; Clean up and return
+    (when doc
+      (string-trim doc))))
+
+(defun iota-splash-generate-hints ()
+  "Generate hints dynamically from IOTA and general.el commands.
+Returns a list of hint strings with command descriptions."
+  (let ((hints nil)
+        (commands nil))
+
+    ;; 1. Collect all IOTA commands
+    (mapatoms
+     (lambda (sym)
+       (when (and (commandp sym)
+                  (string-prefix-p "iota-" (symbol-name sym))
+                  ;; Exclude internal/private commands
+                  (not (string-match-p "--" (symbol-name sym)))
+                  ;; Must have documentation
+                  (documentation sym))
+         (push sym commands))))
+
+    ;; 2. Collect commands from general.el bindings
+    (when (featurep 'general)
+      (let ((general-cmds (iota-splash--extract-general-commands)))
+        (setq commands (append commands general-cmds))
+        ;; Remove duplicates
+        (setq commands (delete-dups commands))))
+
+    ;; 3. Generate hints for all collected commands
+    (dolist (cmd commands)
+      (when-let ((desc (iota-splash--get-command-description cmd)))
+        (let ((hint (format "M-x %s — %s" (symbol-name cmd) desc)))
+          (push hint hints))))
+
+    ;; Return sorted list
+    (when hints
+      (sort hints #'string<))))
+
+(defun iota-splash-refresh-hints ()
+  "Refresh the hints list.
+Call this after loading new IOTA modules or changing general.el bindings."
+  (interactive)
+  (let ((hints (iota-splash-generate-hints)))
+    (setq iota-splash--hints hints)
+    (setq iota-splash--hint-index 0)  ; Reset index
+    ;; Redraw splash screen if visible
+    (when (get-buffer iota-splash-buffer-name)
+      (iota-splash--redraw-buffer))))
+
+;; Backward compatibility alias
+(defalias 'iota-splash-refresh-dynamic-hints 'iota-splash-refresh-hints
+  "Deprecated alias for `iota-splash-refresh-hints'.")
+
+(defun iota-splash--get-hints ()
+  "Get the current list of hints to display."
+  iota-splash--hints)
+
+(defun iota-splash-hints-debug ()
+  "Show debug info about hint configuration."
+  (interactive)
+  (let ((hints (iota-splash--get-hints)))
+    (message "Hints: random=%s | total=%d current-idx=%d | current: %s"
+             iota-splash-hints-random
+             (length hints)
+             iota-splash--hint-index
+             (truncate-string-to-width (or (nth iota-splash--hint-index hints) "nil") 40))))
 
 (defconst iota-splash--base-colors
   '("#39bae6" "#52c1e9" "#6ac8ec" "#81cfef" "#99d6f2" "#b0ddf5" "#c8e4f8" "#d9e3fa" "#ffcc66" "#ffd57a" "#ffde8f" "#ffe6a3" "#ffedb8" "#fff6cc" "#fffbe0")
@@ -130,19 +293,26 @@ Returns a hex color string."
 
 (defun iota-splash--get-current-hint ()
   "Get the current hint text."
-  (nth iota-splash--hint-index iota-splash--hints))
+  (let* ((hints (iota-splash--get-hints))
+         (hint (nth (mod iota-splash--hint-index (length hints)) hints)))
+    hint))
 
 (defun iota-splash--insert-hints ()
   "Insert hints section if enabled."
   (when iota-splash-show-hints
-    (insert "\n\n\n\n")  ; Add spacing to push hints lower
-    (insert (propertize (iota-splash--get-current-hint) 'face 'iota-splash-tertiary))
-    (insert "\n")))
+    (let ((hint (iota-splash--get-current-hint)))
+      (insert "\n\n\n\n")  ; Add spacing to push hints lower
+      (insert (propertize hint 'face 'iota-splash-tertiary))
+      (insert "\n"))))
 
 (defun iota-splash--rotate-hint ()
   "Rotate to the next hint and update the splash screen buffer."
-  (setq iota-splash--hint-index
-        (mod (1+ iota-splash--hint-index) (length iota-splash--hints)))
+  (let ((hints (iota-splash--get-hints)))
+    (when hints
+      (setq iota-splash--hint-index
+            (if iota-splash-hints-random
+                (random (length hints))
+              (mod (1+ iota-splash--hint-index) (length hints))))))
   ;; Use the centralized redraw function
   (iota-splash--redraw-buffer))
 
@@ -430,6 +600,10 @@ Does not display if Emacs was opened with file arguments."
   ;; Skip splash screen if files were opened
   (unless (and (not (called-interactively-p 'any))
                (iota-splash--file-buffers-exist-p))
+    ;; Auto-generate hints if not already done
+    (when (and iota-splash-show-hints
+               (null iota-splash--hints))
+      (setq iota-splash--hints (iota-splash-generate-hints)))
     (setq inhibit-startup-screen t)
     (let ((buffer (get-buffer-create iota-splash-buffer-name)))
       ;; First, switch to the buffer to establish window context
