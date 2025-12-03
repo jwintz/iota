@@ -46,6 +46,14 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
 - Modal state indicator with customizable styles
 - Keycast display for active windows
 
+### Footer Line
+- Automatic separator above minibuffer area for transient content
+- Shows when minibuffer is active (prompts, completions)
+- Shows for which-key popup windows
+- Shows for warning messages in echo area
+- Uses same box-drawing style as modeline for consistency
+- Lightweight detection with configurable triggers
+
 ### Theme Integration
 - Automatic color extraction from any theme
 - Light/dark detection with luminance calculation
@@ -96,6 +104,7 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
   (iota-splash-show-hints t)
   :config
   (iota-modeline-mode 1)
+  (iota-footerline-mode 1)
   (iota-window-mode 1)
   :hook
   (emacs-startup-hook . iota-splash-screen))
@@ -119,6 +128,7 @@ git clone https://github.com/jwintz/iota ~/Development/iota
   (iota-splash-show-hints t)
   :config
   (iota-modeline-mode 1)
+  (iota-footerline-mode 1)
   (iota-window-mode 1)
   :hook
   (emacs-startup-hook . iota-splash-screen))
@@ -198,6 +208,27 @@ M-x iota-theme-transparent-diagnose
 
 ;; Or let IOTA choose the best style
 (setq iota-box-default-style (iota-box-select-best-style 'heavy-rounded))
+```
+
+### Footer Line Options
+
+```elisp
+;; Enable footer line separator
+(iota-footerline-mode 1)
+
+;; Configure what triggers the footer separator
+(setq iota-footerline-show-for-minibuffer t)       ; Show for active minibuffer (default: t)
+(setq iota-footerline-show-for-which-key t)        ; Show for which-key popups (default: t)
+(setq iota-footerline-show-for-warnings t)         ; Show for warning messages (default: t)
+
+;; Exclude specific buffers from footer line
+(setq iota-footerline-excluded-buffers '("\\*some-buffer\\*"))
+
+;; Interactive commands
+M-x iota-footerline-toggle-minibuffer   ; Toggle minibuffer separator
+M-x iota-footerline-toggle-which-key    ; Toggle which-key separator
+M-x iota-footerline-toggle-warnings     ; Toggle warnings separator
+M-x iota-footerline-refresh             ; Manually refresh visibility
 ```
 
 ### Window & Splash Options
@@ -476,6 +507,16 @@ For optimal IOTA experience in terminal Emacs, consider these settings:
 | `M-x iota-modeline-toggle-position` | Toggle header/mode-line |
 | `M-x iota-modeline-cycle-preset` | Cycle through presets |
 | `M-x iota-modeline-cycle-style` | Cycle through box styles |
+
+### Footer Line Commands
+
+| Command | Description |
+|---------|-------------|
+| `M-x iota-footerline-mode` | Toggle footer line separator |
+| `M-x iota-footerline-refresh` | Manually refresh visibility |
+| `M-x iota-footerline-toggle-minibuffer` | Toggle minibuffer separator |
+| `M-x iota-footerline-toggle-which-key` | Toggle which-key separator |
+| `M-x iota-footerline-toggle-warnings` | Toggle warnings separator |
 
 ### Modal Editing Commands
 
