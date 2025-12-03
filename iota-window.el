@@ -93,71 +93,83 @@ Background handling is delegated to `iota-theme-transparent' for terminal compat
   (message "[IOTA-WINDOW] Before: vertical-border face fg=%s bg=%s"
            (face-attribute 'vertical-border :foreground nil t)
            (face-attribute 'vertical-border :background nil t))
+  ;; Ensure we have a display table
+  (unless standard-display-table
+    (setq standard-display-table (make-display-table)))
   (pcase iota-window-divider-style
     ('plain
-     ;; Plain vertical bar: use box drawing vertical line for continuous appearance
-     (message "[IOTA-WINDOW] Setting PLAIN style with │ character")
-     (let ((table (or standard-display-table (make-display-table))))
-       ;; Use │ (U+2502 BOX DRAWINGS LIGHT VERTICAL) for a thin vertical line
-       (set-display-table-slot table 'vertical-border (make-glyph-code ?│ 'vertical-border))
-       (setq standard-display-table table))
+     ;; Plain vertical bar: use full-height box drawing vertical line
+     ;; Use │ (U+2502 BOX DRAWINGS LIGHT VERTICAL) - same as iota-box.el uses
+     ;; This creates a continuous vertical line when used on every row
+     (message "[IOTA-WINDOW] Setting PLAIN style")
+     ;; Get the vertical character from iota-box for consistency
+     (let ((vert-char (if (boundp 'iota-box-default-style)
+                          (string-to-char (plist-get (iota-box-get-chars iota-box-default-style) :vertical))
+                        ?│)))  ; U+2502 fallback
+       (message "[IOTA-WINDOW] Using vertical char: %c (code: %d)" vert-char vert-char)
+       ;; Set display table slot - just the character code
+       (set-display-table-slot standard-display-table 'vertical-border vert-char)
+       (message "[IOTA-WINDOW] Display table slot set to: %s"
+                (display-table-slot standard-display-table 'vertical-border)))
      ;; Set vertical-border face foreground color to inactive box color
-     ;; Do NOT set background - let iota-theme-transparent handle it for terminal compatibility
+     ;; Background must remain unspecified for transparent terminals
      (let ((fg (face-attribute 'iota-inactive-box-face :foreground nil t)))
        (when (or (eq fg 'unspecified) (not fg))
          (setq fg "grey30"))
        (message "[IOTA-WINDOW] Setting vertical-border foreground to: %s" fg)
-       (set-face-attribute 'vertical-border nil :foreground fg)
+       (set-face-attribute 'vertical-border nil
+                           :foreground fg
+                           :background 'unspecified
+                           :inherit nil)
        ;; Also set window-divider faces for GUI frames
        (when (facep 'window-divider)
-         (set-face-attribute 'window-divider nil :foreground fg))
+         (set-face-attribute 'window-divider nil :foreground fg :background 'unspecified))
        (when (facep 'window-divider-first-pixel)
-         (set-face-attribute 'window-divider-first-pixel nil :foreground fg))
+         (set-face-attribute 'window-divider-first-pixel nil :foreground fg :background 'unspecified))
        (when (facep 'window-divider-last-pixel)
-         (set-face-attribute 'window-divider-last-pixel nil :foreground fg))))
+         (set-face-attribute 'window-divider-last-pixel nil :foreground fg :background 'unspecified))))
     ('hidden
-     ;; Hidden: make divider invisible by using a space character
-     ;; The key is using a space in the display table - color doesn't matter for spaces
-     (message "[IOTA-WINDOW] Setting HIDDEN style with space character")
-     (let ((table (or standard-display-table (make-display-table))))
-       ;; Use a regular space - it's inherently invisible
-       (set-display-table-slot table 'vertical-border (make-glyph-code ?\s))
-       (setq standard-display-table table))
-     (message "[IOTA-WINDOW] Display table slot set to space")
-     ;; For the face, we still need to handle it for GUI frames and edge cases
-     ;; In terminal: spaces are invisible regardless of color
-     ;; In GUI: match fg/bg to make it invisible
-     (let ((bg (face-attribute 'default :background nil t)))
-       (message "[IOTA-WINDOW] default background = %s (type: %s)" bg (type-of bg))
-       ;; Check for unspecified background (can be symbol or string)
-       (when (or (eq bg 'unspecified)
-                 (not bg)
-                 (equal bg "unspecified-bg")
-                 (and (stringp bg) (string-match-p "unspecified" bg)))
-         ;; In transparent terminal, use a dark color that blends with typical dark terminals
-         (message "[IOTA-WINDOW] Background is unspecified/transparent, using #000000")
-         (setq bg "#000000"))
-       (message "[IOTA-WINDOW] Setting vertical-border fg to: %s (to match bg)" bg)
-       ;; Set face attributes - spaces won't show these anyway in terminal
-       ;; but it helps with GUI frames
+     ;; Hidden: make divider completely invisible
+     ;; In terminal Emacs, use a space character AND set foreground to match default
+     (message "[IOTA-WINDOW] Setting HIDDEN style - making divider invisible")
+     ;; Set display table to use space character
+     (set-display-table-slot standard-display-table 'vertical-border ?\s)
+     (message "[IOTA-WINDOW] Display table slot set to space char: %s"
+              (display-table-slot standard-display-table 'vertical-border))
+     ;; For hidden mode, we need the foreground to match the default foreground
+     ;; because with unspecified, it might inherit a visible color
+     ;; Use the default foreground color so even if a character shows, it's invisible
+     (let ((fg (face-attribute 'default :foreground nil t)))
+       (when (or (eq fg 'unspecified) (not fg))
+         (setq fg "#ffffff"))
+       ;; Actually for terminal, we want to match the background to be truly invisible
+       ;; But since background is unspecified (transparent), we use default foreground
+       ;; which will make any character blend with text - but space shows nothing anyway
+       (message "[IOTA-WINDOW] Setting vertical-border fg to default fg: %s" fg)
        (set-face-attribute 'vertical-border nil
-                           :foreground bg
-                           :background 'unspecified)
+                           :foreground fg
+                           :background 'unspecified
+                           :inherit nil)
        (when (facep 'window-divider)
          (set-face-attribute 'window-divider nil
-                             :foreground bg
+                             :foreground fg
                              :background 'unspecified))
        (when (facep 'window-divider-first-pixel)
          (set-face-attribute 'window-divider-first-pixel nil
-                             :foreground bg
+                             :foreground fg
                              :background 'unspecified))
        (when (facep 'window-divider-last-pixel)
          (set-face-attribute 'window-divider-last-pixel nil
-                             :foreground bg
-                             :background 'unspecified)))
-     ;; Force redisplay
-     (force-mode-line-update t)
-     (redraw-display)))
+                             :foreground fg
+                             :background 'unspecified)))))
+  ;; Apply display table to all frames
+  (dolist (frame (frame-list))
+    (set-frame-parameter frame 'display-table standard-display-table))
+  ;; Also update all existing buffer-local display tables
+  (iota-window--update-buffer-display-tables)
+  ;; Force redisplay to apply changes
+  (force-mode-line-update t)
+  (redraw-display)
   ;; Final state
   (message "[IOTA-WINDOW] After: vertical-border face fg=%s bg=%s"
            (face-attribute 'vertical-border :foreground nil t)
@@ -166,6 +178,36 @@ Background handling is delegated to `iota-theme-transparent' for terminal compat
            (when standard-display-table
              (display-table-slot standard-display-table 'vertical-border)))
   (message "[IOTA-WINDOW] Configuration complete for style: %s" iota-window-divider-style))
+
+(defun iota-window--update-buffer-display-tables ()
+  "Update vertical-border slot in all buffer-local display tables.
+This ensures buffers with their own display table also get the correct divider."
+  (let ((vert-char (display-table-slot standard-display-table 'vertical-border)))
+    (dolist (buf (buffer-list))
+      (with-current-buffer buf
+        (when buffer-display-table
+          (set-display-table-slot buffer-display-table 'vertical-border vert-char))))))
+
+(defun iota-window--setup-buffer-display-table ()
+  "Ensure buffer-local display table has correct vertical-border.
+Called when entering a buffer to fix display tables created by other modes."
+  (when (and iota-window-mode buffer-display-table)
+    (let ((vert-char (display-table-slot standard-display-table 'vertical-border)))
+      (set-display-table-slot buffer-display-table 'vertical-border vert-char))))
+
+(defun iota-window--fix-current-buffer-display-table ()
+  "Fix the current buffer's display table after major mode change.
+This runs after modes like outline-minor-mode create their display tables."
+  (when iota-window-mode
+    ;; Use a short timer to run after all mode hooks complete
+    (run-with-timer 0.01 nil
+                    (lambda (buf)
+                      (when (buffer-live-p buf)
+                        (with-current-buffer buf
+                          (when buffer-display-table
+                            (let ((vert-char (display-table-slot standard-display-table 'vertical-border)))
+                              (set-display-table-slot buffer-display-table 'vertical-border vert-char))))))
+                    (current-buffer))))
 
 (defun iota-window--restore-dividers ()
   "Restore original window divider settings."
@@ -274,6 +316,13 @@ When enabled, tracks window active/inactive state for visual distinction."
         (setq iota-window--last-selected (selected-window))
         (add-hook 'window-selection-change-functions
                   #'iota-window--on-selection-change)
+        ;; Fix buffer-local display tables when switching buffers
+        (add-hook 'window-buffer-change-functions
+                  #'iota-window--on-buffer-change)
+        ;; Fix buffer-local display tables after major mode changes
+        ;; (outline-minor-mode and others create display tables in mode hooks)
+        (add-hook 'after-change-major-mode-hook
+                  #'iota-window--fix-current-buffer-display-table)
         ;; Re-apply divider settings after theme loads (themes can override face settings)
         (advice-add 'load-theme :after #'iota-window--on-theme-load)
         ;; Force modeline update
@@ -281,6 +330,10 @@ When enabled, tracks window active/inactive state for visual distinction."
     ;; Disable window focus tracking
     (remove-hook 'window-selection-change-functions
                  #'iota-window--on-selection-change)
+    (remove-hook 'window-buffer-change-functions
+                 #'iota-window--on-buffer-change)
+    (remove-hook 'after-change-major-mode-hook
+                 #'iota-window--fix-current-buffer-display-table)
     (advice-remove 'load-theme #'iota-window--on-theme-load)
     (iota-window--cancel-animations)
     ;; Restore original divider settings
@@ -303,6 +356,24 @@ Themes can override face settings, so we need to re-apply our configuration."
                     (lambda ()
                       (message "[IOTA-WINDOW] Timer fired, reconfiguring dividers...")
                       (iota-window--configure-dividers)))))
+
+(defun iota-window--on-buffer-change (frame-or-window)
+  "Handle buffer change in FRAME-OR-WINDOW.
+Fixes buffer-local display tables that don't have vertical-border set.
+The hook can be called with either a frame or window depending on context."
+  (when iota-window-mode
+    (let ((windows (cond
+                    ((framep frame-or-window) (window-list frame-or-window))
+                    ((windowp frame-or-window) (list frame-or-window))
+                    (t nil))))
+      (dolist (win windows)
+        (let ((buf (window-buffer win)))
+          (when (and buf (buffer-live-p buf))
+            (with-current-buffer buf
+              (when buffer-display-table
+                (let ((vert-char (display-table-slot standard-display-table 'vertical-border)))
+                  (unless (equal (display-table-slot buffer-display-table 'vertical-border) vert-char)
+                    (set-display-table-slot buffer-display-table 'vertical-border vert-char)))))))))))
 
 ;;; Interactive Commands
 
