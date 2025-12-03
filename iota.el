@@ -183,7 +183,7 @@ This removes the prevention added by `iota-disable-line-numbers'."
   (advice-remove 'linum-mode #'iota-prevent-line-numbers)
   (message "Line numbers re-enabled"))
 
-(defcustom iota-prevent-line-numbers nil
+(defcustom iota-prevent-line-numbers t
   "When non-nil, prevent any code from enabling line numbers.
 This is useful to prevent packages like meow-tutor from showing line numbers.
 When enabled, line number modes will be permanently disabled."
@@ -224,6 +224,13 @@ When enabled, line number modes will be permanently disabled."
   "Hook run after IOTA is loaded.")
 
 (run-hooks 'iota-after-load-hook)
+
+;;; Automatic Activation
+
+;; Enable IOTA modes by default when package is loaded
+(iota-modeline-mode 1)
+(iota-footerline-mode 1)
+(iota-window-mode 1)
 
 (provide 'iota)
 ;;; iota.el ends here

@@ -99,13 +99,8 @@ A minimal terminal interface (TUI) framework for Emacs with box-drawing characte
   (iota-window-divider-style 'hidden)
   (iota-window-animate-modeline t)
   (iota-window-transition-duration 0.8)
-  (iota-splash-project-prefix "C-c p")
-  (iota-splash-show-key-bindings t)
-  (iota-splash-show-hints t)
-  :config
-  (iota-modeline-mode 1)
-  (iota-footerline-mode 1)
-  (iota-window-mode 1)
+  ;; Note: iota-modeline-mode, iota-footerline-mode, and iota-window-mode
+  ;; are enabled automatically when IOTA is loaded
   :hook
   (emacs-startup-hook . iota-splash-screen))
 ```
@@ -123,22 +118,24 @@ git clone https://github.com/jwintz/iota ~/Development/iota
   (iota-window-divider-style 'hidden)
   (iota-window-animate-modeline t)
   (iota-window-transition-duration 0.8)
-  (iota-splash-project-prefix "C-c p")
-  (iota-splash-show-key-bindings t)
-  (iota-splash-show-hints t)
-  :config
-  (iota-modeline-mode 1)
-  (iota-footerline-mode 1)
-  (iota-window-mode 1)
+  ;; Note: iota-modeline-mode, iota-footerline-mode, and iota-window-mode
+  ;; are enabled automatically when IOTA is loaded
   :hook
   (emacs-startup-hook . iota-splash-screen))
 ```
 
 ## Quick Start
 
-Enable IOTA modeline:
+IOTA modes are enabled automatically when you load the package:
 ```elisp
-(iota-modeline-mode 1)
+(require 'iota)  ; This enables modeline, footerline, and window modes
+```
+
+To disable specific modes:
+```elisp
+(iota-modeline-mode -1)    ; Disable modeline
+(iota-footerline-mode -1)  ; Disable footerline
+(iota-window-mode -1)      ; Disable window tracking
 ```
 
 Interactive setup wizard:
@@ -237,10 +234,8 @@ M-x iota-footerline-refresh             ; Manually refresh visibility
 (setq iota-window-divider-style 'hidden)           ; Window divider style
 (setq iota-window-animate-modeline t)              ; Animate modeline transitions
 (setq iota-window-transition-duration 0.8)         ; Transition duration (seconds)
-(setq iota-splash-project-prefix "C-c p")          ; Project key prefix
-(setq iota-splash-show-key-bindings t)             ; Show project.el key bindings
-(setq iota-splash-show-hints t)                    ; Show rotating hints
-;; Splash screen also displays Emacs init time
+(setq iota-splash-show-hints t)                    ; Show rotating hints about IOTA features
+;; Splash screen displays logo and Emacs init time
 ```
 
 ### Modal Editing Integration

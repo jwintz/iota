@@ -35,25 +35,10 @@
   :type 'string
   :group 'iota)
 
-(defcustom iota-splash-show-key-bindings nil
-  "Show key bindings in splash screen when project.el is available.
-When non-nil and project.el is loaded, display helpful key bindings
-for project management."
-  :type 'boolean
-  :group 'iota)
-
-(defcustom iota-splash-show-hints nil
+(defcustom iota-splash-show-hints t
   "Show animated hints about IOTA features in splash screen.
 When non-nil, display rotating hints about IOTA functionality."
   :type 'boolean
-  :group 'iota)
-
-(defcustom iota-splash-project-prefix nil
-  "Project prefix key sequence to display in splash screen.
-When nil, automatically detect the prefix by searching for project-prefix-map.
-Set this to a string like \"C-c p\" to override automatic detection."
-  :type '(choice (const :tag "Auto-detect" nil)
-                 (string :tag "Custom prefix"))
   :group 'iota)
 
 (defvar iota-splash--animation-timer nil
@@ -144,176 +129,6 @@ Returns a hex color string."
         (insert (propertize " seconds" 'face 'shadow))
         (insert "\n")))))
 
-(defun iota-splash--project-available-p ()
-  "Return t if project.el is available."
-  (featurep 'project))
-
-(defun iota-splash--find-prefix-for-command (command)
-  "Find the prefix key sequence for COMMAND by removing its last key."
-  (let ((keys (where-is-internal command nil t)))
-    (when keys
-      (let ((full-key (key-description keys)))
-        ;; Remove the last key to get prefix (e.g., "C-c p f" -> "C-c p")
-        (cond
-         ((string-match "\\`\\(.*[^ ]\\) [^ ]\\'" full-key)
-          (match-string 1 full-key))
-         ((and (> (length full-key) 2)
-               (eq (aref full-key (- (length full-key) 2)) ?\s))
-          (substring full-key 0 (- (length full-key) 2)))
-         (t nil))))))
-
-(defun iota-splash--search-keymap-for-prefix (keymap target-map)
-  "Search KEYMAP for a key sequence bound to TARGET-MAP.
-Returns the key description if found, nil otherwise."
-  (let ((result nil))
-    (map-keymap
-     (lambda (key binding)
-       (when (and (not result) (eq binding target-map))
-         (setq result (key-description (vector key)))))
-     keymap)
-    result))
-
-(defun iota-splash--binding-activates-keymap-p (binding target-map)
-  "Check if BINDING would activate TARGET-MAP.
-This handles both direct keymap bindings and autoload wrappers."
-  (or
-   ;; Direct keymap binding
-   (eq binding target-map)
-   ;; Check if it's a symbol whose function cell is the keymap
-   (and (symbolp binding)
-        (eq (symbol-function binding) target-map))
-   ;; Check if calling the binding would return the keymap
-   ;; (for use-package autoload wrappers)
-   (and (or (functionp binding) (symbolp binding))
-        (condition-case nil
-            (eq (symbol-value (intern-soft "project-prefix-map")) target-map)
-          (error nil)))))
-
-(defun iota-splash--find-keymap-binding (target-map)
-  "Find the key sequence that TARGET-MAP is bound to in global-map.
-Returns a string like \"C-c p\" or nil if not found.
-Handles both direct keymap bindings and use-package autoload wrappers."
-  (catch 'found
-    ;; Search through common prefix keys (prioritize C-c for custom bindings)
-    (dolist (prefix-key '("C-c" "C-x" "C-z" "s-p" "M-p"))
-      (let ((prefix-map (ignore-errors (lookup-key global-map (kbd prefix-key)))))
-        (when (keymapp prefix-map)
-          ;; Check all possible single character suffixes
-          (catch 'found-suffix
-            (map-keymap
-             (lambda (key binding)
-               (let* ((key-desc (key-description (vector key)))
-                      (full-key (concat prefix-key " " key-desc))
-                      ;; For autoload bindings, check what's actually at that key
-                      (actual-binding (lookup-key global-map (kbd full-key)))
-                      ;; Check if this key leads to project commands
-                      (leads-to-project (and (or (keymapp actual-binding)
-                                                 (functionp binding))
-                                             ;; Check if common project commands are under this prefix
-                                             (let ((test-key (concat full-key " f")))
-                                               (eq (lookup-key global-map (kbd test-key) t)
-                                                   'project-find-file))))
-                      (is-match (or (eq binding target-map)
-                                   (eq actual-binding target-map)
-                                   leads-to-project
-                                   ;; Check for use-package autoload pattern
-                                   (and (symbolp binding)
-                                        (string-match-p "project" (symbol-name binding))))))
-                 (when is-match
-                   (throw 'found full-key))))
-             prefix-map)))))
-
-    ;; Also try direct single-key bindings (less common but possible)
-    (let ((suffix (iota-splash--search-keymap-for-prefix global-map target-map)))
-      (when suffix
-        (throw 'found suffix)))
-    nil))
-
-(defun iota-splash--get-project-prefix ()
-  "Get the project prefix key sequence as a string.
-Tries multiple methods to detect the actual binding."
-  (or
-   ;; First, check if user has set a manual override
-   iota-splash-project-prefix
-
-   ;; Search for project-prefix-map binding first (most authoritative)
-   ;; This detects when user has bound the entire keymap with :bind-keymap
-   (when (boundp 'project-prefix-map)
-     (iota-splash--find-keymap-binding project-prefix-map))
-
-   ;; If keymap binding not found, try to find prefix from individual commands
-   (or (iota-splash--find-prefix-for-command 'project-find-file)
-       (iota-splash--find-prefix-for-command 'project-switch-project)
-       (iota-splash--find-prefix-for-command 'project-find-regexp))
-
-   ;; Default fallback
-   "C-x p"))
-
-(defun iota-splash--insert-key-bindings (&optional window)
-  "Insert key bindings section if project.el is available.
-WINDOW is the window to use for width calculations (defaults to selected window)."
-  (when (and iota-splash-show-key-bindings
-             (iota-splash--project-available-p))
-    (insert "\n\n\n\n")  ; More vertical space before Quick Actions
-
-    ;; Center the "Quick Actions in [CWD]" header
-    (let ((header-start (point))
-          (cwd (abbreviate-file-name default-directory)))
-      (let ((cwd-str (if (> (length cwd) 40)
-                         (concat "..." (substring cwd -37))
-                       cwd)))
-        (insert (propertize "Quick Actions" 'face 'iota-splash-logo-accent))
-        (insert (propertize " in " 'face 'default))
-        (insert (propertize cwd-str 'face 'iota-splash-logo-primary)))
-      (insert "\n")
-      (let ((fill-column (window-width (or window (selected-window)))))
-        (center-region header-start (point))))
-
-    (insert "\n")
-
-    (let* ((prefix (iota-splash--get-project-prefix))
-           (project-bindings `((,(concat prefix " f") "Find file in project")
-                               (,(concat prefix " p") "Switch project")
-                               (,(concat prefix " d") "Dired in project root")
-                               (,(concat prefix " g") "Search project (grep)")))
-           (magit-bindings '(("C-c v v" "Magit status")
-                             ("C-c v l" "Magit log")
-                             ("C-c v d" "Magit diff")
-                             ("C-c v c" "Magit commit")))
-           (all-bindings (append project-bindings magit-bindings))
-           (max-key-width (apply 'max (mapcar (lambda (b) (length (car b))) all-bindings)))
-           ;; Calculate the width of the longest line
-           (max-line-width (apply 'max
-                                  (mapcar (lambda (b)
-                                            (+ max-key-width 2 (length (cadr b))))
-                                          all-bindings)))
-           ;; Calculate left margin to center the block
-           (left-margin (max 0 (/ (- (window-width (or window (selected-window))) max-line-width) 2))))
-      ;; Insert project bindings
-      (dolist (binding project-bindings)
-        (let* ((key (car binding))
-               (desc (cadr binding))
-               (key-padding (make-string (- max-key-width (length key)) ?\s)))
-          (insert (make-string left-margin ?\s))
-          (insert (propertize key 'face 'iota-splash-logo-primary))
-          (insert key-padding)
-          (insert "  ")
-          (insert desc)
-          (insert "\n")))
-      ;; Empty line between groups
-      (insert "\n")
-      ;; Insert magit bindings
-      (dolist (binding magit-bindings)
-        (let* ((key (car binding))
-               (desc (cadr binding))
-               (key-padding (make-string (- max-key-width (length key)) ?\s)))
-          (insert (make-string left-margin ?\s))
-          (insert (propertize key 'face 'iota-splash-logo-primary))
-          (insert key-padding)
-          (insert "  ")
-          (insert desc)
-          (insert "\n"))))))
-
 (defun iota-splash--get-current-hint ()
   "Get the current hint text."
   (nth iota-splash--hint-index iota-splash--hints))
@@ -386,9 +201,6 @@ Redraws are debounced to prevent performance issues."
                   ;; Regenerate the entire buffer with new padding
                   (erase-buffer)
                   (let* ((content-lines (+ 6  ; logo + footer + empty line + init-time
-                                           (if (and iota-splash-show-key-bindings
-                                                    (iota-splash--project-available-p))
-                                               16 0)  ; 8 bindings + 1 separator + header + spacing
                                            (if iota-splash-show-hints 5 0)))
                          (padding (max 0 (/ (- current-height content-lines) 2))))
                     (dotimes (_ padding) (insert "\n")))
@@ -398,8 +210,6 @@ Redraws are debounced to prevent performance issues."
                     (iota-splash--insert-init-time)
                     (let ((fill-column (window-width window)))
                       (center-region logo-start (point))))
-
-                  (iota-splash--insert-key-bindings window)
 
                   (let ((hints-start (point)))
                     (iota-splash--insert-hints)
@@ -632,6 +442,12 @@ Does not display if Emacs was opened with file arguments."
         ;; Store initial window height
         (setq iota-splash--last-window-height (window-body-height))
 
+        ;; Hide cursor IMMEDIATELY (before any content insertion)
+        (setq-local cursor-type nil)
+        (setq-local cursor-in-non-selected-windows nil)
+        (setq-local visible-cursor nil)
+        (internal-show-cursor (selected-window) nil)
+
         ;; Add hooks to stop timers and cleanup when buffer is killed
         (add-hook 'kill-buffer-hook #'iota-splash--stop-animation nil t)
         (add-hook 'kill-buffer-hook #'iota-splash--stop-hint-rotation nil t)
@@ -639,9 +455,6 @@ Does not display if Emacs was opened with file arguments."
 
         ;; Layout Calculations (now in correct window context)
         (let* ((content-lines (+ 6  ; logo + footer + empty line + init-time
-                                 (if (and iota-splash-show-key-bindings
-                                          (iota-splash--project-available-p))
-                                     16 0)  ; 8 bindings + 1 separator + header + spacing
                                  (if iota-splash-show-hints 5 0)))
                (padding (max 0 (/ (- (window-body-height) content-lines) 2))))
           (dotimes (_ padding) (insert "\n")))
@@ -654,8 +467,6 @@ Does not display if Emacs was opened with file arguments."
           ;; Center logo, tagline, and init time
           (let ((fill-column (window-width)))
             (center-region logo-start (point))))
-
-        (iota-splash--insert-key-bindings)
 
         (let ((hints-start (point)))
           (iota-splash--insert-hints)
