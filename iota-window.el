@@ -29,9 +29,9 @@
 
 (defcustom iota-window-divider-style 'plain
   "Style for window dividers.
-- `plain': Single vertical bar spanning full line height
-- `hidden': No visible dividers (uses default background)"
-  :type '(choice (const :tag "Plain vertical bar" plain)
+- `plain': Thin vertical line using box-drawing character (│)
+- `hidden': Invisible dividers (foreground matches background)"
+  :type '(choice (const :tag "Plain vertical line" plain)
                  (const :tag "Hidden" hidden))
   :group 'iota)
 
@@ -84,31 +84,88 @@ When enabled, accent elements will fade between active/inactive colors."
 ;;; Window Divider Configuration
 
 (defun iota-window--configure-dividers ()
-  "Configure window dividers based on `iota-window-divider-style'."
+  "Configure window dividers based on `iota-window-divider-style'.
+This function configures the display table character and face foreground.
+Background handling is delegated to `iota-theme-transparent' for terminal compatibility."
+  (message "[IOTA-WINDOW] Configuring dividers: style=%s" iota-window-divider-style)
+  (message "[IOTA-WINDOW] Before: display-table=%s"
+           (if standard-display-table "exists" "nil"))
+  (message "[IOTA-WINDOW] Before: vertical-border face fg=%s bg=%s"
+           (face-attribute 'vertical-border :foreground nil t)
+           (face-attribute 'vertical-border :background nil t))
   (pcase iota-window-divider-style
     ('plain
-     ;; Plain vertical bar: use a continuous vertical line character
+     ;; Plain vertical bar: use box drawing vertical line for continuous appearance
+     (message "[IOTA-WINDOW] Setting PLAIN style with │ character")
      (let ((table (or standard-display-table (make-display-table))))
-       ;; Set vertical border character to box drawing character
+       ;; Use │ (U+2502 BOX DRAWINGS LIGHT VERTICAL) for a thin vertical line
        (set-display-table-slot table 'vertical-border (make-glyph-code ?│ 'vertical-border))
        (setq standard-display-table table))
-     ;; Set vertical-border face color to inactive box color
+     ;; Set vertical-border face foreground color to inactive box color
+     ;; Do NOT set background - let iota-theme-transparent handle it for terminal compatibility
      (let ((fg (face-attribute 'iota-inactive-box-face :foreground nil t)))
        (when (or (eq fg 'unspecified) (not fg))
          (setq fg "grey30"))
-       (set-face-attribute 'vertical-border nil 
-                           :foreground fg
-                           :background 'unspecified)))
+       (message "[IOTA-WINDOW] Setting vertical-border foreground to: %s" fg)
+       (set-face-attribute 'vertical-border nil :foreground fg)
+       ;; Also set window-divider faces for GUI frames
+       (when (facep 'window-divider)
+         (set-face-attribute 'window-divider nil :foreground fg))
+       (when (facep 'window-divider-first-pixel)
+         (set-face-attribute 'window-divider-first-pixel nil :foreground fg))
+       (when (facep 'window-divider-last-pixel)
+         (set-face-attribute 'window-divider-last-pixel nil :foreground fg))))
     ('hidden
-     ;; Hidden: set vertical border to space with transparent face
+     ;; Hidden: make divider invisible by using a space character
+     ;; The key is using a space in the display table - color doesn't matter for spaces
+     (message "[IOTA-WINDOW] Setting HIDDEN style with space character")
      (let ((table (or standard-display-table (make-display-table))))
-       ;; Set vertical border character to space
-       (set-display-table-slot table 'vertical-border (make-glyph-code ?\s 'vertical-border))
+       ;; Use a regular space - it's inherently invisible
+       (set-display-table-slot table 'vertical-border (make-glyph-code ?\s))
        (setq standard-display-table table))
-     ;; Set vertical-border face to fully transparent
-     (set-face-attribute 'vertical-border nil 
-                         :foreground 'unspecified 
-                         :background 'unspecified))))
+     (message "[IOTA-WINDOW] Display table slot set to space")
+     ;; For the face, we still need to handle it for GUI frames and edge cases
+     ;; In terminal: spaces are invisible regardless of color
+     ;; In GUI: match fg/bg to make it invisible
+     (let ((bg (face-attribute 'default :background nil t)))
+       (message "[IOTA-WINDOW] default background = %s (type: %s)" bg (type-of bg))
+       ;; Check for unspecified background (can be symbol or string)
+       (when (or (eq bg 'unspecified)
+                 (not bg)
+                 (equal bg "unspecified-bg")
+                 (and (stringp bg) (string-match-p "unspecified" bg)))
+         ;; In transparent terminal, use a dark color that blends with typical dark terminals
+         (message "[IOTA-WINDOW] Background is unspecified/transparent, using #000000")
+         (setq bg "#000000"))
+       (message "[IOTA-WINDOW] Setting vertical-border fg to: %s (to match bg)" bg)
+       ;; Set face attributes - spaces won't show these anyway in terminal
+       ;; but it helps with GUI frames
+       (set-face-attribute 'vertical-border nil
+                           :foreground bg
+                           :background 'unspecified)
+       (when (facep 'window-divider)
+         (set-face-attribute 'window-divider nil
+                             :foreground bg
+                             :background 'unspecified))
+       (when (facep 'window-divider-first-pixel)
+         (set-face-attribute 'window-divider-first-pixel nil
+                             :foreground bg
+                             :background 'unspecified))
+       (when (facep 'window-divider-last-pixel)
+         (set-face-attribute 'window-divider-last-pixel nil
+                             :foreground bg
+                             :background 'unspecified)))
+     ;; Force redisplay
+     (force-mode-line-update t)
+     (redraw-display)))
+  ;; Final state
+  (message "[IOTA-WINDOW] After: vertical-border face fg=%s bg=%s"
+           (face-attribute 'vertical-border :foreground nil t)
+           (face-attribute 'vertical-border :background nil t))
+  (message "[IOTA-WINDOW] After: display-table vertical-border slot = %s"
+           (when standard-display-table
+             (display-table-slot standard-display-table 'vertical-border)))
+  (message "[IOTA-WINDOW] Configuration complete for style: %s" iota-window-divider-style))
 
 (defun iota-window--restore-dividers ()
   "Restore original window divider settings."
@@ -217,11 +274,14 @@ When enabled, tracks window active/inactive state for visual distinction."
         (setq iota-window--last-selected (selected-window))
         (add-hook 'window-selection-change-functions
                   #'iota-window--on-selection-change)
+        ;; Re-apply divider settings after theme loads (themes can override face settings)
+        (advice-add 'load-theme :after #'iota-window--on-theme-load)
         ;; Force modeline update
         (force-mode-line-update t))
     ;; Disable window focus tracking
     (remove-hook 'window-selection-change-functions
                  #'iota-window--on-selection-change)
+    (advice-remove 'load-theme #'iota-window--on-theme-load)
     (iota-window--cancel-animations)
     ;; Restore original divider settings
     (iota-window--restore-dividers)
@@ -230,6 +290,19 @@ When enabled, tracks window active/inactive state for visual distinction."
       (set-window-parameter win 'iota-active nil))
     (setq iota-window--last-selected nil)
     (message "IOTA window mode disabled")))
+
+(defun iota-window--on-theme-load (&rest args)
+  "Re-apply divider configuration after a theme is loaded.
+Themes can override face settings, so we need to re-apply our configuration."
+  (message "[IOTA-WINDOW] Theme load detected: %s" (car args))
+  (message "[IOTA-WINDOW] iota-window-mode = %s" iota-window-mode)
+  (when iota-window-mode
+    (message "[IOTA-WINDOW] Scheduling divider reconfiguration in 0.1s...")
+    ;; Small delay to let iota-theme-transparent process first
+    (run-with-timer 0.1 nil
+                    (lambda ()
+                      (message "[IOTA-WINDOW] Timer fired, reconfiguring dividers...")
+                      (iota-window--configure-dividers)))))
 
 ;;; Interactive Commands
 
@@ -297,22 +370,54 @@ This animates the modeline between active and inactive colors."
           (_ 'plain)))
   (when iota-window-mode
     (iota-window--configure-dividers)
-    ;; Force window redisplay to show changes immediately
-    (redraw-display))
-  (message "Window dividers: %s" iota-window-divider-style))
+    ;; Force all frames to update their display tables
+    (dolist (frame (frame-list))
+      (with-selected-frame frame
+        (force-window-update)))
+    ;; Force complete redisplay
+    (redraw-display)
+    (redisplay t))
+  (message "Window dividers: %s (display-table: %s, vertical-border fg: %s)"
+           iota-window-divider-style
+           (if standard-display-table "set" "nil")
+           (face-attribute 'vertical-border :foreground nil t)))
+
+;;;###autoload
+(defun iota-window-reload ()
+  "Reload iota-window.el and reapply current divider style.
+Useful after making changes to the window divider code."
+  (interactive)
+  (let ((was-enabled iota-window-mode)
+        (current-style iota-window-divider-style))
+    (when was-enabled
+      (iota-window-mode -1))
+    (unload-feature 'iota-window t)
+    (require 'iota-window)
+    (when was-enabled
+      (setq iota-window-divider-style current-style)
+      (iota-window-mode 1))
+    (message "Reloaded iota-window.el (style: %s)" current-style)))
 
 ;;;###autoload
 (defun iota-window-set-divider-style (style)
   "Set window divider STYLE.
 STYLE can be `plain' or `hidden'."
-  (interactive (list (intern (completing-read "Divider style: " 
+  (interactive (list (intern (completing-read "Divider style: "
                                                '("plain" "hidden")
                                                nil t))))
   (setq iota-window-divider-style style)
   (when iota-window-mode
     (iota-window--configure-dividers)
-    (redraw-display))
-  (message "Window dividers: %s" style))
+    ;; Force all frames to update
+    (dolist (frame (frame-list))
+      (with-selected-frame frame
+        (force-window-update)))
+    (redraw-display)
+    (redisplay t))
+  (message "Window dividers: %s (display-table: %s, vertical-border fg: %s)"
+           style
+           (if standard-display-table "set" "nil")
+           (face-attribute 'vertical-border :foreground nil t)))
 
 (provide 'iota-window)
 

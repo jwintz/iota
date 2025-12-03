@@ -62,11 +62,10 @@ When non-nil, display rotating hints about IOTA functionality."
     "Modeline content is provided via iota-modeline-left/center/right-function"
     "I O T Λ automatically adapts to your theme's colors"
     "Enable terminal transparency with iota-theme-transparent-in-terminal"
-    "Run M-x iota-demo to explore all I O T Λ widgets and features"
     "I O T Λ animations use 30fps for smooth visual feedback"
     "I O T Λ works in both terminal and GUI Emacs"
     "Customize box style with iota-modeline-box-style variable"
-    "Use iota-box-render-single-line for custom TUI layouts")
+    "Use iota-box-render-single-line for custom box layouts")
   "List of hints about I O T Λ features.")
 
 (defconst iota-splash--base-colors

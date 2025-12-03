@@ -7,7 +7,7 @@
 ;; URL: https://github.com/jwintz/iota
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "30.0") (use-package "2.4"))
-;; Keywords: faces, modeline, tui
+;; Keywords: faces, modeline
 
 ;; This file is not part of GNU Emacs.
 
@@ -20,7 +20,6 @@
 ;;
 ;; I O T Λ brings modern CLI/TUI aesthetics to Emacs through:
 ;; - A decorated header-line modeline with box-drawing characters
-;; - A theme-agnostic TUI library for various UI components
 ;; - Animation support for color transitions and visual feedback
 ;;
 ;; Quick Start:
@@ -44,17 +43,13 @@
 ;; UI components
 (require 'iota-box)
 (require 'iota-theme)
-(require 'iota-tui)
 (require 'iota-animate)
 (require 'iota-modeline)
 (require 'iota-footerline)
-(require 'iota-widgets)
 (require 'iota-splash)
 (require 'iota-logos)
 (require 'iota-window)
-(require 'iota-demo)
 (require 'iota-config)
-(require 'iota-perf)
 
 ;; Optional modules
 (require 'iota-theme-transparent)
@@ -208,9 +203,9 @@ When enabled, line number modes will be permanently disabled."
   (mapc (lambda (feature)
           (when (featurep feature)
             (unload-feature feature t)))
-        '(iota-perf iota-config iota-demo iota-window iota-logos
-          iota-splash iota-faces iota-widgets iota-footerline iota-modeline
-          iota-animate iota-tui
+        '(iota-config iota-window iota-logos
+          iota-splash iota-faces iota-footerline iota-modeline
+          iota-animate
           iota-theme-transparent iota-theme
           iota-box iota))
   (require 'iota)
