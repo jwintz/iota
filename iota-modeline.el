@@ -1050,30 +1050,37 @@ Separator line logic:
 
 Face logic for bottom windows:
 - When popup/minibuffer is active: use inactive face
-- Otherwise: use window's active/inactive face"
+- Otherwise: use window's active/inactive face
+
+Note: Splash screen is handled separately by iota-splash.el."
   (let* ((popup-visible (and (fboundp 'iota-popup--popup-visible-p)
                              (iota-popup--popup-visible-p)))
          (minibuffer-active (iota-modeline--minibuffer-active-p))
          (use-inactive-face (or popup-visible minibuffer-active)))
     ;; Process each window
     (dolist (window (window-list nil 'no-minibuf))
-      (let ((is-bottom (iota-modeline--window-is-at-bottom-p window))
-            (should-show (with-current-buffer (window-buffer window)
-                           (iota-modeline--should-show-p))))
-        (if (and should-show is-bottom)
-            ;; Bottom window: show separator line
-            (progn
-              (with-current-buffer (window-buffer window)
-                (setq-local mode-line-format
-                            `(:eval (iota-box-horizontal-line
-                                     (1- (window-body-width))
-                                     iota-modeline-box-style
-                                     (if ,use-inactive-face
-                                         'iota-inactive-box-face
-                                       (iota-theme-get-box-face (selected-window)))))))
-              (set-window-parameter window 'mode-line-format nil))
-          ;; Not at bottom or shouldn't show: hide mode-line
-          (set-window-parameter window 'mode-line-format 'none))))))
+      (let* ((buf (window-buffer window))
+             (buf-name (buffer-name buf))
+             ;; Skip splash screen - it handles its own separator
+             (is-splash (string-match-p "\\*I O T Λ splash\\*" buf-name)))
+        (unless is-splash
+          (let ((is-bottom (iota-modeline--window-is-at-bottom-p window))
+                (should-show (with-current-buffer buf
+                               (iota-modeline--should-show-p))))
+            (if (and should-show is-bottom)
+                ;; Bottom window: show separator line
+                (progn
+                  (with-current-buffer buf
+                    (setq-local mode-line-format
+                                `(:eval (iota-box-horizontal-line
+                                         (1- (window-body-width))
+                                         iota-modeline-box-style
+                                         (if ,use-inactive-face
+                                             'iota-inactive-box-face
+                                           (iota-theme-get-box-face (selected-window)))))))
+                  (set-window-parameter window 'mode-line-format nil))
+              ;; Not at bottom or shouldn't show: hide mode-line
+              (set-window-parameter window 'mode-line-format 'none))))))))
 
 ;;; Face Management
 

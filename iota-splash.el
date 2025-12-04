@@ -434,38 +434,42 @@ Separator is shown when minibuffer is active or popup is visible."
 (defun iota-splash--get-separator-line (window)
   "Get a separator line string for WINDOW.
 Uses the configured box style from iota-modeline if available.
-Uses inactive face when popups/minibuffer are present for visual consistency."
+Uses inactive face since popup/minibuffer is active when this is called."
   (require 'iota-box)  ; Load on demand
-  (let* ((width (1- (window-body-width window)))
+  (let* ((width (if (window-live-p window)
+                    (1- (window-body-width window))
+                  79))
          (style (if (boundp 'iota-modeline-box-style)
                     iota-modeline-box-style
                   'rounded))
-         ;; When popups/minibuffer are visible, use inactive face
-         ;; This is consistent with how modeline handles separators
-         (face (if (iota-splash--should-show-separator-p)
-                   'iota-inactive-box-face
-                 'iota-active-box-face)))
+         ;; Always use inactive face for splash separator
+         ;; (it's only shown when popup/minibuffer is active)
+         (face 'iota-inactive-box-face))
     (iota-box-horizontal-line width style face)))
 
 (defun iota-splash--update-separator ()
   "Update the separator line visibility for splash screen.
-Shows separator when minibuffer or popup is active.
-This mirrors the separator logic in iota-modeline."
+Shows separator when minibuffer or popup is active."
   (let ((buffer (get-buffer iota-splash-buffer-name)))
     (when (and buffer (buffer-live-p buffer))
       (let ((win (get-buffer-window buffer)))
         (when (window-live-p win)
           (if (iota-splash--should-show-separator-p)
               ;; Show separator line when minibuffer/popup is active
-              (with-current-buffer buffer
-                (setq-local mode-line-format
-                            '(:propertize (:eval (iota-splash--get-separator-line (selected-window)))
-                                          face (:underline nil :overline nil)))
-                (set-window-parameter win 'mode-line-format nil))
+              (let ((width (1- (window-body-width win))))
+                (with-current-buffer buffer
+                  (setq-local mode-line-format
+                              `(:eval (iota-splash--get-separator-line ,win))))
+                ;; Critical: set window parameter to nil to SHOW mode-line
+                (set-window-parameter win 'mode-line-format nil)
+                ;; Force redisplay
+                (force-mode-line-update t))
             ;; Hide separator line when not needed
             (with-current-buffer buffer
-              (setq-local mode-line-format nil)
-              (set-window-parameter win 'mode-line-format 'none))))))))
+              (setq-local mode-line-format nil))
+            ;; Set window parameter to 'none to HIDE mode-line
+            (set-window-parameter win 'mode-line-format 'none)
+            (force-mode-line-update t)))))))
 
 (defun iota-splash--on-window-config-change ()
   "Handle window configuration changes (e.g., popup appearing).
