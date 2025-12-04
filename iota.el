@@ -46,6 +46,7 @@
 (require 'iota-animate)
 (require 'iota-popup)
 (require 'iota-modeline)
+(require 'iota-dimmer)
 (require 'iota-splash)
 (require 'iota-logos)
 (require 'iota-window)

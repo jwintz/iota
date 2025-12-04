@@ -12,7 +12,8 @@ A minimal terminal interface framework for Emacs with box-drawing modeline, them
 - **Box-Drawing Modeline**: Header-line modeline with Unicode box-drawing characters (╭─╮ │ ╰─╯)
 - **Theme Transparency**: Automatic background removal for transparent terminals
 - **Window Management**: Active/inactive window distinction with optional animations
-- **Footer Line**: Separator above minibuffer for visual clarity
+- **Inactive Window Dimming**: Dim inactive windows while preserving syntax highlighting
+- **Popup Handling**: TUI decorations for which-key, transient, and other popups
 - **Splash Screen**: Minimal startup screen with IOTA branding
 
 ## Installation
@@ -109,6 +110,25 @@ Supported popup types:
 - Consult popup windows
 - Completions buffer
 
+### Inactive Window Dimming
+
+IOTA can dim inactive windows while preserving syntax highlighting:
+
+```elisp
+;; Enable dimming
+(iota-dimmer-mode 1)
+
+;; Adjust dimming intensity (0.0-1.0, default 0.30)
+(setq iota-dimmer-fraction 0.30)
+
+;; Fine-tune saturation and luminance separately
+(setq iota-dimmer-saturation-fraction 0.40)  ; nil = use iota-dimmer-fraction
+(setq iota-dimmer-luminance-fraction 0.25)   ; nil = use iota-dimmer-fraction
+
+;; Dim all windows when frame loses focus
+(setq iota-dimmer-watch-frame-focus t)
+```
+
 ### Animations
 
 ```elisp
@@ -148,6 +168,8 @@ IOTA can prevent line numbers from being enabled:
 | `M-x iota-version` | Show version |
 | `M-x iota-reload` | Reload package (development) |
 | `M-x iota-modeline-mode` | Toggle modeline |
+| `M-x iota-dimmer-mode` | Toggle inactive window dimming |
+| `M-x iota-dimmer-refresh` | Refresh dimming (after theme change) |
 | `M-x iota-popup-mode` | Toggle popup decorations |
 | `M-x iota-popup-cycle-style` | Cycle popup decoration styles |
 | `M-x iota-window-mode` | Toggle window tracking |
@@ -164,6 +186,7 @@ iota/
 ├── iota-box.el              # Box-drawing primitives
 ├── iota-cache.el            # Caching utilities
 ├── iota-config.el           # Configuration and presets
+├── iota-dimmer.el           # Inactive window dimming
 ├── iota-faces.el            # Face definitions
 ├── iota-logos.el            # ASCII art logos
 ├── iota-modeline.el         # Modeline and separator lines
