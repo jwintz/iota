@@ -42,6 +42,13 @@ When non-nil, display rotating hints about IOTA functionality."
   :type 'boolean
   :group 'iota)
 
+(defcustom iota-splash-animation-interval 0.1
+  "Interval in seconds between animation frames.
+Set to nil to disable logo animation entirely."
+  :type '(choice (const :tag "Disabled" nil)
+                 (float :tag "Interval in seconds"))
+  :group 'iota)
+
 (defcustom iota-splash-hints-random nil
   "When non-nil, show hints in random order instead of sequential."
   :type 'boolean
@@ -481,11 +488,7 @@ This forces a redraw to ensure the splash screen stays centered."
       ;; Update separator line visibility
       (iota-splash--update-separator)
       ;; Force redraw on any window configuration change
-      (iota-splash--redraw-buffer)
-      ;; Ensure cursor stays hidden after window config changes
-      (let ((win (get-buffer-window buffer)))
-        (when win
-          (internal-show-cursor win nil))))))
+      (iota-splash--redraw-buffer))))
 
 (defun iota-splash--on-minibuffer-setup ()
   "Handle minibuffer setup to show separator and redraw splash screen."
@@ -496,11 +499,7 @@ This forces a redraw to ensure the splash screen stays centered."
       ;; Show separator line when minibuffer is active
       (iota-splash--update-separator)
       ;; Force redraw when minibuffer opens
-      (iota-splash--redraw-buffer)
-      ;; Ensure cursor stays hidden
-      (let ((win (get-buffer-window buffer)))
-        (when win
-          (internal-show-cursor win nil))))))
+      (iota-splash--redraw-buffer))))
 
 (defun iota-splash--on-minibuffer-exit ()
   "Handle minibuffer exit to hide separator and redraw splash screen."
@@ -511,11 +510,7 @@ This forces a redraw to ensure the splash screen stays centered."
       ;; Schedule separator update after minibuffer is fully closed
       (run-with-timer 0.01 nil #'iota-splash--update-separator)
       ;; Force redraw when minibuffer closes
-      (run-with-timer 0.02 nil #'iota-splash--redraw-buffer)
-      ;; Ensure cursor stays hidden
-      (let ((win (get-buffer-window buffer)))
-        (when win
-          (internal-show-cursor win nil))))))
+      (run-with-timer 0.02 nil #'iota-splash--redraw-buffer))))
 
 (defun iota-splash--on-echo-area-clear ()
   "Handle echo area clear to redraw splash screen."
@@ -525,29 +520,31 @@ This forces a redraw to ensure the splash screen stays centered."
                (get-buffer-window buffer))
       ;; Update separator and redraw
       (iota-splash--update-separator)
-      (iota-splash--redraw-buffer)
-      ;; Ensure cursor stays hidden
-      (let ((win (get-buffer-window buffer)))
-        (when win
-          (internal-show-cursor win nil))))))
+      (iota-splash--redraw-buffer))))
+
+(defvar iota-splash--cursor-hidden nil
+  "Track cursor visibility state to avoid redundant calls.")
 
 (defun iota-splash--restore-cursor ()
   "Restore cursor visibility when leaving splash screen."
-  (let ((win (selected-window)))
-    (when (window-live-p win)
-      (internal-show-cursor win t))))
+  (when iota-splash--cursor-hidden
+    (let ((win (selected-window)))
+      (when (window-live-p win)
+        (internal-show-cursor win t)
+        (setq iota-splash--cursor-hidden nil)))))
 
 (defun iota-splash--check-buffer-switch ()
-  "Check buffer and manage cursor visibility accordingly."
+  "Check buffer and manage cursor visibility accordingly.
+Only updates cursor state when it actually changes to reduce flickering."
   (let ((splash-buf (get-buffer iota-splash-buffer-name))
         (current-buf (current-buffer))
         (win (selected-window)))
     (when (window-live-p win)
-      (if (and splash-buf (eq current-buf splash-buf))
-          ;; In splash buffer - hide cursor
-          (internal-show-cursor win nil)
-        ;; Not in splash buffer - show cursor
-        (internal-show-cursor win t)))))
+      (let ((should-hide (and splash-buf (eq current-buf splash-buf))))
+        ;; Only call internal-show-cursor when state actually changes
+        (when (not (eq should-hide iota-splash--cursor-hidden))
+          (internal-show-cursor win (not should-hide))
+          (setq iota-splash--cursor-hidden should-hide))))))
 
 (defun iota-splash--cleanup-hooks ()
   "Remove all splash screen hooks and restore cursor."
@@ -575,12 +572,15 @@ This forces a redraw to ensure the splash screen stays centered."
     (setq iota-splash--animation-step (1+ iota-splash--animation-step))))
 
 (defun iota-splash--start-animation ()
-  "Start the splash screen animation timer."
+  "Start the splash screen animation timer.
+Respects `iota-splash-animation-interval' setting."
   (setq iota-splash--animation-step 0)
-  ;; Use centralized timer registry (load on demand)
-  (require 'iota-timers)
-  (iota-timers-cancel 'splash-animation)
-  (iota-timers-run-with-timer 'splash-animation 0 0.1 #'iota-splash--animate-step))
+  (when iota-splash-animation-interval
+    ;; Use centralized timer registry (load on demand)
+    (require 'iota-timers)
+    (iota-timers-cancel 'splash-animation)
+    (iota-timers-run-with-timer 'splash-animation 0 iota-splash-animation-interval
+                                 #'iota-splash--animate-step)))
 
 (defun iota-splash--stop-animation ()
   "Stop the splash screen animation timer."
@@ -598,6 +598,18 @@ This indicates Emacs was likely started with file arguments."
   (cl-some (lambda (buf)
              (buffer-file-name buf))
            (buffer-list)))
+
+(defun iota-splash-quit ()
+  "Quit the splash screen and clean up all timers and hooks."
+  (interactive)
+  ;; Stop all timers first
+  (iota-splash--stop-animation)
+  (iota-splash--stop-hint-rotation)
+  ;; Clean up hooks
+  (iota-splash--cleanup-hooks)
+  ;; Kill the buffer (not just bury it)
+  (when (get-buffer iota-splash-buffer-name)
+    (kill-buffer iota-splash-buffer-name)))
 
 (defun iota-splash-screen ()
   "Display IOTA splash screen with branding.
@@ -657,8 +669,8 @@ Does not display if Emacs was opened with file arguments."
         (read-only-mode 1)
         ;; Use a minimal keymap that doesn't inherit global C-c bindings
         (use-local-map (let ((map (make-sparse-keymap)))
-                         (define-key map (kbd "q") 'quit-window)
-                         (define-key map (kbd "RET") 'quit-window)
+                         (define-key map (kbd "q") 'iota-splash-quit)
+                         (define-key map (kbd "RET") 'iota-splash-quit)
                          map))
 
         ;; Hide both mode-line and header-line in splash screen

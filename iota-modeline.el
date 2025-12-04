@@ -885,15 +885,9 @@ Returns nil if window or buffer is invalid."
 (defun iota-modeline--post-command ()
   "Post-command hook for modeline updates.
 Uses centralized update system for efficient batching."
-  ;; Request immediate update via centralized system
+  ;; Request update via centralized system (debounced, not immediate)
   (when (featurep 'iota-update)
-    (iota-update-request :modeline t))
-  ;; For modes that dynamically change buffer content (like Info-mode),
-  ;; schedule an additional update after redisplay to ensure overlay is visible
-  (when (and (not (display-graphic-p))
-             (eq iota-modeline-position 'header)
-             (derived-mode-p 'Info-mode 'help-mode 'Man-mode))
-    (run-with-timer 0 nil #'iota-modeline--update)))
+    (iota-update-request :modeline)))
 
 (defun iota-modeline--should-show-p ()
   "Return t if IOTA modeline should be shown in current buffer."
