@@ -1033,7 +1033,8 @@ changes but it's still the same window."
 (defun iota-modeline--window-is-at-bottom-p (window)
   "Return t if WINDOW is at the bottom of the frame.
 Ignores popup windows (which-key, transient, etc.) when determining
-if there's a window below, since popups are handled separately."
+if there's a window below, since popups are handled separately.
+Exception: If the window below is the splash screen, return t (show separator)."
   (catch 'found-window-below
     (let* ((edges1 (window-edges window))
            (bottom1 (nth 3 edges1))
@@ -1045,13 +1046,20 @@ if there's a window below, since popups are handled separately."
                  (top2 (nth 1 edges2))
                  (left2 (nth 0 edges2))
                  (right2 (nth 2 edges2)))
-            ;; Skip popup windows - they are handled by iota-popup
+            ;; Check if window w is directly below window
             (when (and edges1 edges2
                        (= top2 bottom1)
-                       (> (min right1 right2) (max left1 left2))
-                       (not (and (fboundp 'iota-popup--window-popup-p)
-                                 (iota-popup--window-popup-p w))))
-              (throw 'found-window-below nil)))))
+                       (> (min right1 right2) (max left1 left2)))
+              ;; Skip popup windows - they are handled by iota-popup
+              (when (not (and (fboundp 'iota-popup--window-popup-p)
+                              (iota-popup--window-popup-p w)))
+                ;; Check if it's the splash screen - if so, treat current window as at bottom
+                (let ((buf-name (buffer-name (window-buffer w))))
+                  (if (string-match-p "\\*I O T Λ splash\\*" buf-name)
+                      ;; Splash screen below - current window should show separator
+                      nil  ; Don't throw, continue and return t
+                    ;; Regular window below - not at bottom
+                    (throw 'found-window-below nil))))))))
       t)))
 
 (defun iota-modeline--minibuffer-active-p ()
