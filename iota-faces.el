@@ -253,6 +253,56 @@ Adapts to current theme via inheritance from shadow face."
   "Animation face for inactive elements in splash screen."
   :group 'iota-faces)
 
+;;; Screen Saver Faces
+
+(defface iota-screens-matrix-head
+  '((t :inherit font-lock-keyword-face :weight bold))
+  "Face for matrix rain column heads (brightest).
+Adapts to current theme via inheritance from font-lock-keyword-face."
+  :group 'iota-faces)
+
+(defface iota-screens-matrix-bright
+  '((t :inherit font-lock-function-name-face :weight normal))
+  "Face for bright matrix rain characters.
+Adapts to current theme via inheritance from font-lock-function-name-face."
+  :group 'iota-faces)
+
+(defface iota-screens-matrix-medium
+  '((t :inherit font-lock-comment-face :weight normal))
+  "Face for medium brightness matrix rain.
+Adapts to current theme via inheritance from font-lock-comment-face."
+  :group 'iota-faces)
+
+(defface iota-screens-matrix-dim
+  '((t :inherit shadow :weight light))
+  "Face for dim matrix rain trail.
+Adapts to current theme via inheritance from shadow."
+  :group 'iota-faces)
+
+(defface iota-screens-alien-bright
+  '((t :inherit font-lock-constant-face :weight bold))
+  "Face for bright alien particles (alien-life style).
+Adapts to current theme via inheritance from font-lock-constant-face."
+  :group 'iota-faces)
+
+(defface iota-screens-alien-medium
+  '((t :inherit font-lock-type-face :weight normal))
+  "Face for medium brightness alien particles.
+Adapts to current theme via inheritance from font-lock-type-face."
+  :group 'iota-faces)
+
+(defface iota-screens-alien-dim
+  '((t :inherit font-lock-comment-face :weight light))
+  "Face for dim alien particles.
+Adapts to current theme via inheritance from font-lock-comment-face."
+  :group 'iota-faces)
+
+(defface iota-screens-alien-trace
+  '((t :inherit shadow :weight light))
+  "Face for particle traces (very dim).
+Adapts to current theme via inheritance from shadow."
+  :group 'iota-faces)
+
 (provide 'iota-faces)
 
 ;;; iota-faces.el ends here

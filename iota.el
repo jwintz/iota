@@ -49,6 +49,7 @@
 (require 'iota-splash)
 (require 'iota-logos)
 (require 'iota-window)
+(require 'iota-screens)
 (require 'iota-config)
 
 ;; Optional modules
