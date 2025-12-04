@@ -5,7 +5,7 @@
 ;; Maintainer: Julien Wintz
 ;; Package: IOTA (I Ø T Δ)
 ;; Version: 0.1.0
-;; Keywords: faces, windows, animation
+;; Keywords: faces, windows
 ;; URL: https://github.com/yourusername/iota
 
 ;;; Commentary:
@@ -15,14 +15,12 @@
 ;;
 ;; This file is part of I O T Λ.
 ;;
-;; Window focus management and animations for IOTA.
-;; Provides smooth transitions between active and inactive window states
-;; with animated face changes for visual feedback.
+;; Window focus management for IOTA.
+;; Tracks active/inactive window state for visual distinction.
 
 ;;; Code:
 
 (require 'iota-theme)
-(require 'iota-animate)
 (require 'iota-modeline)
 
 ;;; Configuration
@@ -35,45 +33,10 @@
                  (const :tag "Hidden" hidden))
   :group 'iota)
 
-(defcustom iota-window-animate-transitions nil
-  "Enable animated transitions when switching windows.
-When non-nil, modeline and accent faces will animate smoothly
-between active and inactive states.
-Note: Animations can cause lag, especially over SSH. Disabled by default."
-  :type 'boolean
-  :group 'iota)
-
-(defcustom iota-window-transition-duration 0.15
-  "Duration of window focus transition animations in seconds.
-Shorter durations are less laggy. Only used when `iota-window-animate-transitions' is non-nil."
-  :type 'float
-  :group 'iota)
-
-(defcustom iota-window-pulse-on-activate t
-  "Pulse accent elements when activating a window.
-Provides additional visual feedback beyond the fade animation."
-  :type 'boolean
-  :group 'iota)
-
-(defcustom iota-window-animate-modeline t
-  "Animate modeline face changes on window focus.
-When enabled, modeline will fade between active/inactive colors."
-  :type 'boolean
-  :group 'iota)
-
-(defcustom iota-window-animate-accents t
-  "Animate accent face changes on window focus.
-When enabled, accent elements will fade between active/inactive colors."
-  :type 'boolean
-  :group 'iota)
-
 ;;; State
 
 (defvar iota-window--last-selected nil
   "Previously selected window.")
-
-(defvar iota-window--active-animations nil
-  "List of animation IDs for window transitions.")
 
 (defvar iota-window--original-divider-settings nil
   "Storage for original window divider settings.")
@@ -195,33 +158,6 @@ This runs after modes like outline-minor-mode create their display tables."
       (when fg
         (set-face-attribute 'vertical-border nil :foreground fg)))))
 
-;;; Animation Helpers
-
-(defun iota-window--cancel-animations ()
-  "Cancel all active window transition animations."
-  (dolist (anim-id iota-window--active-animations)
-    (iota-animate-stop anim-id))
-  (setq iota-window--active-animations nil))
-
-(defun iota-window--animate-window-modeline (window from to)
-  "Animate WINDOW modeline from FROM color to TO color.
-Now that modal post-command-hook is removed, animations work smoothly."
-  (set-window-parameter window 'iota-animation-face-spec `(:foreground ,from))
-  (iota-modeline--update-overlay window)
-  (let ((anim-id (iota-animate-start
-                  iota-window-transition-duration
-                  (lambda (progress)
-                    (let* ((color (iota-animate-color-lerp from to progress))
-                           (spec `(:foreground ,color)))
-                      (set-window-parameter window 'iota-animation-face-spec spec)
-                      (iota-modeline--update-overlay window)))
-                  #'iota-animate-ease-in-out-quad
-                  (lambda ()
-                    (set-window-parameter window 'iota-animation-face-spec nil)
-                    (iota-modeline--update-overlay window)))))
-    (when anim-id
-      (add-to-list 'iota-window--active-animations anim-id))))
-
 ;;; Window Selection Hook
 
 (defun iota-window--on-selection-change (&optional _frame)
@@ -238,21 +174,6 @@ This is intentionally lightweight to avoid lag on window switches."
         (dolist (win (window-list nil 'no-minibuf))
           (set-window-parameter win 'iota-active nil))
         (set-window-parameter current-window 'iota-active t)
-        
-        ;; Optional animations (disabled by default for performance)
-        (when (and iota-animate-enabled 
-                   iota-window-animate-transitions 
-                   iota-window-animate-modeline)
-          (iota-window--cancel-animations)
-          (let ((active-color (face-attribute 'iota-active-box-face :foreground nil t))
-                (inactive-color (face-attribute 'iota-inactive-box-face :foreground nil t)))
-            (when (and active-color inactive-color
-                       (stringp active-color) (stringp inactive-color))
-              (when (and prev-window (window-live-p prev-window))
-                (iota-window--animate-window-modeline 
-                 prev-window active-color inactive-color))
-              (iota-window--animate-window-modeline 
-               current-window inactive-color active-color))))
         
         (setq iota-window--last-selected current-window)
         ;; Update only the affected windows for better performance
@@ -312,7 +233,6 @@ When enabled, tracks window active/inactive state for visual distinction."
     (remove-hook 'after-change-major-mode-hook
                  #'iota-window--fix-current-buffer-display-table)
     (advice-remove 'load-theme #'iota-window--on-theme-load)
-    (iota-window--cancel-animations)
     ;; Restore original divider settings
     (iota-window--restore-dividers)
     ;; Clear window parameters
@@ -347,59 +267,6 @@ The hook can be called with either a frame or window depending on context."
                     (set-display-table-slot buffer-display-table 'vertical-border vert-char)))))))))))
 
 ;;; Interactive Commands
-
-;;;###autoload
-(defun iota-window-toggle-animations ()
-  "Toggle window transition animations."
-  (interactive)
-  (setq iota-window-animate-transitions (not iota-window-animate-transitions))
-  (message "Window animations %s"
-           (if iota-window-animate-transitions "enabled" "disabled")))
-
-;;;###autoload
-(defun iota-window-demo-modeline-animation ()
-  "Demonstrate modeline animation by toggling active/inactive states.
-This animates the modeline between active and inactive colors."
-  (interactive)
-  (when iota-animate-enabled
-    (let ((active-color (face-attribute 'iota-active-box-face :foreground nil t))
-          (inactive-color (face-attribute 'iota-inactive-box-face :foreground nil t)))
-      (message "Animating modeline to inactive...")
-      (iota-window--animate-window-modeline (selected-window) active-color inactive-color)
-      (run-with-timer 1.0 nil
-                      (lambda ()
-                        (message "Animating modeline to active...")
-                        (iota-window--animate-window-modeline (selected-window) inactive-color active-color))))))
-
-;;;###autoload
-(defun iota-window-pulse-current ()
-  "Pulse the current window's modeline for visual feedback."
-  (interactive)
-  (when iota-animate-enabled
-    (iota-animate-pulse 'mode-line
-                        :duration 0.5
-                        :intensity 0.3
-                        :attribute :foreground)
-    (iota-animate-pulse 'header-line
-                        :duration 0.5
-                        :intensity 0.3
-                        :attribute :foreground)))
-
-;;;###autoload
-(defun iota-window-flash-current ()
-  "Flash the current window briefly."
-  (interactive)
-  (when iota-animate-enabled
-    (let ((original-fg (face-attribute 'mode-line :foreground nil t)))
-      (when (and original-fg (not (eq original-fg 'unspecified)))
-        (iota-animate-face 'mode-line :foreground
-                           original-fg "#39bae6"
-                           :duration 0.15
-                           :finish-fn
-                           (lambda ()
-                             (iota-animate-face 'mode-line :foreground
-                                                "#39bae6" original-fg
-                                                :duration 0.15)))))))
 
 ;;;###autoload
 (defun iota-window-cycle-divider-style ()

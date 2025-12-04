@@ -36,7 +36,6 @@
 (require 'iota-box)
 (require 'iota-theme)
 (require 'iota-update)
-(require 'iota-timers)
 (require 'iota-utils)
 (require 'iota-popup)
 
@@ -90,13 +89,6 @@ Currently only 1 is supported."
   :type 'integer
   :group 'iota-modeline)
 
-(defcustom iota-modeline-update-debounce 0.15
-  "Debounce interval for modeline updates in seconds.
-Recommended range: 0.1 - 0.3. Higher values reduce CPU usage.
-Note: This is now handled by the centralized update system."
-  :type 'float
-  :group 'iota-modeline)
-
 (defcustom iota-modeline-show-in-inactive nil
   "Show I O T Λ modeline in inactive windows.
 If nil, inactive windows use default modeline."
@@ -137,12 +129,6 @@ segment to keep key and command together."
 
 (defvar iota-modeline--original-header-line-format nil
   "Original header-line-format before IOTA.")
-
-(defvar iota-modeline--update-timer nil
-  "Timer for periodic modeline updates.")
-
-(defvar iota-modeline--last-update-time 0
-  "Time of last modeline update.")
 
 (defvar iota-modeline--current-window nil
   "The window currently being rendered.
@@ -894,42 +880,14 @@ Returns nil if window or buffer is invalid."
   (iota-safe-call "modeline-update"
     (iota-modeline--update)))
 
-(defun iota-modeline--should-update-p ()
-  "Return t if modeline should update now."
-  (let ((current-time (float-time)))
-    (>= (- current-time iota-modeline--last-update-time)
-        iota-modeline-update-debounce)))
-
-(defun iota-modeline--debounced-update ()
-  "Update modeline with debouncing."
-  (when (iota-modeline--should-update-p)
-    (setq iota-modeline--last-update-time (float-time))
-    (iota-modeline--update)))
-
-(defun iota-modeline--setup-timers ()
-  "Set up periodic update timers using centralized timer registry."
-  (iota-timers-cancel 'modeline-periodic)
-  (unless (featurep 'iota-update)
-    (setq iota-modeline--update-timer
-          (iota-timers-run-with-timer 'modeline-periodic 60 60 #'iota-modeline--update))))
-
-(defun iota-modeline--cleanup-timers ()
-  "Clean up timers using centralized timer registry."
-  (iota-timers-cancel 'modeline-periodic)
-  (when iota-modeline--update-timer
-    (cancel-timer iota-modeline--update-timer)
-    (setq iota-modeline--update-timer nil))
-  (cancel-function-timers #'iota-modeline--debounced-update))
-
 ;;; Hooks
 
 (defun iota-modeline--post-command ()
   "Post-command hook for modeline updates.
-Forces immediate update to ensure keycast and other real-time
-segments are displayed without delay."
-  ;; Force immediate update, bypassing debounce
-  (setq iota-modeline--last-update-time (float-time))
-  (iota-modeline--update)
+Uses centralized update system for efficient batching."
+  ;; Request immediate update via centralized system
+  (when (featurep 'iota-update)
+    (iota-update-request :modeline t))
   ;; For modes that dynamically change buffer content (like Info-mode),
   ;; schedule an additional update after redisplay to ensure overlay is visible
   (when (and (not (display-graphic-p))
@@ -971,7 +929,9 @@ segments are displayed without delay."
   "Buffer-list-update hook for modeline updates."
   (dolist (window (window-list))
     (iota-modeline--ensure-format-in-buffer (window-buffer window)))
-  (iota-modeline--debounced-update))
+  ;; Use centralized update system
+  (when (featurep 'iota-update)
+    (iota-update-request :modeline)))
 
 (defun iota-modeline--after-change-major-mode ()
   "Hook to apply modeline format after major mode change."
@@ -1233,9 +1193,6 @@ Note: Splash screen is handled separately by iota-splash.el."
   
   (unless (featurep 'iota-update)
     (add-hook 'window-size-change-functions #'iota-modeline--window-size-change))
-
-  ;; Set up timers
-  (iota-modeline--setup-timers)
   
   ;; Apply to all existing buffers
   (dolist (buffer (buffer-list))
@@ -1288,9 +1245,6 @@ Note: Splash screen is handled separately by iota-splash.el."
   ;; Remove overlays
   (iota-modeline--remove-overlay)
   (iota-modeline--remove-separator-overlays)
-
-  ;; Clean up timers
-  (iota-modeline--cleanup-timers)
 
   ;; Restore original formats
   (when iota-modeline--original-header-line-format

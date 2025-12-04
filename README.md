@@ -11,7 +11,7 @@ A minimal terminal interface framework for Emacs with box-drawing modeline, them
 
 - **Box-Drawing Modeline**: Header-line modeline with Unicode box-drawing characters (╭─╮ │ ╰─╯)
 - **Theme Transparency**: Automatic background removal for transparent terminals
-- **Window Management**: Active/inactive window distinction with optional animations
+- **Window Management**: Active/inactive window distinction
 - **Inactive Window Dimming**: Dim inactive windows while preserving syntax highlighting
 - **Popup Handling**: TUI decorations for which-key, transient, and other popups
 - **Splash Screen**: Minimal startup screen with IOTA branding
@@ -147,17 +147,6 @@ IOTA can dim inactive windows while preserving syntax highlighting:
 
 You can also apply presets interactively with `M-x iota-dimmer-apply-preset`.
 
-### Animations
-
-```elisp
-;; Enable window transition animations
-(setq iota-window-animate-transitions t)
-(setq iota-window-transition-duration 0.15)
-
-;; Disable all animations
-(setq iota-animate-enabled nil)
-```
-
 ### Splash Screen
 
 ```elisp
@@ -200,7 +189,6 @@ IOTA can prevent line numbers from being enabled:
 ```
 iota/
 ├── iota.el                  # Main entry point
-├── iota-animate.el          # Animation framework
 ├── iota-box.el              # Box-drawing primitives
 ├── iota-cache.el            # Caching utilities
 ├── iota-config.el           # Configuration and presets
@@ -212,8 +200,8 @@ iota/
 ├── iota-splash.el           # Splash screen
 ├── iota-theme.el            # Theme introspection
 ├── iota-theme-transparent.el # Terminal transparency
-├── iota-timers.el           # Timer utilities
-├── iota-update.el           # Update utilities
+├── iota-timers.el           # Timer management
+├── iota-update.el           # Centralized update system
 ├── iota-utils.el            # General utilities
 └── iota-window.el           # Window management
 ```
@@ -228,7 +216,7 @@ iota/
 - **Minimalism**: Every feature justified
 - **Terminal-first**: Designed for terminal Emacs
 - **Theme-agnostic**: Works with any theme
-- **Performance**: Lightweight with debounced updates
+- **Performance**: Lightweight with centralized update batching
 
 ---
 

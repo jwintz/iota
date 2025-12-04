@@ -43,7 +43,6 @@
 ;; UI components
 (require 'iota-box)
 (require 'iota-theme)
-(require 'iota-animate)
 (require 'iota-popup)
 (require 'iota-modeline)
 (require 'iota-dimmer)
@@ -206,7 +205,6 @@ When enabled, line number modes will be permanently disabled."
             (unload-feature feature t)))
         '(iota-config iota-window iota-logos
           iota-splash iota-faces iota-popup iota-modeline
-          iota-animate
           iota-theme-transparent iota-theme
           iota-box iota))
   (require 'iota)
