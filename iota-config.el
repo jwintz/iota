@@ -102,11 +102,9 @@ Options: minimal, standard, modern, cyberpunk, custom"
 
       ;; Title
       (insert (propertize "I O T Λ Configuration" 'face '(:weight bold :height 1.2)))
-      (insert "\n\n")
-      (iota-box-insert-separator 'double)
-      (insert "\n")
 
       ;; Preset and Style section
+      (insert "\n\n")
       (insert (propertize "Preset & Style" 'face '(:weight bold)))
       (insert "\n\n")
       (insert (format "  Preset:     %s\n"
@@ -122,11 +120,12 @@ Options: minimal, standard, modern, cyberpunk, custom"
              (br (plist-get chars :bottom-right))
              (h (plist-get chars :horizontal))
              (v (plist-get chars :vertical)))
-        (insert (format "\n  Current Box Characters:\n    %s%s%s%s  %s  Corners\n    %s   %s  Sides\n    %s%s%s%s\n"
-                       tl h h tr tl v v bl h h br)))
-      (insert "\n")
-      (iota-box-insert-separator 'single)
-      (insert "\n")
+        (insert "\n  Box Characters:\n")
+        (insert (format "    Corners:  %s %s %s %s  (TL TR BL BR)\n" tl tr bl br))
+        (insert (format "    Lines:    %s %s        (H V)\n" h v)))
+
+      ;; Page break before Modeline section
+      (insert "\n\f\n")
 
       ;; Modeline state section
       (when (boundp 'iota-modeline-mode)
@@ -140,10 +139,10 @@ Options: minimal, standard, modern, cyberpunk, custom"
                          (propertize (format "%s" (if (boundp 'iota-modeline-box-style)
                                                      iota-modeline-box-style
                                                    "not set"))
-                                    'face 'iota-accent-face))))
-        (insert "\n")
-        (iota-box-insert-separator 'single)
-        (insert "\n"))
+                                    'face 'iota-accent-face)))))
+
+      ;; Page break before Transparency section
+      (insert "\n\f\n")
 
       ;; Transparency state section
       (when (boundp 'iota-theme-transparent-mode)
@@ -155,10 +154,10 @@ Options: minimal, standard, modern, cyberpunk, custom"
         (when (boundp 'iota-theme-transparent--active)
           (insert (format "  Active:     %s\n"
                          (propertize (if iota-theme-transparent--active "yes" "no")
-                                    'face (if iota-theme-transparent--active 'success 'iota-muted-face)))))
-        (insert "\n")
-        (iota-box-insert-separator 'single)
-        (insert "\n"))
+                                    'face (if iota-theme-transparent--active 'success 'iota-muted-face))))))
+
+      ;; Page break before Themes section
+      (insert "\n\f\n")
 
       ;; Current theme section
       (when custom-enabled-themes
@@ -166,10 +165,10 @@ Options: minimal, standard, modern, cyberpunk, custom"
         (insert "\n\n")
         (insert (format "  Enabled:    %s\n"
                        (propertize (mapconcat #'symbol-name custom-enabled-themes ", ")
-                                  'face 'iota-accent-face)))
-        (insert "\n")
-        (iota-box-insert-separator 'single)
-        (insert "\n"))
+                                  'face 'iota-accent-face))))
+
+      ;; Page break before Terminal section
+      (insert "\n\f\n")
 
       ;; Terminal capabilities section
       (insert (propertize "Terminal" 'face '(:weight bold)))
@@ -182,10 +181,14 @@ Options: minimal, standard, modern, cyberpunk, custom"
                        (if (or (getenv "COLORTERM")
                               (string-match-p "truecolor\\|24bit"
                                             (or (getenv "TERM") "")))
-                           "yes" "no"))))
-      (insert "\n")
-      (iota-box-insert-separator 'double))
-    (display-buffer buf)))
+                           "yes" "no")))))
+
+    ;; Open in current window and position cursor at beginning
+    (switch-to-buffer buf)
+    (goto-char (point-min))
+    ;; Enable page-break-lines-mode if available
+    (when (fboundp 'page-break-lines-mode)
+      (page-break-lines-mode 1))))
 
 ;;; Wizard
 
