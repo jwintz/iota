@@ -432,11 +432,39 @@ Uses iota-popup for detection."
   (and (fboundp 'iota-popup--popup-visible-p)
        (iota-popup--popup-visible-p)))
 
+(defun iota-splash--window-at-bottom-p ()
+  "Return t if the splash screen window is at the bottom of the frame.
+A window is at bottom if no other non-popup, non-minibuffer window is below it."
+  (let ((splash-window (get-buffer-window iota-splash-buffer-name)))
+    (when (window-live-p splash-window)
+      (let* ((edges (window-edges splash-window))
+             (bottom (nth 3 edges))
+             (left (nth 0 edges))
+             (right (nth 2 edges)))
+        (catch 'found-below
+          (dolist (w (window-list nil 'no-minibuf))
+            (unless (eq w splash-window)
+              (let* ((w-edges (window-edges w))
+                     (w-top (nth 1 w-edges))
+                     (w-left (nth 0 w-edges))
+                     (w-right (nth 2 w-edges)))
+                ;; Check if w is below splash-window and overlaps horizontally
+                ;; Skip popup windows as they are handled separately
+                (when (and (= w-top bottom)
+                           (> (min right w-right) (max left w-left))
+                           (not (and (fboundp 'iota-popup--window-popup-p)
+                                     (iota-popup--window-popup-p w))))
+                  (throw 'found-below nil)))))
+          t)))))
+
 (defun iota-splash--should-show-separator-p ()
   "Return t if separator should be shown for splash screen.
-Separator is shown when minibuffer is active or popup is visible."
+Separator is shown when:
+- Minibuffer is active, OR
+- Popup is visible AND splash screen is at the bottom (no window between splash and popup)."
   (or (iota-splash--minibuffer-active-p)
-      (iota-splash--popup-visible-p)))
+      (and (iota-splash--popup-visible-p)
+           (iota-splash--window-at-bottom-p))))
 
 (defun iota-splash--get-separator-line (window)
   "Get a separator line string for WINDOW.
