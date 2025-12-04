@@ -118,16 +118,34 @@ IOTA can dim inactive windows while preserving syntax highlighting:
 ;; Enable dimming
 (iota-dimmer-mode 1)
 
-;; Adjust dimming intensity (0.0-1.0, default 0.30)
-(setq iota-dimmer-fraction 0.30)
+;; Use a preset (see table below)
+(setq iota-dimmer-saturation-fraction 0.50
+      iota-dimmer-luminance-fraction 0.30)  ; "washed" preset
 
-;; Fine-tune saturation and luminance separately
-(setq iota-dimmer-saturation-fraction 0.40)  ; nil = use iota-dimmer-fraction
-(setq iota-dimmer-luminance-fraction 0.25)   ; nil = use iota-dimmer-fraction
+;; Or use balanced defaults derived from fraction
+(setq iota-dimmer-fraction 0.40
+      iota-dimmer-saturation-fraction nil   ; uses fraction * 0.6
+      iota-dimmer-luminance-fraction nil)   ; uses fraction * 0.5
 
-;; Dim all windows when frame loses focus
-(setq iota-dimmer-watch-frame-focus t)
+;; Optional: disable dimming all windows when frame loses focus (default: t)
+;; (setq iota-dimmer-watch-frame-focus nil)
 ```
+
+**Dimming Presets:**
+
+| Preset | Saturation | Luminance | Effect |
+|--------|------------|-----------|--------|
+| subtle | 0.15 | 0.10 | Barely noticeable |
+| balanced | nil | nil | Default, uses fraction |
+| desaturated | 0.50 | 0.00 | Gray out, keep brightness |
+| fade-only | 0.00 | 0.40 | Keep colors, fade to background |
+| washed | 0.60 | 0.30 | Pastel/washed look |
+| strong | 0.50 | 0.50 | Very noticeable |
+| grayscale | 0.80 | 0.40 | Nearly gray |
+| muted | 0.40 | 0.15 | Less vibrant |
+| high-contrast | 0.20 | 0.50 | Keep colors, fade brightness |
+
+You can also apply presets interactively with `M-x iota-dimmer-apply-preset`.
 
 ### Animations
 

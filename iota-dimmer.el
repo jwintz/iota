@@ -53,9 +53,39 @@ FORMAT-STRING and ARGS are passed to `message'."
 (defcustom iota-dimmer-fraction 0.40
   "Amount to dim inactive windows.
 Value between 0.0 (no dimming) and 1.0 (maximum dimming).
-Higher values = more dimming (colors blend more toward background)."
+This is the base value used when saturation/luminance fractions are nil."
   :type '(number :tag "Dimming fraction (0.0-1.0)")
   :group 'iota-dimmer)
+
+(defcustom iota-dimmer-saturation-fraction nil
+  "Saturation reduction fraction for dimming.
+Value between 0.0 (keep original saturation) and 1.0 (fully desaturated/gray).
+When nil, uses `iota-dimmer-fraction' * 0.6 as default."
+  :type '(choice (const :tag "Use default (fraction * 0.6)" nil)
+                 (number :tag "Saturation fraction (0.0-1.0)"))
+  :group 'iota-dimmer)
+
+(defcustom iota-dimmer-luminance-fraction nil
+  "Luminance blend fraction for dimming.
+Value between 0.0 (keep original brightness) and 1.0 (blend fully to background).
+When nil, uses `iota-dimmer-fraction' * 0.5 as default."
+  :type '(choice (const :tag "Use default (fraction * 0.5)" nil)
+                 (number :tag "Luminance fraction (0.0-1.0)"))
+  :group 'iota-dimmer)
+
+;; Presets documentation:
+;;
+;; | Effect                    | saturation | luminance | Description                          |
+;; |---------------------------|------------|-----------|--------------------------------------|
+;; | Subtle dim                | 0.15       | 0.10      | Barely noticeable, gentle fade       |
+;; | Balanced (default)        | nil        | nil       | Good balance of desaturation + fade  |
+;; | Desaturated only          | 0.50       | 0.00      | Gray out colors, keep brightness     |
+;; | Fade only                 | 0.00       | 0.40      | Keep colors vivid, fade to background|
+;; | Washed out                | 0.60       | 0.30      | Pastel/washed look                   |
+;; | Strong dim                | 0.50       | 0.50      | Very noticeable dimming              |
+;; | Grayscale fade            | 0.80       | 0.40      | Nearly grayscale, faded              |
+;; | Muted colors              | 0.40       | 0.15      | Less vibrant, slightly darker        |
+;; | High contrast preserve    | 0.20       | 0.50      | Keep colors, fade brightness more    |
 
 (defcustom iota-dimmer-excluded-buffers
   '("^ \\*Minibuf"
@@ -117,7 +147,11 @@ Returns a hex color string."
   (when (and color (stringp color)
              (not (string= color "unspecified"))
              (not (string-match-p "unspecified" color)))
-    (let* ((cache-key (cons color iota-dimmer-fraction))
+    (let* ((sat-frac (or iota-dimmer-saturation-fraction
+                         (* iota-dimmer-fraction 0.6)))
+           (lum-frac (or iota-dimmer-luminance-fraction
+                         (* iota-dimmer-fraction 0.5)))
+           (cache-key (list color sat-frac lum-frac))
            (cached (gethash cache-key iota-dimmer--dimmed-color-cache)))
       (or cached
           (condition-case nil
@@ -131,10 +165,10 @@ Returns a hex color string."
                          (l (nth 2 hsl))
                          (bg-hsl (apply #'color-rgb-to-hsl bg-rgb))
                          (bg-l (nth 2 bg-hsl))
-                         ;; Reduce saturation
-                         (new-s (* s (- 1.0 (* iota-dimmer-fraction 0.6))))
-                         ;; Blend luminance toward background
-                         (new-l (+ l (* (- bg-l l) (* iota-dimmer-fraction 0.5))))
+                         ;; Reduce saturation: 0 = keep, 1 = fully gray
+                         (new-s (* s (- 1.0 sat-frac)))
+                         ;; Blend luminance toward background: 0 = keep, 1 = match bg
+                         (new-l (+ l (* (- bg-l l) lum-frac)))
                          ;; Clamp
                          (new-s (max 0.0 (min 1.0 new-s)))
                          (new-l (max 0.0 (min 1.0 new-l)))
@@ -420,6 +454,48 @@ syntax highlighting."
   (interactive)
   (setq iota-dimmer-debug (not iota-dimmer-debug))
   (message "iota-dimmer debug logging: %s" (if iota-dimmer-debug "ON" "OFF")))
+
+(defun iota-dimmer-apply-preset (preset)
+  "Apply a dimming PRESET.
+Available presets:
+  subtle          - Barely noticeable (sat: 0.15, lum: 0.10)
+  balanced        - Default balance (uses fraction defaults)
+  desaturated     - Gray out, keep brightness (sat: 0.50, lum: 0.00)
+  fade-only       - Keep colors, fade brightness (sat: 0.00, lum: 0.40)
+  washed          - Pastel/washed look (sat: 0.60, lum: 0.30)
+  strong          - Very noticeable (sat: 0.50, lum: 0.50)
+  grayscale       - Nearly gray, faded (sat: 0.80, lum: 0.40)
+  muted           - Less vibrant (sat: 0.40, lum: 0.15)
+  high-contrast   - Keep colors, fade more (sat: 0.20, lum: 0.50)"
+  (interactive
+   (list (completing-read "Preset: "
+                          '("subtle" "balanced" "desaturated" "fade-only"
+                            "washed" "strong" "grayscale" "muted" "high-contrast")
+                          nil t)))
+  (pcase preset
+    ("subtle"        (setq iota-dimmer-saturation-fraction 0.15
+                           iota-dimmer-luminance-fraction 0.10))
+    ("balanced"      (setq iota-dimmer-saturation-fraction nil
+                           iota-dimmer-luminance-fraction nil))
+    ("desaturated"   (setq iota-dimmer-saturation-fraction 0.50
+                           iota-dimmer-luminance-fraction 0.00))
+    ("fade-only"     (setq iota-dimmer-saturation-fraction 0.00
+                           iota-dimmer-luminance-fraction 0.40))
+    ("washed"        (setq iota-dimmer-saturation-fraction 0.60
+                           iota-dimmer-luminance-fraction 0.30))
+    ("strong"        (setq iota-dimmer-saturation-fraction 0.50
+                           iota-dimmer-luminance-fraction 0.50))
+    ("grayscale"     (setq iota-dimmer-saturation-fraction 0.80
+                           iota-dimmer-luminance-fraction 0.40))
+    ("muted"         (setq iota-dimmer-saturation-fraction 0.40
+                           iota-dimmer-luminance-fraction 0.15))
+    ("high-contrast" (setq iota-dimmer-saturation-fraction 0.20
+                           iota-dimmer-luminance-fraction 0.50)))
+  (iota-dimmer-refresh)
+  (message "Applied '%s' preset (sat: %s, lum: %s)"
+           preset
+           (or iota-dimmer-saturation-fraction "default")
+           (or iota-dimmer-luminance-fraction "default")))
 
 (defun iota-dimmer-diagnose ()
   "Print diagnostic information about dimmer state."
