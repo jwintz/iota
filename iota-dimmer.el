@@ -94,8 +94,7 @@ When nil, uses `iota-dimmer-fraction' * 0.5 as default."
     "^ \\*which-key\\*"
     "^\\*transient\\*"
     "^ \\*transient\\*"
-    "^\\*Completions\\*"
-    "^\\*I O T Λ splash\\*")
+    "^\\*Completions\\*")
   "List of buffer name patterns to exclude from dimming.
 Buffers matching these patterns will never be dimmed."
   :type '(repeat regexp)
