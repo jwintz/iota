@@ -301,15 +301,21 @@ Only modifies theme specs - does not set user specs."
 THEME is the theme being loaded, NO-CONFIRM and NO-ENABLE are load-theme args."
   (iota-theme-transparent--log "")
   (iota-theme-transparent--log "====== THEME LOAD: %s ======" theme)
+  (iota-theme-transparent--log "  no-confirm=%s no-enable=%s" no-confirm no-enable)
   (iota-theme-transparent--log "  transparency-mode: %s"
                                (if (boundp 'iota-theme-transparent-mode)
                                    iota-theme-transparent-mode
                                  "not defined"))
+  (iota-theme-transparent--log "  custom-enabled-themes: %s" custom-enabled-themes)
 
   (if (not (iota-theme-transparent-should-apply-p))
       (iota-theme-transparent--log "  Skipping: should-apply-p returned nil")
     (if no-enable
         (iota-theme-transparent--log "  Skipping: theme not being enabled (no-enable=%s)" no-enable)
+      ;; Log face state before transparency
+      (let* ((default-fg (face-attribute 'default :foreground nil 'default))
+             (default-bg (face-attribute 'default :background nil 'default)))
+        (iota-theme-transparent--log "  default face BEFORE transparency: fg=%s bg=%s" default-fg default-bg))
       ;; Clear previous specs to allow re-application
       (iota-theme-transparent--log "  Cleared %d previously stored specs"
                                    (length iota-theme-transparent--original-specs))
@@ -317,7 +323,40 @@ THEME is the theme being loaded, NO-CONFIRM and NO-ENABLE are load-theme args."
 
       ;; Process faces synchronously (no delay)
       (iota-theme-transparent--log "  Processing theme transparency synchronously...")
-      (iota-theme-transparent-remove-backgrounds))))
+      (iota-theme-transparent-remove-backgrounds)
+      ;; Log face state after transparency
+      (let* ((default-fg (face-attribute 'default :foreground nil 'default))
+             (default-bg (face-attribute 'default :background nil 'default)))
+        (iota-theme-transparent--log "  default face AFTER transparency: fg=%s bg=%s" default-fg default-bg))
+      (iota-theme-transparent--log "====== THEME LOAD COMPLETE: %s ======" theme))))
+
+(defun iota-theme-transparent-enable-theme-advice (theme)
+  "Advice for `enable-theme' to apply transparency after theme is enabled.
+THEME is the theme being enabled.  This supports `consult-theme' previews."
+  (iota-theme-transparent--log "")
+  (iota-theme-transparent--log "====== THEME ENABLE: %s ======" theme)
+  (iota-theme-transparent--log "  transparency-mode: %s"
+                               (if (boundp 'iota-theme-transparent-mode)
+                                   iota-theme-transparent-mode
+                                 "not defined"))
+  (iota-theme-transparent--log "  custom-enabled-themes: %s" custom-enabled-themes)
+  (iota-theme-transparent--log "  theme at front: %s" (car custom-enabled-themes))
+  (let* ((default-fg (face-attribute 'default :foreground nil 'default))
+         (default-bg (face-attribute 'default :background nil 'default)))
+    (iota-theme-transparent--log "  default face BEFORE transparency: fg=%s bg=%s" default-fg default-bg))
+  (when (iota-theme-transparent-should-apply-p)
+    ;; Clear previous specs to allow re-application
+    (iota-theme-transparent--log "  Cleared %d previously stored specs"
+                                 (length iota-theme-transparent--original-specs))
+    (setq iota-theme-transparent--original-specs nil)
+    ;; Process faces synchronously
+    (iota-theme-transparent--log "  Processing theme transparency synchronously...")
+    (iota-theme-transparent-remove-backgrounds)
+    ;; Log face state after transparency
+    (let* ((default-fg (face-attribute 'default :foreground nil 'default))
+           (default-bg (face-attribute 'default :background nil 'default)))
+      (iota-theme-transparent--log "  default face AFTER transparency: fg=%s bg=%s" default-fg default-bg))
+    (iota-theme-transparent--log "====== THEME ENABLE COMPLETE: %s ======" theme)))
 
 ;;; Mode
 
@@ -327,6 +366,8 @@ THEME is the theme being loaded, NO-CONFIRM and NO-ENABLE are load-theme args."
   (iota-theme-transparent--log ">>> Enabling transparency mode <<<")
   (iota-theme-transparent--log "  Adding advice to load-theme")
   (advice-add 'load-theme :after #'iota-theme-transparent-advice)
+  (iota-theme-transparent--log "  Adding advice to enable-theme (for consult-theme preview)")
+  (advice-add 'enable-theme :after #'iota-theme-transparent-enable-theme-advice)
   (iota-theme-transparent--log "  Applying transparency to current faces")
   (iota-theme-transparent-remove-backgrounds)
   (iota-theme-transparent--log ">>> Transparency mode enabled <<<"))
@@ -337,6 +378,8 @@ THEME is the theme being loaded, NO-CONFIRM and NO-ENABLE are load-theme args."
   (iota-theme-transparent--log ">>> Disabling transparency mode <<<")
   (iota-theme-transparent--log "  Removing advice from load-theme")
   (advice-remove 'load-theme #'iota-theme-transparent-advice)
+  (iota-theme-transparent--log "  Removing advice from enable-theme")
+  (advice-remove 'enable-theme #'iota-theme-transparent-enable-theme-advice)
   (iota-theme-transparent--log "  Restoring original backgrounds")
   (iota-theme-transparent-restore-backgrounds)
   (iota-theme-transparent--log ">>> Transparency mode disabled <<<"))
