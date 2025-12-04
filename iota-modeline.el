@@ -737,17 +737,21 @@ Returns nil if window or buffer is invalid."
   (when (and (window-live-p window)
              (window-buffer window)
              (buffer-live-p (window-buffer window)))
-    (let ((overlay (gethash window iota-modeline--window-overlays)))
-      ;; Clean up invalid overlay
-      (when (and overlay
-                 (overlayp overlay)
-                 (not (overlay-buffer overlay)))
-        (remhash window iota-modeline--window-overlays)
-        (setq overlay nil))
+    (let ((overlay (gethash window iota-modeline--window-overlays))
+          (current-buf (window-buffer window)))
+      ;; Clean up invalid overlay or overlay in wrong buffer
+      (when (and overlay (overlayp overlay))
+        (let ((overlay-buf (overlay-buffer overlay)))
+          (when (or (not overlay-buf)
+                    (not (eq overlay-buf current-buf)))
+            ;; Overlay is detached or in different buffer - delete and recreate
+            (delete-overlay overlay)
+            (remhash window iota-modeline--window-overlays)
+            (setq overlay nil))))
       ;; Create new overlay if needed
       (unless overlay
-        (with-current-buffer (window-buffer window)
-          (setq overlay (make-overlay (point-min) (point-min) (current-buffer)))
+        (with-current-buffer current-buf
+          (setq overlay (make-overlay (point-min) (point-min) current-buf))
           (overlay-put overlay 'priority 100)
           (puthash window overlay iota-modeline--window-overlays)))
       overlay)))
@@ -788,16 +792,15 @@ If SELECTED-WINDOW is provided, use it as the truly selected window."
               (kill-local-variable 'header-line-format)
               (let ((overlay (iota-modeline--ensure-overlay win))
                     (start (window-start win)))
-                (when (and overlay (overlayp overlay)
-                           start (integer-or-marker-p start))
+                (when (and overlay (overlayp overlay))
+                  ;; Ensure start is valid for current buffer
+                  (unless (and start (integer-or-marker-p start)
+                               (<= start (point-max)))
+                    (setq start (point-min)))
                   (condition-case render-err
                       (let* ((iota-modeline--selected-window truly-selected)
-                             ;; Render complete box (top + content + bottom)
-                             ;; Pass truly-selected so doom-modeline knows which window is active
                              (box (with-selected-window win
                                     (iota-modeline--render nil win truly-selected)))
-                             ;; Apply default face to unfaced parts to prevent
-                             ;; inheritance from buffer text at overlay position
                              (box-str (if (and box (stringp box) (not (string= box "")))
                                           (iota-modeline--apply-default-face
                                            (concat box "\n"))
@@ -926,7 +929,13 @@ Forces immediate update to ensure keycast and other real-time
 segments are displayed without delay."
   ;; Force immediate update, bypassing debounce
   (setq iota-modeline--last-update-time (float-time))
-  (iota-modeline--update))
+  (iota-modeline--update)
+  ;; For modes that dynamically change buffer content (like Info-mode),
+  ;; schedule an additional update after redisplay to ensure overlay is visible
+  (when (and (not (display-graphic-p))
+             (eq iota-modeline-position 'header)
+             (derived-mode-p 'Info-mode 'help-mode 'Man-mode))
+    (run-with-timer 0 nil #'iota-modeline--update)))
 
 (defun iota-modeline--should-show-p ()
   "Return t if IOTA modeline should be shown in current buffer."
@@ -1003,6 +1012,17 @@ Updates separator lines when popups appear/disappear."
           (when (and (not (display-graphic-p))
                      (eq iota-modeline-position 'header))
             (iota-modeline--update-overlay window)))))))
+
+(defun iota-modeline--on-window-buffer-change (frame)
+  "Hook for window buffer changes in FRAME.
+This handles cases like info-mode navigation where the buffer content
+changes but it's still the same window."
+  (dolist (window (window-list frame 'no-minibuf))
+    (when (and (not (display-graphic-p))
+               (eq iota-modeline-position 'header))
+      (iota-modeline--update-overlay window)))
+  ;; Also update separator lines
+  (iota-modeline--update-separator-lines))
 
 ;;; Window Position Detection
 
@@ -1200,6 +1220,8 @@ Note: Splash screen is handled separately by iota-splash.el."
   (add-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
   (add-hook 'minibuffer-exit-hook #'iota-modeline--minibuffer-exit)
   (add-hook 'window-configuration-change-hook #'iota-modeline--window-configuration-change)
+  ;; Handle buffer content changes within same window (e.g., info-mode navigation)
+  (add-hook 'window-buffer-change-functions #'iota-modeline--on-window-buffer-change)
   
   (unless (featurep 'iota-update)
     (add-hook 'window-size-change-functions #'iota-modeline--window-size-change))
@@ -1249,6 +1271,7 @@ Note: Splash screen is handled separately by iota-splash.el."
   (remove-hook 'window-size-change-functions #'iota-modeline--window-size-change)
   (remove-hook 'window-size-change-functions #'iota-modeline--update-separator-lines)
   (remove-hook 'window-configuration-change-hook #'iota-modeline--window-configuration-change)
+  (remove-hook 'window-buffer-change-functions #'iota-modeline--on-window-buffer-change)
 
   ;; Clear window parameters
   (dolist (window (window-list nil 'no-minibuf))
