@@ -36,8 +36,8 @@ A minimal terminal interface framework for Emacs with box-drawing modeline, them
 ```
 
 IOTA automatically enables its modes when loaded:
-- `iota-modeline-mode` — Box-drawing modeline
-- `iota-footerline-mode` — Minibuffer separator
+- `iota-modeline-mode` — Box-drawing modeline and separator lines
+- `iota-popup-mode` — Popup window decorations (which-key, transient, etc.)
 - `iota-window-mode` — Window tracking and divider styling
 
 ## Configuration
@@ -87,14 +87,27 @@ For transparent terminals, IOTA automatically removes background colors from fac
 M-x iota-theme-transparent-diagnose
 ```
 
-### Footer Line
+### Popup Windows
+
+IOTA detects popup windows like which-key and transient, applying appropriate styling:
 
 ```elisp
-;; Configure footer line triggers
-(setq iota-footerline-show-for-minibuffer t)  ; Show when minibuffer active
-(setq iota-footerline-show-for-which-key t)   ; Show for which-key popups
-(setq iota-footerline-show-for-warnings t)    ; Show for warning messages
+;; Configure popup decoration style
+(setq iota-popup-decoration-style 'bottom-line)  ; 'bottom-line or 'none
+
+;; Use inactive face for popup decorations (recommended)
+(setq iota-popup-use-inactive-face t)
+
+;; Add custom popup patterns
+(add-to-list 'iota-popup-buffer-patterns "\\`\\*my-popup\\*")
 ```
+
+Supported popup types:
+- which-key popup windows
+- transient popup windows
+- Embark action/collect windows
+- Consult popup windows
+- Completions buffer
 
 ### Animations
 
@@ -135,7 +148,8 @@ IOTA can prevent line numbers from being enabled:
 | `M-x iota-version` | Show version |
 | `M-x iota-reload` | Reload package (development) |
 | `M-x iota-modeline-mode` | Toggle modeline |
-| `M-x iota-footerline-mode` | Toggle footer line |
+| `M-x iota-popup-mode` | Toggle popup decorations |
+| `M-x iota-popup-cycle-style` | Cycle popup decoration styles |
 | `M-x iota-window-mode` | Toggle window tracking |
 | `M-x iota-window-cycle-divider-style` | Cycle between hidden/plain dividers |
 | `M-x iota-splash-screen` | Show splash screen |
@@ -151,9 +165,9 @@ iota/
 ├── iota-cache.el            # Caching utilities
 ├── iota-config.el           # Configuration and presets
 ├── iota-faces.el            # Face definitions
-├── iota-footerline.el       # Footer line separator
 ├── iota-logos.el            # ASCII art logos
-├── iota-modeline.el         # Modeline implementation
+├── iota-modeline.el         # Modeline and separator lines
+├── iota-popup.el            # Popup window decorations
 ├── iota-splash.el           # Splash screen
 ├── iota-theme.el            # Theme introspection
 ├── iota-theme-transparent.el # Terminal transparency

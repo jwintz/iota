@@ -137,7 +137,7 @@ FORMAT-STRING and ARGS are passed to `format'."
 
 (defun iota-window-at-bottom-p (&optional window)
   "Return t if WINDOW is at the bottom of its frame.
-Ignores temporary popup buffers like which-key."
+Ignores popup buffers (which-key, transient, etc.) detected by iota-popup."
   (let ((window (or window (selected-window))))
     (catch 'found-window-below
       (let* ((edges1 (window-edges window))
@@ -149,14 +149,13 @@ Ignores temporary popup buffers like which-key."
             (let* ((edges2 (window-edges w))
                    (top2 (nth 1 edges2))
                    (left2 (nth 0 edges2))
-                   (right2 (nth 2 edges2))
-                   (buf-name (buffer-name (window-buffer w))))
-              ;; Ignore which-key and similar popup buffers
+                   (right2 (nth 2 edges2)))
+              ;; Skip popup windows - they are handled by iota-popup
               (when (and edges1 edges2
                          (= top2 bottom1)
                          (> (min right1 right2) (max left1 left2))
-                         (not (string-prefix-p " *which-key*" buf-name))
-                         (not (string-prefix-p "*which-key*" buf-name)))
+                         (not (and (fboundp 'iota-popup--window-popup-p)
+                                   (iota-popup--window-popup-p w))))
                 (throw 'found-window-below nil)))))
         t))))
 

@@ -38,6 +38,7 @@
 (require 'iota-update)
 (require 'iota-timers)
 (require 'iota-utils)
+(require 'iota-popup)
 
 ;;; Faces
 
@@ -931,8 +932,9 @@ segments are displayed without delay."
   "Return t if IOTA modeline should be shown in current buffer."
   (let ((buf-name (buffer-name)))
     (not (or (minibufferp)
-             (string-prefix-p " *which-key*" buf-name)
-             (string= "*Completions*" buf-name)
+             ;; Use popup detection for which-key, transient, etc.
+             (and (fboundp 'iota-popup--buffer-popup-p)
+                  (iota-popup--buffer-popup-p (current-buffer)))
              (string-match-p "\\*I O T Λ splash\\*" buf-name)
              (cl-find-if (lambda (pattern) (string-match-p pattern buf-name))
                          iota-modeline-excluded-buffers)))))
@@ -970,7 +972,14 @@ segments are displayed without delay."
 (defun iota-modeline--minibuffer-setup ()
   "Hook to disable modeline in minibuffer."
   (setq mode-line-format "")
-  (setq header-line-format nil))
+  (setq header-line-format nil)
+  ;; Update separator lines to show separator above minibuffer
+  (iota-modeline--update-separator-lines))
+
+(defun iota-modeline--minibuffer-exit ()
+  "Hook for minibuffer exit - update separator lines."
+  ;; Delay slightly to allow minibuffer to fully close
+  (run-with-timer 0.01 nil #'iota-modeline--update-separator-lines))
 
 (defun iota-modeline--window-scroll (win _start)
   "Window scroll hook for overlay update."
@@ -980,17 +989,17 @@ segments are displayed without delay."
   "Guard against recursive window configuration changes.")
 
 (defun iota-modeline--window-configuration-change ()
-  "Hook for window configuration changes."
+  "Hook for window configuration changes.
+Updates separator lines when popups appear/disappear."
   (unless iota-modeline--in-window-config-change
     (let ((iota-modeline--in-window-config-change t))
+      ;; Update separator lines for popup visibility changes
+      (iota-modeline--update-separator-lines)
       (dolist (window (window-list))
         (with-current-buffer (window-buffer window)
           (when (and (local-variable-p 'header-line-format)
                      (not (equal header-line-format (default-value 'header-line-format))))
             (kill-local-variable 'header-line-format))
-          (when (and (local-variable-p 'mode-line-format)
-                     (not (equal mode-line-format (default-value 'mode-line-format))))
-            (kill-local-variable 'mode-line-format))
           (when (and (not (display-graphic-p))
                      (eq iota-modeline-position 'header))
             (iota-modeline--update-overlay window)))))))
@@ -1002,7 +1011,9 @@ segments are displayed without delay."
   (iota-modeline--update))
 
 (defun iota-modeline--window-is-at-bottom-p (window)
-  "Return t if WINDOW is at the bottom of the frame."
+  "Return t if WINDOW is at the bottom of the frame.
+Ignores popup windows (which-key, transient, etc.) when determining
+if there's a window below, since popups are handled separately."
   (catch 'found-window-below
     (let* ((edges1 (window-edges window))
            (bottom1 (nth 3 edges1))
@@ -1013,33 +1024,56 @@ segments are displayed without delay."
           (let* ((edges2 (window-edges w))
                  (top2 (nth 1 edges2))
                  (left2 (nth 0 edges2))
-                 (right2 (nth 2 edges2))
-                 (buf-name (buffer-name (window-buffer w))))
+                 (right2 (nth 2 edges2)))
+            ;; Skip popup windows - they are handled by iota-popup
             (when (and edges1 edges2
                        (= top2 bottom1)
                        (> (min right1 right2) (max left1 left2))
-                       (not (string-prefix-p " *which-key*" buf-name))
-                       (not (string-prefix-p "*which-key*" buf-name)))
+                       (not (and (fboundp 'iota-popup--window-popup-p)
+                                 (iota-popup--window-popup-p w))))
               (throw 'found-window-below nil)))))
       t)))
 
+(defun iota-modeline--minibuffer-active-p ()
+  "Return t if the minibuffer is currently active."
+  (and (active-minibuffer-window)
+       (minibufferp (window-buffer (active-minibuffer-window)))))
+
 (defun iota-modeline--update-separator-lines (&optional _frame)
   "Update mode-line separator for each window based on position.
-Shows horizontal line separator (no corners) between stacked windows."
-  (dolist (window (window-list nil 'no-minibuf))
-    (with-current-buffer (window-buffer window)
-      (when (iota-modeline--should-show-p)
-        ;; Use horizontal line (no corners) as separator
-        (setq-local mode-line-format
-                    '(:eval (iota-box-horizontal-line (1- (window-body-width))
-                                                      iota-modeline-box-style
-                                                      (iota-theme-get-box-face (selected-window))))))))
-  (dolist (window (window-list nil 'no-minibuf))
-    (if (and (with-current-buffer (window-buffer window)
-               (iota-modeline--should-show-p))
-             (iota-modeline--window-is-at-bottom-p window))
-        (set-window-parameter window 'mode-line-format nil)
-      (set-window-parameter window 'mode-line-format 'none))))
+
+Separator line logic:
+- Windows AT BOTTOM (adjacent to minibuffer): show separator
+  This separates the window content from the minibuffer/echo area.
+- Windows NOT at bottom (have window below): hide separator
+  The window below has its own header-line box, no separator needed.
+
+Face logic for bottom windows:
+- When popup/minibuffer is active: use inactive face
+- Otherwise: use window's active/inactive face"
+  (let* ((popup-visible (and (fboundp 'iota-popup--popup-visible-p)
+                             (iota-popup--popup-visible-p)))
+         (minibuffer-active (iota-modeline--minibuffer-active-p))
+         (use-inactive-face (or popup-visible minibuffer-active)))
+    ;; Process each window
+    (dolist (window (window-list nil 'no-minibuf))
+      (let ((is-bottom (iota-modeline--window-is-at-bottom-p window))
+            (should-show (with-current-buffer (window-buffer window)
+                           (iota-modeline--should-show-p))))
+        (if (and should-show is-bottom)
+            ;; Bottom window: show separator line
+            (progn
+              (with-current-buffer (window-buffer window)
+                (setq-local mode-line-format
+                            `(:eval (iota-box-horizontal-line
+                                     (1- (window-body-width))
+                                     iota-modeline-box-style
+                                     (if ,use-inactive-face
+                                         'iota-inactive-box-face
+                                       (iota-theme-get-box-face (selected-window)))))))
+              (set-window-parameter window 'mode-line-format nil))
+          ;; Not at bottom or shouldn't show: hide mode-line
+          (set-window-parameter window 'mode-line-format 'none))))))
 
 ;;; Face Management
 
@@ -1157,6 +1191,8 @@ Shows horizontal line separator (no corners) between stacked windows."
   
   (add-hook 'after-change-major-mode-hook #'iota-modeline--after-change-major-mode)
   (add-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
+  (add-hook 'minibuffer-exit-hook #'iota-modeline--minibuffer-exit)
+  (add-hook 'window-configuration-change-hook #'iota-modeline--window-configuration-change)
   
   (unless (featurep 'iota-update)
     (add-hook 'window-size-change-functions #'iota-modeline--window-size-change))
@@ -1201,6 +1237,7 @@ Shows horizontal line separator (no corners) between stacked windows."
   (remove-function after-focus-change-function #'iota-modeline--on-focus-change)
   (remove-hook 'after-change-major-mode-hook #'iota-modeline--after-change-major-mode)
   (remove-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
+  (remove-hook 'minibuffer-exit-hook #'iota-modeline--minibuffer-exit)
   (remove-hook 'window-scroll-functions #'iota-modeline--window-scroll)
   (remove-hook 'window-size-change-functions #'iota-modeline--window-size-change)
   (remove-hook 'window-size-change-functions #'iota-modeline--update-separator-lines)

@@ -44,8 +44,8 @@
 (require 'iota-box)
 (require 'iota-theme)
 (require 'iota-animate)
+(require 'iota-popup)
 (require 'iota-modeline)
-(require 'iota-footerline)
 (require 'iota-splash)
 (require 'iota-logos)
 (require 'iota-window)
@@ -132,13 +132,13 @@ This is the easiest way to start using IOTA."
   (setq iota-modeline-box-style 'rounded)
   (iota-modeline-mode 1)
 
-  ;; Enable footer line for minibuffer/warnings separator
-  (iota-footerline-mode 1)
+  ;; Enable popup handling for which-key, transient, etc.
+  (iota-popup-mode 1)
 
   ;; Enable window mode for active/inactive distinction
   (iota-window-mode 1)
 
-  (message "IOTA quickstart complete! Modeline, footerline, and window tracking enabled."))
+  (message "IOTA quickstart complete! Modeline, popup, and window tracking enabled."))
 
 ;;; Quick Commands
 
@@ -198,19 +198,19 @@ When enabled, line number modes will be permanently disabled."
   (interactive)
   (when iota-modeline-mode
     (iota-modeline-mode -1))
-  (when iota-footerline-mode
-    (iota-footerline-mode -1))
+  (when (bound-and-true-p iota-popup-mode)
+    (iota-popup-mode -1))
   (mapc (lambda (feature)
           (when (featurep feature)
             (unload-feature feature t)))
         '(iota-config iota-window iota-logos
-          iota-splash iota-faces iota-footerline iota-modeline
+          iota-splash iota-faces iota-popup iota-modeline
           iota-animate
           iota-theme-transparent iota-theme
           iota-box iota))
   (require 'iota)
   (iota-modeline-mode 1)
-  (iota-footerline-mode 1)
+  (iota-popup-mode 1)
   (message "I O T Λ reloaded"))
 
 ;;; Hooks for Integration
@@ -224,7 +224,7 @@ When enabled, line number modes will be permanently disabled."
 
 ;; Enable IOTA modes by default when package is loaded
 (iota-modeline-mode 1)
-(iota-footerline-mode 1)
+(iota-popup-mode 1)
 (iota-window-mode 1)
 
 (provide 'iota)
