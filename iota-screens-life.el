@@ -177,7 +177,6 @@
 (defun iota-screens-life-start (&optional instance-id)
   "Start Game of Life in current buffer.
 INSTANCE-ID is used to create unique timer keys for multi-screen support."
-  (message "Life: Starting animation for instance %s..." (or instance-id "default"))
   (let ((buffer-name iota-screens--buffer-name))
     (when-let ((win (get-buffer-window buffer-name)))
       (with-current-buffer (get-buffer buffer-name)

@@ -114,7 +114,6 @@
   "Start clock screen.
 INSTANCE-ID is used to create unique timer keys for multi-screen support."
   (let ((buffer-name iota-screens--buffer-name))
-    (message "Clock: Starting for instance %s..." (or instance-id "default"))
     (iota-screens-clock--render-time buffer-name)
     (let ((timer-key (if instance-id
                          (intern (format "screens-%d-clock-animate" instance-id))

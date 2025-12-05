@@ -170,7 +170,6 @@ Maps instance-id to plist of (:buffer :saved-config :animation :timer-prefix).")
                 (not (equal height iota-screens--last-height)))
         (setq-local iota-screens--last-width width)
         (setq-local iota-screens--last-height height)
-        (message "IOTA Screens: Window resized to %dx%d, restarting animation" width height)
         ;; Save animation type before stopping
         (let ((anim-type iota-screens--current-animation))
           ;; Restart animation with new dimensions
@@ -187,8 +186,7 @@ Returns the instance-id of the created screen."
          (buffer-name (iota-screens--generate-buffer-name instance-id))
          (saved-config (current-window-configuration))
          (anim-type (or animation-type iota-screens-default-animation)))
-    
-    (message "IOTA Screens: Activating instance %d..." instance-id)
+
     (setq iota-screens--active t)
     
     ;; Register instance
@@ -208,15 +206,6 @@ Returns the instance-id of the created screen."
         (unless (eq major-mode 'iota-screens-buffer-mode)
           (iota-screens-buffer-mode)))
       (switch-to-buffer buffer)
-      ;; Debug window dimensions using multiple methods
-      (let* ((win (selected-window))
-             (body-h (window-body-height win))
-             (total-h (window-total-height win))
-             (pixel-h (window-pixel-height win))
-             (line-h (frame-char-height))
-             (calc-h (/ pixel-h line-h)))
-        (message "IOTA Screens DEBUG: body-h=%d total-h=%d pixel-h=%d line-h=%d calc-h=%d"
-                 body-h total-h pixel-h line-h calc-h))
       (with-current-buffer buffer
         (let ((inhibit-read-only t))
           (erase-buffer)
@@ -255,7 +244,6 @@ Returns the instance-id of the created screen."
         (add-hook 'kill-buffer-hook #'iota-screens--cleanup nil t)))
 
     ;; Start selected animation
-    (message "IOTA Screens: Starting animation '%s' for instance %d" anim-type instance-id)
     (with-current-buffer buffer-name
       (iota-screens--start-animation anim-type))
 
@@ -271,8 +259,7 @@ Returns the instance-id of the created screen."
     ;; Force modeline refresh to remove overlays
     (when (fboundp 'iota-modeline-refresh)
       (iota-modeline-refresh))
-      
-    (message "IOTA Screens: Instance %d active. Press 'q' to exit." instance-id)
+
     instance-id))
 
 (defun iota-screens-deactivate (&optional instance-id)
@@ -287,10 +274,8 @@ Otherwise, deactivate the current buffer's instance."
                           (and (boundp 'iota-screens--buffer-name) iota-screens--buffer-name)))
          (saved-config (or (plist-get instance :saved-config)
                            (and (boundp 'iota-screens--saved-config) iota-screens--saved-config))))
-    
+
     (when (or id buffer-name)
-      (message "IOTA Screens: Deactivating instance %s..." (or id "current"))
-      
       ;; Stop current animation
       (when buffer-name
         (when-let ((buf (get-buffer buffer-name)))
@@ -319,7 +304,8 @@ Otherwise, deactivate the current buffer's instance."
       (when saved-config
         (set-window-configuration saved-config))
 
-      (message "IOTA Screens: Instance %s deactivated" (or id "current"))
+      ;; Restore cursor visibility
+      (internal-show-cursor (selected-window) t)
 
       ;; Restart idle detection if mode is enabled and no active instances
       (when (and iota-screens-mode (not (iota-screens--any-active-p)))
@@ -330,8 +316,7 @@ Otherwise, deactivate the current buffer's instance."
   (interactive)
   (let ((instances (iota-screens--active-instances)))
     (dolist (id instances)
-      (iota-screens-deactivate id))
-    (message "IOTA Screens: Deactivated %d instances" (length instances))))
+      (iota-screens-deactivate id))))
 
 (defun iota-screens--on-resize (_frame)
   "Handle window resize for screen saver.
