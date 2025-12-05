@@ -166,10 +166,65 @@ IOTA can prevent line numbers from being enabled:
 (setq iota-prevent-line-numbers t)
 ```
 
+## Dispatch Interface
+
+IOTA provides a unified transient popup interface for all features via `M-x iota-dispatch`:
+
+```
+ι • ο • τ • α
+Not one iota more than needed.
+
+Configuration              Display
+c Config                   m Modeline
+t Theme                    d Dimmer
+
+Windows                    Extras
+w Window                   s Screens
+p Popup                    ? Splash
+```
+
+### Binding with use-package and general.el
+
+```elisp
+(use-package iota
+  :load-path "~/path/to/iota"
+  :general
+  ("C-c i" 'iota-dispatch)  ; Main dispatch at C-c i
+  ;; Optional: direct access to sub-menus
+  (:prefix "C-c i"
+   "c" 'iota-config-transient
+   "s" 'iota-screens-transient
+   "m" 'iota-modeline-transient
+   "d" 'iota-dimmer-transient
+   "t" 'iota-theme-transient
+   "p" 'iota-popup-transient
+   "w" 'iota-window-transient
+   "?" 'iota-splash-transient)
+  :custom
+  (iota-window-divider-style 'hidden)
+  :hook
+  (emacs-startup-hook . iota-splash-screen))
+```
+
+### Binding with vanilla Emacs
+
+```elisp
+(global-set-key (kbd "C-c i") 'iota-dispatch)
+```
+
 ## Commands
 
 | Command | Description |
 |---------|-------------|
+| `M-x iota-dispatch` | **Main dispatch interface** |
+| `M-x iota-config-transient` | Configuration popup |
+| `M-x iota-screens-transient` | Screen savers popup |
+| `M-x iota-modeline-transient` | Modeline popup |
+| `M-x iota-dimmer-transient` | Dimmer popup |
+| `M-x iota-theme-transient` | Theme popup |
+| `M-x iota-popup-transient` | Popup windows settings |
+| `M-x iota-window-transient` | Window settings popup |
+| `M-x iota-splash-transient` | Splash screen popup |
 | `M-x iota-setup` | Interactive setup wizard |
 | `M-x iota-quickstart` | Enable all features with defaults |
 | `M-x iota-version` | Show version |
@@ -193,10 +248,17 @@ iota/
 ├── iota-cache.el            # Caching utilities
 ├── iota-config.el           # Configuration and presets
 ├── iota-dimmer.el           # Inactive window dimming
+├── iota-dispatch.el         # Transient dispatch interface
 ├── iota-faces.el            # Face definitions
 ├── iota-logos.el            # ASCII art logos
 ├── iota-modeline.el         # Modeline and separator lines
 ├── iota-popup.el            # Popup window decorations
+├── iota-screens.el          # Screen saver system
+├── iota-screens-alien.el    # Alien flow animation
+├── iota-screens-clock.el    # Digital clock animation
+├── iota-screens-life.el     # Game of Life animation
+├── iota-screens-matrix.el   # Matrix rain animation
+├── iota-screens-pipes.el    # 3D pipes animation
 ├── iota-splash.el           # Splash screen
 ├── iota-theme.el            # Theme introspection
 ├── iota-theme-transparent.el # Terminal transparency

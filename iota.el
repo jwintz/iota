@@ -51,6 +51,7 @@
 (require 'iota-window)
 (require 'iota-screens)
 (require 'iota-config)
+(require 'iota-dispatch)
 
 ;; Optional modules
 (require 'iota-theme-transparent)
