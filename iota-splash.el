@@ -666,16 +666,23 @@ This indicates Emacs was likely started with file arguments."
   (iota-splash--stop-hint-rotation)
   ;; Clean up hooks
   (iota-splash--cleanup-hooks)
+  ;; Restore cursor visibility in the window before killing buffer
+  (when-let ((win (get-buffer-window iota-splash-buffer-name)))
+    (internal-show-cursor win t))
   ;; Kill the buffer (not just bury it)
   (when (get-buffer iota-splash-buffer-name)
-    (kill-buffer iota-splash-buffer-name)))
+    (kill-buffer iota-splash-buffer-name))
+  ;; Restore cursor in the new current window
+  (internal-show-cursor (selected-window) t))
 
-(defun iota-splash-screen ()
+(defun iota-splash-screen (&optional force)
   "Display IOTA splash screen with branding.
-Does not display if Emacs was opened with file arguments."
-  (interactive)
-  ;; Skip splash screen if files were opened
-  (unless (and (not (called-interactively-p 'any))
+If FORCE is non-nil, display even if files are open.
+Does not display if Emacs was opened with file arguments (unless FORCE is t)."
+  (interactive "P")
+  ;; Skip splash screen if files were opened, unless forced or interactive
+  (unless (and (not force)
+               (not (called-interactively-p 'any))
                (iota-splash--file-buffers-exist-p))
     ;; Auto-generate hints if not already done
     (when (and iota-splash-show-hints

@@ -44,6 +44,7 @@
 ;;; Code:
 
 (require 'transient)
+(require 'cl-lib)
 
 ;; Forward declarations
 (declare-function iota-config-apply-preset "iota-config")
@@ -52,8 +53,12 @@
 (declare-function iota-modeline-refresh "iota-modeline")
 (declare-function iota-modeline-toggle-position "iota-modeline")
 (declare-function iota-modeline-cycle-style "iota-modeline")
+(declare-function iota-modeline--teardown "iota-modeline")
+(declare-function iota-modeline--setup "iota-modeline")
 (declare-function iota-dimmer-apply-preset "iota-dimmer")
+(declare-function iota-dimmer--update-all "iota-dimmer")
 (declare-function iota-theme-transparent-diagnose "iota-theme-transparent")
+(declare-function iota-theme-transparent-remove-backgrounds "iota-theme-transparent")
 (declare-function iota-popup-cycle-style "iota-popup")
 (declare-function iota-window-cycle-divider-style "iota-window")
 (declare-function iota-splash-screen "iota-splash")
@@ -78,7 +83,17 @@
 
 (defun iota-dispatch--separator ()
   "Return a horizontal separator line spanning the window width."
-  (let ((width (max 1 (- (window-body-width) 1))))
+  (let* ((transient-window
+          ;; Find the window displaying a transient buffer
+          (or (get-buffer-window " *transient*")
+              (cl-find-if (lambda (w)
+                            (string-match-p "transient"
+                                          (buffer-name (window-buffer w))))
+                          (window-list))))
+         (width (if transient-window
+                    (1- (window-body-width transient-window))
+                  ;; Fall back to frame width minus 1 if no transient window found
+                  (1- (frame-width)))))
     (propertize (make-string width ?─) 'face 'shadow)))
 
 ;;; ═══════════════════════════════════════════════════════════════════════════
@@ -316,7 +331,11 @@
   (interactive)
   (require 'iota-modeline)
   (setq iota-modeline-show-separators (not iota-modeline-show-separators))
-  (iota-modeline-refresh))
+  ;; Force a full modeline recalculation
+  (force-mode-line-update t)
+  ;; Deferred refresh to ensure proper rendering
+  (run-with-timer 0.05 nil #'iota-modeline-refresh)
+  (message "Segment separators: %s" (if iota-modeline-show-separators "enabled" "disabled")))
 
 (transient-define-suffix iota-dispatch--modeline-inactive ()
   "Toggle show in inactive windows."
@@ -493,15 +512,18 @@
   (iota-theme-transparent-diagnose))
 
 (transient-define-suffix iota-dispatch--theme-reapply ()
-  "Reapply transparency."
+  "Reapply transparency to current faces."
   :key "r"
   :description "Reapply"
   (interactive)
   (require 'iota-theme-transparent)
-  (when (bound-and-true-p iota-theme-transparent-mode)
-    (iota-theme-transparent-mode -1)
-    (iota-theme-transparent-mode 1))
-  (message "Transparency reapplied"))
+  (if (bound-and-true-p iota-theme-transparent-mode)
+      (progn
+        ;; Just reapply transparency without toggling mode
+        (setq iota-theme-transparent--original-specs nil)
+        (iota-theme-transparent-remove-backgrounds)
+        (message "Transparency reapplied"))
+    (message "Transparency mode is not active")))
 
 (transient-define-suffix iota-dispatch--theme-verbose ()
   "Toggle verbose logging."
@@ -637,9 +659,11 @@
   "Show splash screen."
   :key "s"
   :description "Show Splash"
+  :transient nil  ; Exit transient after running
   (interactive)
   (require 'iota-splash)
-  (iota-splash-screen))
+  ;; Use run-at-time to show splash after transient fully closes
+  (run-at-time 0.1 nil (lambda () (iota-splash-screen t))))
 
 (transient-define-suffix iota-dispatch--splash-hints ()
   "Toggle hints."
