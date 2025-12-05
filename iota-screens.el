@@ -262,10 +262,12 @@ Returns the instance-id of the created screen."
 
     instance-id))
 
-(defun iota-screens-deactivate (&optional instance-id)
-  "Deactivate idle screen saver and restore previous state.
+(defun iota-screens-deactivate (&optional instance-id restore-config)
+  "Deactivate idle screen saver.
 If INSTANCE-ID is provided, deactivate that specific instance.
-Otherwise, deactivate the current buffer's instance."
+Otherwise, deactivate the current buffer's instance.
+If RESTORE-CONFIG is non-nil, restore the saved window configuration.
+By default, windows created during screen lifetime are preserved."
   (interactive)
   (let* ((id (or instance-id
                  (and (boundp 'iota-screens--instance-id) iota-screens--instance-id)))
@@ -300,8 +302,8 @@ Otherwise, deactivate the current buffer's instance."
       (when (and buffer-name (get-buffer buffer-name))
         (kill-buffer buffer-name))
 
-      ;; Restore window configuration
-      (when saved-config
+      ;; Restore window configuration (only if explicitly requested)
+      (when (and restore-config saved-config)
         (set-window-configuration saved-config))
 
       ;; Restore cursor visibility
