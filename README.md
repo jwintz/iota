@@ -15,6 +15,7 @@ A minimal terminal interface framework for Emacs with box-drawing modeline, them
 - **Inactive Window Dimming**: Dim inactive windows while preserving syntax highlighting
 - **Popup Handling**: TUI decorations for which-key, transient, and other popups
 - **Splash Screen**: Minimal startup screen with IOTA branding
+- **Icon Support**: Nerd-icons with automatic Unicode/ASCII fallback
 
 ## Installation
 
@@ -166,6 +167,37 @@ IOTA can prevent line numbers from being enabled:
 (setq iota-prevent-line-numbers t)
 ```
 
+### Icons
+
+IOTA provides an icon system with automatic fallback when `nerd-icons` is unavailable:
+
+```elisp
+;; Use a predefined icon (falls back to Unicode/ASCII if nerd-icons unavailable)
+(iota-icon-get 'modified)           ; ● or * depending on availability
+(iota-icon-get 'arrow-up)           ; ↑ or ^
+(iota-icon-get 'git-branch)         ; ⎇ or B
+
+;; Icon with text label
+(iota-icon-get-with-text 'arrow-up "Taller")  ; "↑ Taller"
+
+;; Direct nerd-icons access with fallback
+(iota-icon 'codicon "nf-cod-file" "📄")
+
+;; Get icon for major mode
+(iota-icon-for-mode 'emacs-lisp-mode)  ; λ
+
+;; Configure fallback style
+(setq iota-icons-fallback-style 'unicode)  ; or 'ascii
+
+;; Check availability
+(iota-icons-available-p)  ; t if nerd-icons is working
+
+;; Diagnose icon support
+M-x iota-icons-diagnose
+```
+
+Available icon families: `codicon`, `devicon`, `faicon`, `flicon`, `mdicon`, `octicon`, `pomicon`, `powerline`, `sucicon`, `wicon`.
+
 ## Dispatch Interface
 
 IOTA provides a unified transient popup interface for all features via `M-x iota-dispatch`:
@@ -250,6 +282,7 @@ iota/
 ├── iota-dimmer.el           # Inactive window dimming
 ├── iota-dispatch.el         # Transient dispatch interface
 ├── iota-faces.el            # Face definitions
+├── iota-icons.el            # Icon support with nerd-icons fallback
 ├── iota-logos.el            # ASCII art logos
 ├── iota-modeline.el         # Modeline and separator lines
 ├── iota-popup.el            # Popup window decorations
@@ -272,6 +305,9 @@ iota/
 
 - Emacs 30.0+
 - Terminal with Unicode support (for box-drawing characters)
+
+**Optional:**
+- `nerd-icons` — For enhanced icons in transients and modeline (falls back gracefully)
 
 ## Philosophy
 

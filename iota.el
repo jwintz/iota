@@ -42,6 +42,7 @@
 
 ;; UI components
 (require 'iota-box)
+(require 'iota-icons)
 (require 'iota-theme)
 (require 'iota-popup)
 (require 'iota-modeline)
@@ -205,7 +206,7 @@ When enabled, line number modes will be permanently disabled."
   (mapc (lambda (feature)
           (when (featurep feature)
             (unload-feature feature t)))
-        '(iota-config iota-window iota-logos
+        '(iota-config iota-window iota-logos iota-icons
           iota-splash iota-faces iota-popup iota-modeline
           iota-theme-transparent iota-theme
           iota-box iota))

@@ -63,6 +63,9 @@
 (declare-function iota-window-cycle-divider-style "iota-window")
 (declare-function iota-splash-screen "iota-splash")
 (declare-function iota-splash-refresh-hints "iota-splash")
+(declare-function iota-icon "iota-icons")
+(declare-function iota-icon-get "iota-icons")
+(declare-function iota-icon-get-with-text "iota-icons")
 
 ;;; Helper Functions
 
@@ -633,6 +636,101 @@
   (require 'iota-window)
   (iota-window-cycle-divider-style))
 
+(transient-define-suffix iota-dispatch--window-resize ()
+  "Interactive window resize."
+  :key "r"
+  :description "Resize"
+  :transient nil
+  (interactive)
+  (iota-window-resize-transient))
+
+;;; Window Resize Transient (demonstrates iota-icons usage)
+
+(transient-define-suffix iota-dispatch--resize-taller ()
+  "Make window taller."
+  :key "k"
+  :description (lambda ()
+                 (require 'iota-icons)
+                 (iota-icon-get-with-text 'arrow-up "Taller"))
+  :transient t
+  (interactive)
+  (enlarge-window 1))
+
+(transient-define-suffix iota-dispatch--resize-shorter ()
+  "Make window shorter."
+  :key "j"
+  :description (lambda ()
+                 (require 'iota-icons)
+                 (iota-icon-get-with-text 'arrow-down "Shorter"))
+  :transient t
+  (interactive)
+  (shrink-window 1))
+
+(transient-define-suffix iota-dispatch--resize-wider ()
+  "Make window wider."
+  :key "l"
+  :description (lambda ()
+                 (require 'iota-icons)
+                 (iota-icon-get-with-text 'arrow-right "Wider"))
+  :transient t
+  (interactive)
+  (enlarge-window-horizontally 1))
+
+(transient-define-suffix iota-dispatch--resize-narrower ()
+  "Make window narrower."
+  :key "h"
+  :description (lambda ()
+                 (require 'iota-icons)
+                 (iota-icon-get-with-text 'arrow-left "Narrower"))
+  :transient t
+  (interactive)
+  (shrink-window-horizontally 1))
+
+(transient-define-suffix iota-dispatch--resize-balance ()
+  "Balance all windows."
+  :key "="
+  :description (lambda ()
+                 (require 'iota-icons)
+                 (iota-icon-get-with-text 'balance "Balance"))
+  :transient t
+  (interactive)
+  (balance-windows))
+
+(transient-define-suffix iota-dispatch--resize-maximize ()
+  "Maximize current window."
+  :key "m"
+  :description (lambda ()
+                 (require 'iota-icons)
+                 (iota-icon-get-with-text 'maximize "Maximize"))
+  :transient nil
+  (interactive)
+  (delete-other-windows))
+
+;;;###autoload (autoload 'iota-window-resize-transient "iota-dispatch" nil t)
+(transient-define-prefix iota-window-resize-transient ()
+  "Resize windows interactively with vim-style bindings."
+  [:description
+   (lambda ()
+     (require 'iota-icons)
+     (concat
+      (propertize "I O T Λ Resize" 'face '(:weight bold))
+      "  "
+      (propertize "(hjkl to resize, = to balance)" 'face 'shadow)
+      "\n" (iota-dispatch--separator) "\n"))
+   
+   ["Vertical"
+    (iota-dispatch--resize-taller)
+    (iota-dispatch--resize-shorter)]
+   
+   ["Horizontal"
+    (iota-dispatch--resize-wider)
+    (iota-dispatch--resize-narrower)]
+   
+   ["Quick"
+    (iota-dispatch--resize-balance)
+    (iota-dispatch--resize-maximize)
+    ("q" "Quit" transient-quit-one)]])
+
 ;;;###autoload (autoload 'iota-window-transient "iota-dispatch" nil t)
 (transient-define-prefix iota-window-transient ()
   "IOTA Window Management"
@@ -649,7 +747,8 @@
    
    ["Options"
     (iota-dispatch--window-toggle)
-    (iota-dispatch--window-divider)]])
+    (iota-dispatch--window-divider)
+    (iota-dispatch--window-resize)]])
 
 ;;; ═══════════════════════════════════════════════════════════════════════════
 ;;; Splash Transient
