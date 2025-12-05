@@ -432,6 +432,35 @@ Uses iota-popup for detection."
   (and (fboundp 'iota-popup--popup-visible-p)
        (iota-popup--popup-visible-p)))
 
+(defun iota-splash--iota-buffer-p (buffer)
+  "Return t if BUFFER is an iota splash or screen buffer."
+  (when buffer
+    (let ((name (buffer-name buffer)))
+      (or (string-match-p "\\*I O T Λ splash\\*" name)
+          (string-match-p "\\*I O T Λ screen\\*" name)))))
+
+(defun iota-splash--has-iota-buffer-below-p ()
+  "Return t if there is an iota splash/screen window directly below this one."
+  (let ((splash-window (get-buffer-window iota-splash-buffer-name)))
+    (when (window-live-p splash-window)
+      (let* ((edges (window-edges splash-window))
+             (bottom (nth 3 edges))
+             (left (nth 0 edges))
+             (right (nth 2 edges)))
+        (catch 'found-iota-below
+          (dolist (w (window-list nil 'no-minibuf))
+            (unless (eq w splash-window)
+              (let* ((w-edges (window-edges w))
+                     (w-top (nth 1 w-edges))
+                     (w-left (nth 0 w-edges))
+                     (w-right (nth 2 w-edges)))
+                ;; Check if w is directly below and overlaps horizontally
+                (when (and (= w-top bottom)
+                           (> (min right w-right) (max left w-left))
+                           (iota-splash--iota-buffer-p (window-buffer w)))
+                  (throw 'found-iota-below t)))))
+          nil)))))
+
 (defun iota-splash--window-at-bottom-p ()
   "Return t if the splash screen window is at the bottom of the frame.
 A window is at bottom if no other non-popup, non-minibuffer window is below it."
@@ -461,10 +490,12 @@ A window is at bottom if no other non-popup, non-minibuffer window is below it."
   "Return t if separator should be shown for splash screen.
 Separator is shown when:
 - Minibuffer is active, OR
-- Popup is visible AND splash screen is at the bottom (no window between splash and popup)."
+- Popup is visible AND splash screen is at the bottom, OR
+- Another iota splash/screen buffer is directly below."
   (or (iota-splash--minibuffer-active-p)
       (and (iota-splash--popup-visible-p)
-           (iota-splash--window-at-bottom-p))))
+           (iota-splash--window-at-bottom-p))
+      (iota-splash--has-iota-buffer-below-p)))
 
 (defun iota-splash--get-separator-line (window)
   "Get a separator line string for WINDOW.

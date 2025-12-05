@@ -894,9 +894,11 @@ Uses centralized update system for efficient batching."
   (let ((buf-name (buffer-name)))
     (not (or (minibufferp)
              ;; Use popup detection for which-key, transient, etc.
-             (and (fboundp 'iota-popup--buffer-popup-p)
-                  (iota-popup--buffer-popup-p (current-buffer)))
-             (string-match-p "\\*I O T Λ splash\\*" buf-name)
+              (and (fboundp 'iota-popup--buffer-popup-p)
+                   (iota-popup--buffer-popup-p (current-buffer)))
+              (derived-mode-p 'iota-screens-buffer-mode)
+              (string-match-p "\\*I O T Λ splash\\*" buf-name)
+             (string-match-p "\\*I O T Λ screen\\*" buf-name)
              (cl-find-if (lambda (pattern) (string-match-p pattern buf-name))
                          iota-modeline-excluded-buffers)))))
 
@@ -1007,10 +1009,11 @@ Exception: If the window below is the splash screen, return t (show separator)."
               ;; Skip popup windows - they are handled by iota-popup
               (when (not (and (fboundp 'iota-popup--window-popup-p)
                               (iota-popup--window-popup-p w)))
-                ;; Check if it's the splash screen - if so, treat current window as at bottom
+                ;; Check if it's the splash/screen buffer - if so, treat current window as at bottom
                 (let ((buf-name (buffer-name (window-buffer w))))
-                  (if (string-match-p "\\*I O T Λ splash\\*" buf-name)
-                      ;; Splash screen below - current window should show separator
+                  (if (or (string-match-p "\\*I O T Λ splash\\*" buf-name)
+                          (string-match-p "\\*I O T Λ screen\\*" buf-name))
+                      ;; Splash/Screen below - current window should show separator
                       nil  ; Don't throw, continue and return t
                     ;; Regular window below - not at bottom
                     (throw 'found-window-below nil))))))))
@@ -1043,9 +1046,10 @@ Note: Splash screen is handled separately by iota-splash.el."
     (dolist (window (window-list nil 'no-minibuf))
       (let* ((buf (window-buffer window))
              (buf-name (buffer-name buf))
-             ;; Skip splash screen - it handles its own separator
-             (is-splash (string-match-p "\\*I O T Λ splash\\*" buf-name)))
-        (unless is-splash
+             ;; Skip splash/screen buffers - they handle their own separator
+             (is-splash-or-screen (or (string-match-p "\\*I O T Λ splash\\*" buf-name)
+                                    (string-match-p "\\*I O T Λ screen\\*" buf-name))))
+        (unless is-splash-or-screen
           (let ((is-bottom (iota-modeline--window-is-at-bottom-p window))
                 (should-show (with-current-buffer buf
                                (iota-modeline--should-show-p))))

@@ -23,17 +23,24 @@
 ;; - Multiple animation types
 ;; - Proper cleanup and timer management
 ;; - Window configuration preservation
+;; - Dynamic modeline separator handling (matches iota-splash)
 ;;
 ;; Usage:
 ;;   (iota-screens-mode 1)                  ; Enable idle detection
 ;;   (iota-screens-preview 'matrix)         ; Preview animation immediately
 ;;   (iota-screens-activate)                ; Manual activation
 ;;   (iota-screens-deactivate)              ; Manual deactivation
-
+;;
 ;;; Code:
 
+;; Only require what's absolutely needed at load time
 (require 'iota-timers)
 (require 'iota-faces)
+
+;; Declare functions from modules loaded on-demand
+(declare-function iota-box-horizontal-line "iota-box")
+(declare-function iota-popup--popup-visible-p "iota-popup")
+(declare-function iota-popup--window-popup-p "iota-popup")
 
 ;;; Customization
 
@@ -53,9 +60,15 @@ Set to nil to disable automatic activation."
   "Default animation to use for idle screen.
 Available options:
   'matrix - Matrix rain (cmatrix-style)
-  'alien  - Alien-life inspired particle flow"
+  'alien  - Alien-life inspired particle flow
+  'life   - Conway's Game of Life
+  'clock  - Digital clock
+  'pipes  - 3D Pipes"
   :type '(choice (const :tag "Matrix Rain" matrix)
-                 (const :tag "Particle Flow" alien))
+                 (const :tag "Particle Flow" alien)
+                 (const :tag "Game of Life" life)
+                 (const :tag "Digital Clock" clock)
+                 (const :tag "3D Pipes" pipes))
   :group 'iota-screens)
 
 ;;; State Management
@@ -89,6 +102,13 @@ Available options:
   "Keymap for iota-screens buffer.
 'q', 'Q', and ESC ESC ESC will exit the screen saver.")
 
+;;; Major Mode
+
+(define-derived-mode iota-screens-buffer-mode special-mode "IOScreens"
+  "Major mode for IOTA screens buffer."
+  (setq buffer-read-only t)
+  (setq cursor-type nil))
+
 ;;; Core Functions
 
 (defun iota-screens--check-resize ()
@@ -117,9 +137,16 @@ Creates a full-screen buffer and starts the configured animation."
     (message "IOTA Screens: Activating...")
     (setq iota-screens--active t)
     (setq iota-screens--saved-config (current-window-configuration))
+    
+    ;; Ensure we are excluded from modeline
+    (when (boundp 'iota-modeline-excluded-buffers)
+      (add-to-list 'iota-modeline-excluded-buffers (regexp-quote iota-screens--buffer-name)))
 
     ;; Create and display screen saver buffer
     (let ((buffer (get-buffer-create iota-screens--buffer-name)))
+      (with-current-buffer buffer
+        (unless (eq major-mode 'iota-screens-buffer-mode)
+          (iota-screens-buffer-mode)))
       (switch-to-buffer buffer)
       ;; Debug window dimensions using multiple methods
       (let* ((win (selected-window))
@@ -136,19 +163,27 @@ Creates a full-screen buffer and starts the configured animation."
           ;; Insert initial placeholder
           (insert "IOTA Screens Initializing...\n"))
 
-        ;; Set up buffer-local variables
+        ;; Set up buffer-local variables (match iota-splash)
         (setq-local cursor-type nil)
         (setq-local mode-line-format nil)
         (setq-local buffer-read-only t)
         (setq-local cursor-in-non-selected-windows nil)
+        (setq-local header-line-format nil)
+        (setq-local truncate-lines t)  ;; Prevent line wrapping
+        (setq-local visible-cursor nil)
         (setq-local iota-screens--last-width (window-body-width))
         (setq-local iota-screens--last-height (window-body-height))
 
         ;; Activate keymap
         (use-local-map iota-screens-mode-map)
 
-        ;; Set window parameters
+        ;; Set window parameters (match iota-splash behavior)
+        ;; Initially hide mode-line, will be shown when minibuffer activates
         (set-window-parameter (selected-window) 'mode-line-format 'none)
+        (set-window-parameter (selected-window) 'header-line-format nil)
+        
+        ;; Hide cursor at window level (like splash)
+        (internal-show-cursor (selected-window) nil)
 
         ;; Setup cleanup hook
         (add-hook 'kill-buffer-hook #'iota-screens--cleanup nil t)))
@@ -157,9 +192,18 @@ Creates a full-screen buffer and starts the configured animation."
     (message "IOTA Screens: Starting animation '%s'" iota-screens-default-animation)
     (iota-screens--start-animation iota-screens-default-animation)
 
-    ;; Install hooks
-    (add-hook 'pre-command-hook #'iota-screens--on-activity)
+    ;; Install hooks (NOT pre-command-hook - only 'q' key should exit, like splash)
+    (add-hook 'post-command-hook #'iota-screens--check-and-redraw)
     (add-hook 'window-size-change-functions #'iota-screens--on-resize)
+    (add-hook 'window-configuration-change-hook #'iota-screens--on-window-config-change)
+    (add-hook 'minibuffer-setup-hook #'iota-screens--on-minibuffer-setup)
+    (add-hook 'minibuffer-exit-hook #'iota-screens--on-minibuffer-exit)
+    (add-hook 'echo-area-clear-hook #'iota-screens--on-echo-area-clear)
+    
+    ;; Force modeline refresh to remove overlays
+    (when (fboundp 'iota-modeline-refresh)
+      (iota-modeline-refresh))
+      
     (message "IOTA Screens: Active. Press 'q' to exit.")))
 
 (defun iota-screens-deactivate ()
@@ -171,8 +215,12 @@ Creates a full-screen buffer and starts the configured animation."
     (iota-screens--stop-animation)
 
     ;; Remove hooks
-    (remove-hook 'pre-command-hook #'iota-screens--on-activity)
+    (remove-hook 'post-command-hook #'iota-screens--check-and-redraw)
     (remove-hook 'window-size-change-functions #'iota-screens--on-resize)
+    (remove-hook 'window-configuration-change-hook #'iota-screens--on-window-config-change)
+    (remove-hook 'minibuffer-setup-hook #'iota-screens--on-minibuffer-setup)
+    (remove-hook 'minibuffer-exit-hook #'iota-screens--on-minibuffer-exit)
+    (remove-hook 'echo-area-clear-hook #'iota-screens--on-echo-area-clear)
 
     ;; Kill buffer
     (when (get-buffer iota-screens--buffer-name)
@@ -190,21 +238,161 @@ Creates a full-screen buffer and starts the configured animation."
     (when iota-screens-mode
       (iota-screens--setup-idle-detection))))
 
-(defun iota-screens--on-activity ()
-  "Handle user activity - deactivate screen saver."
-  (when iota-screens--active
-    (iota-screens-deactivate)))
-
 (defun iota-screens--on-resize (_frame)
   "Handle window resize for screen saver.
 FRAME is ignored but required by hook signature."
   (when iota-screens--active
-    (iota-screens--check-resize)))
+    (iota-screens--check-resize)
+    (iota-screens--update-separator)))
 
 (defun iota-screens--cleanup ()
   "Cleanup function called when screen buffer is killed."
   (iota-screens--stop-animation)
-  (setq iota-screens--active nil))
+  (setq iota-screens--active nil)
+  ;; Remove hooks
+  (remove-hook 'post-command-hook #'iota-screens--check-and-redraw)
+  (remove-hook 'window-configuration-change-hook #'iota-screens--on-window-config-change)
+  (remove-hook 'minibuffer-setup-hook #'iota-screens--on-minibuffer-setup)
+  (remove-hook 'minibuffer-exit-hook #'iota-screens--on-minibuffer-exit)
+  (remove-hook 'echo-area-clear-hook #'iota-screens--on-echo-area-clear))
+
+;;; Modeline/Separator Handling
+
+(defun iota-screens--minibuffer-active-p ()
+  "Return t if the minibuffer is currently active."
+  (and (active-minibuffer-window)
+       (minibufferp (window-buffer (active-minibuffer-window)))))
+
+(defun iota-screens--popup-visible-p ()
+  "Return t if a popup window (which-key, transient, etc.) is currently visible."
+  (and (fboundp 'iota-popup--popup-visible-p)
+       (iota-popup--popup-visible-p)))
+
+(defun iota-screens--iota-buffer-p (buffer)
+  "Return t if BUFFER is an iota splash or screen buffer."
+  (when buffer
+    (let ((name (buffer-name buffer)))
+      (or (string-match-p "\\*I O T Λ splash\\*" name)
+          (string-match-p "\\*I O T Λ screen\\*" name)))))
+
+(defun iota-screens--has-iota-buffer-below-p ()
+  "Return t if there is an iota splash/screen window directly below this one."
+  (let ((screen-window (get-buffer-window iota-screens--buffer-name)))
+    (when (window-live-p screen-window)
+      (let* ((edges (window-edges screen-window))
+             (bottom (nth 3 edges))
+             (left (nth 0 edges))
+             (right (nth 2 edges)))
+        (catch 'found-iota-below
+          (dolist (w (window-list nil 'no-minibuf))
+            (unless (eq w screen-window)
+              (let* ((w-edges (window-edges w))
+                     (w-top (nth 1 w-edges))
+                     (w-left (nth 0 w-edges))
+                     (w-right (nth 2 w-edges)))
+                ;; Check if w is directly below and overlaps horizontally
+                (when (and (= w-top bottom)
+                           (> (min right w-right) (max left w-left))
+                           (iota-screens--iota-buffer-p (window-buffer w)))
+                  (throw 'found-iota-below t)))))
+          nil)))))
+
+(defun iota-screens--window-at-bottom-p ()
+  "Return t if the screen saver window is at the bottom of the frame."
+  (let ((screen-window (get-buffer-window iota-screens--buffer-name)))
+    (when (window-live-p screen-window)
+      (let* ((edges (window-edges screen-window))
+             (bottom (nth 3 edges))
+             (left (nth 0 edges))
+             (right (nth 2 edges)))
+        (catch 'found-below
+          (dolist (w (window-list nil 'no-minibuf))
+            (unless (eq w screen-window)
+              (let* ((w-edges (window-edges w))
+                     (w-top (nth 1 w-edges))
+                     (w-left (nth 0 w-edges))
+                     (w-right (nth 2 w-edges)))
+                ;; Check if w is below screen-window and overlaps horizontally
+                (when (and (= w-top bottom)
+                           (> (min right w-right) (max left w-left))
+                           (not (and (fboundp 'iota-popup--window-popup-p)
+                                     (iota-popup--window-popup-p w))))
+                  (throw 'found-below nil)))))
+          t)))))
+
+(defun iota-screens--should-show-separator-p ()
+  "Return t if separator should be shown for screen saver.
+Separator is shown when:
+- Minibuffer is active, OR
+- Popup is visible AND screen saver is at the bottom, OR
+- Another iota splash/screen buffer is directly below."
+  (or (iota-screens--minibuffer-active-p)
+      (and (iota-screens--popup-visible-p)
+           (iota-screens--window-at-bottom-p))
+      (iota-screens--has-iota-buffer-below-p)))
+
+(defun iota-screens--get-separator-line (window)
+  "Get a separator line string for WINDOW."
+  (require 'iota-box)
+  (let* ((width (if (window-live-p window)
+                    (1- (window-body-width window))
+                  79))
+         (style (if (boundp 'iota-modeline-box-style)
+                    iota-modeline-box-style
+                  'rounded))
+         (face 'iota-inactive-box-face))
+    (iota-box-horizontal-line width style face)))
+
+(defun iota-screens--update-separator ()
+  "Update the separator line visibility for screen saver.
+Shows separator when minibuffer or popup is active.
+Matches the behavior of iota-splash--update-separator."
+  (let ((buffer (get-buffer iota-screens--buffer-name)))
+    (when (and buffer (buffer-live-p buffer))
+      (let ((win (get-buffer-window buffer)))
+        (when (window-live-p win)
+          (if (iota-screens--should-show-separator-p)
+              ;; Show separator line when minibuffer/popup is active
+              (let ((width (1- (window-body-width win))))
+                (with-current-buffer buffer
+                  (setq-local mode-line-format
+                              `(:eval (iota-screens--get-separator-line ,win))))
+                ;; Critical: set window parameter to nil to SHOW mode-line
+                (set-window-parameter win 'mode-line-format nil)
+                ;; Force redisplay
+                (force-mode-line-update t))
+            ;; Hide separator line when not needed
+            (with-current-buffer buffer
+              (setq-local mode-line-format nil))
+            ;; Set window parameter to 'none to HIDE mode-line
+            (set-window-parameter win 'mode-line-format 'none)
+            (force-mode-line-update t)))))))
+
+(defun iota-screens--check-and-redraw ()
+  "Check state and update separator."
+  (when (and iota-screens--active
+             (get-buffer iota-screens--buffer-name))
+    (iota-screens--update-separator)))
+
+(defun iota-screens--on-window-config-change ()
+  "Handle window configuration changes."
+  (when iota-screens--active
+    (iota-screens--update-separator)))
+
+(defun iota-screens--on-minibuffer-setup ()
+  "Handle minibuffer setup."
+  (when iota-screens--active
+    (iota-screens--update-separator)))
+
+(defun iota-screens--on-minibuffer-exit ()
+  "Handle minibuffer exit."
+  (when iota-screens--active
+    (run-with-timer 0.01 nil #'iota-screens--update-separator)))
+
+(defun iota-screens--on-echo-area-clear ()
+  "Handle echo area clear."
+  (when iota-screens--active
+    (iota-screens--update-separator)))
 
 ;;; Animation Management
 
@@ -218,6 +406,15 @@ FRAME is ignored but required by hook signature."
     ('alien
      (require 'iota-screens-alien)
      (iota-screens-alien-start))
+    ('life
+     (require 'iota-screens-life)
+     (iota-screens-life-start))
+    ('clock
+     (require 'iota-screens-clock)
+     (iota-screens-clock-start))
+    ('pipes
+     (require 'iota-screens-pipes)
+     (iota-screens-pipes-start))
     (_ (error "Unknown animation type: %s" animation-type))))
 
 (defun iota-screens--stop-animation ()
@@ -260,11 +457,11 @@ seconds of idle time."
 ;;;###autoload
 (defun iota-screens-preview (animation-type)
   "Preview ANIMATION-TYPE immediately without waiting for idle timeout.
-Available animations: matrix, alien"
+Available animations: matrix, alien, life, clock"
   (interactive
    (list (intern (completing-read "Animation: "
-                                   '("matrix" "alien")
-                                   nil t))))
+                                  '("matrix" "alien" "life" "clock" "pipes")
+                                  nil t))))
   (let ((iota-screens-default-animation animation-type))
     (iota-screens-activate)))
 
