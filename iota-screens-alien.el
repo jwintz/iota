@@ -158,53 +158,59 @@ Returns (dx . dy) velocity vector."
 
 ;;; Animation Loop
 
-(defun iota-screens-alien--animate-step ()
-  "Execute one animation frame."
+(defun iota-screens-alien--animate-step (buffer-name)
+  "Execute one animation frame for BUFFER-NAME."
   (condition-case err
-      (let ((win (get-buffer-window iota-screens--buffer-name)))
-        (when (and (buffer-live-p (get-buffer iota-screens--buffer-name))
-                   win)
-          (with-current-buffer iota-screens--buffer-name
-            (let ((w (window-body-width win))
-                  (h (window-body-height win)))
-              ;; Handle resize
-              (when (or (/= w iota-screens-alien--width)
-                        (/= h iota-screens-alien--height)
-                        (null iota-screens-alien--particles))
-                (setq iota-screens-alien--width w
-                      iota-screens-alien--height h)
-                (iota-screens-alien--init-particles))
-              
-              ;; Update and render
-              (iota-screens-alien--update-particles)
-              (iota-screens-alien--render)
-              (cl-incf iota-screens-alien--frame)))))
+      (let ((buf (get-buffer buffer-name)))
+        (when (buffer-live-p buf)
+          (let ((win (get-buffer-window buf)))
+            (when win
+              (with-current-buffer buf
+                (let ((w (window-body-width win))
+                      (h (window-body-height win)))
+                  ;; Handle resize
+                  (when (or (/= w iota-screens-alien--width)
+                            (/= h iota-screens-alien--height)
+                            (null iota-screens-alien--particles))
+                    (setq iota-screens-alien--width w
+                          iota-screens-alien--height h)
+                    (iota-screens-alien--init-particles))
+                  
+                  ;; Update and render
+                  (iota-screens-alien--update-particles)
+                  (iota-screens-alien--render)
+                  (cl-incf iota-screens-alien--frame)))))))
     (error
-     (message "Alien animation error: %s" err)
-     (iota-timers-cancel 'screens-alien-animate))))
+     (message "Alien animation error: %s" err))))
 
 ;;; Entry Point
 
-(defun iota-screens-alien-start ()
-  "Start particle flow animation in current buffer."
-  (let ((win (get-buffer-window iota-screens--buffer-name)))
-    (when win
-      (with-current-buffer (get-buffer iota-screens--buffer-name)
+(defun iota-screens-alien-start (&optional instance-id)
+  "Start particle flow animation in current buffer.
+INSTANCE-ID is used to create unique timer keys for multi-screen support."
+  (let ((buffer-name iota-screens--buffer-name))
+    (when-let ((win (get-buffer-window buffer-name)))
+      (with-current-buffer (get-buffer buffer-name)
         (let ((width (window-body-width win))
-              (height (window-body-height win)))
+              (height (window-body-height win))
+              (timer-key (if instance-id
+                             (intern (format "screens-%d-alien-animate" instance-id))
+                           'screens-alien-animate)))
           (setq iota-screens-alien--width width
                 iota-screens-alien--height height
                 iota-screens-alien--frame 0)
           (iota-screens-alien--init-particles)
           ;; Initial render
           (iota-screens-alien--render)
-          ;; Start animation timer
+          ;; Start animation timer - pass buffer-name to the callback
           (iota-timers-run-with-timer
-           'screens-alien-animate
+           timer-key
            0
            iota-screens-alien-speed
-           #'iota-screens-alien--animate-step))))))
+           #'iota-screens-alien--animate-step
+           buffer-name))))))
 
 (provide 'iota-screens-alien)
 
 ;;; iota-screens-alien.el ends here
+

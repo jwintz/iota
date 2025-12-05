@@ -195,10 +195,10 @@ Lower values = faster animation."
           (insert "\n"))))
     (goto-char (point-min))))
 
-(defun iota-screens-matrix--animate-step ()
-  "Perform one animation frame."
+(defun iota-screens-matrix--animate-step (buffer-name)
+  "Perform one animation frame for BUFFER-NAME."
   (condition-case err
-      (let ((buf (get-buffer iota-screens--buffer-name)))
+      (let ((buf (get-buffer buffer-name)))
         (when (buffer-live-p buf)
           (with-current-buffer buf
             (let ((win (get-buffer-window buf)))
@@ -214,26 +214,32 @@ Lower values = faster animation."
                 (iota-screens-matrix--update-state)
                 (iota-screens-matrix--render))))))
     (error 
-     (message "Matrix animation error: %s" err)
-     (iota-timers-cancel 'screens-matrix-animate))))
+     (message "Matrix animation error: %s" err))))
 
-(defun iota-screens-matrix-start ()
-  "Start matrix rain animation in current buffer."
-  (let* ((buf (get-buffer iota-screens--buffer-name))
+(defun iota-screens-matrix-start (&optional instance-id)
+  "Start matrix rain animation in current buffer.
+INSTANCE-ID is used to create unique timer keys for multi-screen support."
+  (let* ((buffer-name iota-screens--buffer-name)
+         (buf (get-buffer buffer-name))
          (win (get-buffer-window buf)))
     (when (and buf win)
       (with-current-buffer buf
         (let ((width (window-body-width win))
-              (height (window-body-height win)))
+              (height (window-body-height win))
+              (timer-key (if instance-id
+                             (intern (format "screens-%d-matrix-animate" instance-id))
+                           'screens-matrix-animate)))
           (iota-screens-matrix--init-grid width height)
           ;; Initial render
           (iota-screens-matrix--render)
-          ;; Start timer
+          ;; Start timer - pass buffer-name to the callback
           (iota-timers-run-with-timer
-           'screens-matrix-animate
+           timer-key
            0
            iota-screens-matrix-speed
-           #'iota-screens-matrix--animate-step))))))
+           #'iota-screens-matrix--animate-step
+           buffer-name))))))
 
 (provide 'iota-screens-matrix)
 ;;; iota-screens-matrix.el ends here
+

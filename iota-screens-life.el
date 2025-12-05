@@ -150,47 +150,55 @@
     (goto-char (point-min))
     (set-window-start (get-buffer-window (current-buffer)) (point-min))))
 
-(defun iota-screens-life--animate-step ()
-  "Perform one animation frame."
-  (condition-case nil
-      (let ((win (get-buffer-window iota-screens--buffer-name)))
-        (when (and (buffer-live-p (get-buffer iota-screens--buffer-name))
-                   win)
-          (with-current-buffer iota-screens--buffer-name
-            (let ((inhibit-read-only t)
-                  (w (window-body-width win))
-                  (h (window-body-height win)))
-              
-              ;; Handle resize
-              (when (or (not (= w iota-screens-life--width))
-                        (not (= h iota-screens-life--height)))
-                (iota-screens-life--init-grid w h))
-              
-              (iota-screens-life--evolve)
-              (iota-screens-life--render)
-              (setq iota-screens-life--frame (1+ iota-screens-life--frame))))))
-    (error (iota-timers-cancel 'screens-life-animate))))
+(defun iota-screens-life--animate-step (buffer-name)
+  "Perform one animation frame for BUFFER-NAME."
+  (condition-case err
+      (let ((buf (get-buffer buffer-name)))
+        (when (buffer-live-p buf)
+          (let ((win (get-buffer-window buf)))
+            (when win
+              (with-current-buffer buf
+                (let ((inhibit-read-only t)
+                      (w (window-body-width win))
+                      (h (window-body-height win)))
+                  
+                  ;; Handle resize
+                  (when (or (not (= w iota-screens-life--width))
+                            (not (= h iota-screens-life--height)))
+                    (iota-screens-life--init-grid w h))
+                  
+                  (iota-screens-life--evolve)
+                  (iota-screens-life--render)
+                  (setq iota-screens-life--frame (1+ iota-screens-life--frame))))))))
+    (error (message "Life animation error: %s" err))))
 
 ;;; Entry Point
 
-(defun iota-screens-life-start ()
-  "Start Game of Life in current buffer."
-  (message "Life: Starting animation...")
-  (let ((win (get-buffer-window iota-screens--buffer-name)))
-    (when win
-      (with-current-buffer (get-buffer iota-screens--buffer-name)
+(defun iota-screens-life-start (&optional instance-id)
+  "Start Game of Life in current buffer.
+INSTANCE-ID is used to create unique timer keys for multi-screen support."
+  (message "Life: Starting animation for instance %s..." (or instance-id "default"))
+  (let ((buffer-name iota-screens--buffer-name))
+    (when-let ((win (get-buffer-window buffer-name)))
+      (with-current-buffer (get-buffer buffer-name)
         (let ((width (window-body-width win))
               (height (window-body-height win))
-              (inhibit-read-only t))
+              (inhibit-read-only t)
+              (timer-key (if instance-id
+                             (intern (format "screens-%d-life-animate" instance-id))
+                           'screens-life-animate)))
           (erase-buffer)
           (iota-screens-life--init-grid width height)
           (iota-screens-life--render)
           
+          ;; Start timer - pass buffer-name to the callback
           (iota-timers-run-with-timer
-           'screens-life-animate
+           timer-key
            0
            iota-screens-life-speed
-           #'iota-screens-life--animate-step))))))
+           #'iota-screens-life--animate-step
+           buffer-name))))))
 
 (provide 'iota-screens-life)
 ;;; iota-screens-life.el ends here
+

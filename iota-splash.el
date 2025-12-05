@@ -437,7 +437,7 @@ Uses iota-popup for detection."
   (when buffer
     (let ((name (buffer-name buffer)))
       (or (string-match-p "\\*I O T Λ splash\\*" name)
-          (string-match-p "\\*I O T Λ screen\\*" name)))))
+          (string-match-p "\\*I O T Λ screen-[0-9]+\\*" name)))))
 
 (defun iota-splash--has-iota-buffer-below-p ()
   "Return t if there is an iota splash/screen window directly below this one."

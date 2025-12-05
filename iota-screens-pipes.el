@@ -190,45 +190,52 @@
           (insert "\n"))))
     (goto-char (point-min))))
 
-(defun iota-screens-pipes--animate-step ()
-  "Perform one animation frame."
+(defun iota-screens-pipes--animate-step (buffer-name)
+  "Perform one animation frame for BUFFER-NAME."
   (condition-case err
-      (let ((win (get-buffer-window iota-screens--buffer-name)))
-        (when (and (buffer-live-p (get-buffer iota-screens--buffer-name))
-                   win)
-          (with-current-buffer iota-screens--buffer-name
-            (let ((w (window-body-width win))
-                  (h (window-body-height win)))
-              ;; Init or resize, or all pipes stuck -> reset
-              (when (or (null iota-screens-pipes--grid)
-                        (/= w iota-screens-pipes--width)
-                        (/= h iota-screens-pipes--height)
-                        (cl-every #'iota-pipe-stuck iota-screens-pipes--pipes))
-                (iota-screens-pipes--init-grid w h))
-              
-              ;; Update all pipes
-              (dolist (p iota-screens-pipes--pipes)
-                (iota-screens-pipes--update-pipe p))
-              
-              ;; Render
-              (iota-screens-pipes--render)))))
+      (let ((buf (get-buffer buffer-name)))
+        (when (buffer-live-p buf)
+          (let ((win (get-buffer-window buf)))
+            (when win
+              (with-current-buffer buf
+                (let ((w (window-body-width win))
+                      (h (window-body-height win)))
+                  ;; Init or resize, or all pipes stuck -> reset
+                  (when (or (null iota-screens-pipes--grid)
+                            (/= w iota-screens-pipes--width)
+                            (/= h iota-screens-pipes--height)
+                            (cl-every #'iota-pipe-stuck iota-screens-pipes--pipes))
+                    (iota-screens-pipes--init-grid w h))
+                  
+                  ;; Update all pipes
+                  (dolist (p iota-screens-pipes--pipes)
+                    (iota-screens-pipes--update-pipe p))
+                  
+                  ;; Render
+                  (iota-screens-pipes--render)))))))
     (error
-     (message "Pipes animation error: %s" err)
-     (iota-timers-cancel 'screens-pipes-animate))))
+     (message "Pipes animation error: %s" err))))
 
-(defun iota-screens-pipes-start ()
-  "Start pipes animation."
-  (let ((win (get-buffer-window iota-screens--buffer-name)))
-    (when win
-      (with-current-buffer (get-buffer iota-screens--buffer-name)
-        (iota-screens-pipes--init-grid
-         (window-body-width win)
-         (window-body-height win))
-        (iota-timers-run-with-timer
-         'screens-pipes-animate
-         0
-         iota-screens-pipes-speed
-         #'iota-screens-pipes--animate-step)))))
+(defun iota-screens-pipes-start (&optional instance-id)
+  "Start pipes animation.
+INSTANCE-ID is used to create unique timer keys for multi-screen support."
+  (let ((buffer-name iota-screens--buffer-name))
+    (when-let ((win (get-buffer-window buffer-name)))
+      (with-current-buffer (get-buffer buffer-name)
+        (let ((timer-key (if instance-id
+                             (intern (format "screens-%d-pipes-animate" instance-id))
+                           'screens-pipes-animate)))
+          (iota-screens-pipes--init-grid
+           (window-body-width win)
+           (window-body-height win))
+          ;; Start timer - pass buffer-name to the callback
+          (iota-timers-run-with-timer
+           timer-key
+           0
+           iota-screens-pipes-speed
+           #'iota-screens-pipes--animate-step
+           buffer-name))))))
 
 (provide 'iota-screens-pipes)
 ;;; iota-screens-pipes.el ends here
+
