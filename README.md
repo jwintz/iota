@@ -11,7 +11,7 @@ A minimal terminal interface framework for Emacs with box-drawing modeline, them
 
 Watch IOTA in action:
 
-https://github.com/jwintz/iota/blob/main/iota-demo.mp4
+![IOTA Demo](iota-demo.mp4)
 
 > **Note**: The demo video is stored using Git LFS. When you clone this repository, you'll get a small pointer file. To download the actual video (15MB), run:
 > ```bash
