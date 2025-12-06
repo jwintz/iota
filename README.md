@@ -7,6 +7,17 @@ A minimal terminal interface framework for Emacs with box-drawing modeline, them
 <img src="https://img.shields.io/badge/Emacs-30.0%2B-blueviolet.svg" alt="Emacs 30.0+">
 <img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg" alt="License GPL-3.0">
 
+## Demo
+
+Watch IOTA in action:
+
+https://github.com/jwintz/iota/blob/main/iota-demo.mp4
+
+> **Note**: The demo video is stored using Git LFS. When you clone this repository, you'll get a small pointer file. To download the actual video (15MB), run:
+> ```bash
+> git lfs pull
+> ```
+
 ## Features
 
 - **Box-Drawing Modeline**: Header-line modeline with Unicode box-drawing characters (╭─╮ │ ╰─╯)

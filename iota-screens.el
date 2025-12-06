@@ -6,7 +6,7 @@
 ;; Package: IOTA (I Ø T Δ)
 ;; Version: 0.1.0
 ;; Keywords: screensaver, animation
-;; URL: https://github.com/yourusername/iota
+;; URL: https://github.com/jwintz/iota
 
 ;;; Commentary:
 
