@@ -32,17 +32,6 @@
 (require 'color)
 (require 'face-remap)
 
-;;; Debug Logging
-
-(defvar iota-dimmer-debug nil
-  "When non-nil, log dimmer debug messages.")
-
-(defun iota-dimmer--log (format-string &rest args)
-  "Log a debug message if `iota-dimmer-debug' is non-nil.
-FORMAT-STRING and ARGS are passed to `message'."
-  (when iota-dimmer-debug
-    (apply #'message (concat "[iota-dimmer] " format-string) args)))
-
 ;;; Customization
 
 (defgroup iota-dimmer nil
@@ -127,6 +116,10 @@ Keys are (color . fraction) pairs, values are dimmed colors.")
 
 (defvar-local iota-dimmer--buffer-dimmed nil
   "Non-nil if this buffer is currently dimmed.")
+
+(defvar iota-dimmer--refresh-in-progress nil
+  "Non-nil when a refresh operation is in progress.
+Prevents recursive updates.")
 
 ;;; Color Manipulation
 
@@ -236,9 +229,7 @@ Returns nil if face cannot be dimmed."
              (not (iota-dimmer--buffer-excluded-p buffer)))
     (with-current-buffer buffer
       (unless iota-dimmer--buffer-dimmed
-        (iota-dimmer--log "Dimming buffer: %s" (buffer-name buffer))
-        (let ((remaps nil)
-              (count 0))
+        (let ((remaps nil))
           ;; Remap each face that has a foreground color
           (dolist (face (face-list))
             (when (iota-dimmer--face-should-dim-p face)
@@ -246,10 +237,8 @@ Returns nil if face cannot be dimmed."
                 (when spec
                   (condition-case nil
                       (let ((cookie (face-remap-add-relative face spec)))
-                        (push (cons face cookie) remaps)
-                        (cl-incf count))
+                        (push (cons face cookie) remaps))
                     (error nil))))))
-          (iota-dimmer--log "  Remapped %d faces" count)
           (puthash buffer remaps iota-dimmer--face-remaps)
           (setq iota-dimmer--buffer-dimmed t))))))
 
@@ -258,7 +247,6 @@ Returns nil if face cannot be dimmed."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (when iota-dimmer--buffer-dimmed
-        (iota-dimmer--log "Undimming buffer: %s" (buffer-name buffer))
         (let ((remaps (gethash buffer iota-dimmer--face-remaps)))
           (dolist (remap remaps)
             (condition-case nil
@@ -284,49 +272,44 @@ Returns nil if face cannot be dimmed."
 
 (defun iota-dimmer--update ()
   "Update dimming state for all windows."
-  (iota-dimmer--log "update called")
-  (let ((selected (selected-window))
-        (frame-focused (frame-focus-state)))
-    (iota-dimmer--log "  selected: %s, frame-focused: %s"
-                      selected frame-focused)
-    ;; First pass: collect which buffers should be dimmed/undimmed
-    (let ((buffers-to-dim nil)
-          (buffers-to-undim nil))
-      (dolist (window (window-list nil 'no-minibuf))
-        (let ((buffer (window-buffer window)))
-          (cond
-           ;; Selected window's buffer - always undim
-           ((eq window selected)
-            (push buffer buffers-to-undim))
-           ;; Frame not focused - dim all (if watch-frame-focus)
-           ((and iota-dimmer-watch-frame-focus (not frame-focused))
-            (unless (iota-dimmer--buffer-excluded-p buffer)
-              (push buffer buffers-to-dim)))
-           ;; Inactive window - dim if should
-           ((iota-dimmer--window-should-dim-p window)
-            (push buffer buffers-to-dim))
-           ;; Otherwise undim
-           (t
-            (push buffer buffers-to-undim)))))
-      ;; Apply changes
-      (dolist (buffer (delete-dups buffers-to-undim))
-        ;; Only undim if buffer is not also shown in a dimmed window
-        (unless (and (memq buffer buffers-to-dim)
-                     (not (iota-dimmer--buffer-visible-in-selected-window-p buffer)))
-          (iota-dimmer--undim-buffer buffer)))
-      (dolist (buffer (delete-dups buffers-to-dim))
-        ;; Only dim if buffer is not in selected window
-        (unless (iota-dimmer--buffer-visible-in-selected-window-p buffer)
-          (iota-dimmer--dim-buffer buffer))))))
+  (unless iota-dimmer--refresh-in-progress
+    (let ((selected (selected-window))
+          (frame-focused (frame-focus-state)))
+      ;; First pass: collect which buffers should be dimmed/undimmed
+      (let ((buffers-to-dim nil)
+            (buffers-to-undim nil))
+        (dolist (window (window-list nil 'no-minibuf))
+          (let ((buffer (window-buffer window)))
+            (cond
+             ;; Selected window's buffer - always undim
+             ((eq window selected)
+              (push buffer buffers-to-undim))
+             ;; Frame not focused - dim all (if watch-frame-focus)
+             ((and iota-dimmer-watch-frame-focus (not frame-focused))
+              (unless (iota-dimmer--buffer-excluded-p buffer)
+                (push buffer buffers-to-dim)))
+             ;; Inactive window - dim if should
+             ((iota-dimmer--window-should-dim-p window)
+              (push buffer buffers-to-dim))
+             ;; Otherwise undim
+             (t
+              (push buffer buffers-to-undim)))))
+        ;; Apply changes
+        (dolist (buffer (delete-dups buffers-to-undim))
+          ;; Only undim if buffer is not also shown in a dimmed window
+          (unless (and (memq buffer buffers-to-dim)
+                       (not (iota-dimmer--buffer-visible-in-selected-window-p buffer)))
+            (iota-dimmer--undim-buffer buffer)))
+        (dolist (buffer (delete-dups buffers-to-dim))
+          ;; Only dim if buffer is not in selected window
+          (unless (iota-dimmer--buffer-visible-in-selected-window-p buffer)
+            (iota-dimmer--dim-buffer buffer)))))))
 
 (defun iota-dimmer--on-window-change (&optional _frame)
   "Handle window selection changes."
-  (iota-dimmer--log "on-window-change called, mode=%s" iota-dimmer-mode)
   (when iota-dimmer-mode
     (let ((current (selected-window)))
       (unless (eq current iota-dimmer--last-selected-window)
-        (iota-dimmer--log "  window changed: %s -> %s"
-                          iota-dimmer--last-selected-window current)
         ;; Undim newly selected window's buffer
         (when (window-live-p current)
           (iota-dimmer--undim-buffer (window-buffer current)))
@@ -374,7 +357,6 @@ Returns nil if face cannot be dimmed."
 
 (defun iota-dimmer--setup ()
   "Set up dimmer mode."
-  (iota-dimmer--log "setup called")
   (setq iota-dimmer--last-selected-window (selected-window))
   
   ;; Clear caches
@@ -392,13 +374,10 @@ Returns nil if face cannot be dimmed."
   (advice-add 'disable-theme :after #'iota-dimmer--on-theme-change)
   
   ;; Initial update
-  (iota-dimmer--log "calling initial update")
-  (iota-dimmer--update)
-  (iota-dimmer--log "setup complete"))
+  (iota-dimmer--update))
 
 (defun iota-dimmer--teardown ()
   "Tear down dimmer mode."
-  (iota-dimmer--log "teardown called")
   ;; Remove all dimming
   (iota-dimmer--undim-all)
   
@@ -437,9 +416,12 @@ syntax highlighting."
 (defun iota-dimmer-refresh ()
   "Manually refresh dimming state."
   (interactive)
-  (iota-dimmer--clear-cache)
-  (iota-dimmer--undim-all)
-  (iota-dimmer--update))
+  (let ((iota-dimmer--refresh-in-progress t))
+    (iota-dimmer--clear-cache)
+    (iota-dimmer--undim-all)
+    (iota-dimmer--update)
+    ;; Force complete redisplay of all frames
+    (redraw-display)))
 
 (defun iota-dimmer-set-fraction (fraction)
   "Set dimming FRACTION interactively."
@@ -448,14 +430,9 @@ syntax highlighting."
   (iota-dimmer-refresh)
   (message "Dimming fraction set to %.2f" iota-dimmer-fraction))
 
-(defun iota-dimmer-toggle-debug ()
-  "Toggle debug logging for iota-dimmer."
-  (interactive)
-  (setq iota-dimmer-debug (not iota-dimmer-debug))
-  (message "iota-dimmer debug logging: %s" (if iota-dimmer-debug "ON" "OFF")))
-
 (defun iota-dimmer-apply-preset (preset)
   "Apply a dimming PRESET.
+PRESET can be a string or symbol.
 Available presets:
   subtle          - Barely noticeable (sat: 0.15, lum: 0.10)
   balanced        - Default balance (uses fraction defaults)
@@ -471,6 +448,9 @@ Available presets:
                           '("subtle" "balanced" "desaturated" "fade-only"
                             "washed" "strong" "grayscale" "muted" "high-contrast")
                           nil t)))
+  ;; Convert symbol to string for compatibility with transient
+  (when (symbolp preset)
+    (setq preset (symbol-name preset)))
   (pcase preset
     ("subtle"        (setq iota-dimmer-saturation-fraction 0.15
                            iota-dimmer-luminance-fraction 0.10))
@@ -495,37 +475,6 @@ Available presets:
            preset
            (or iota-dimmer-saturation-fraction "default")
            (or iota-dimmer-luminance-fraction "default")))
-
-(defun iota-dimmer-diagnose ()
-  "Print diagnostic information about dimmer state."
-  (interactive)
-  (let ((buf (get-buffer-create "*iota-dimmer-diagnose*")))
-    (with-current-buffer buf
-      (erase-buffer)
-      (insert "=== IOTA Dimmer Diagnostics ===\n\n")
-      (insert (format "Mode enabled: %s\n" iota-dimmer-mode))
-      (insert (format "Dim fraction: %.2f\n" iota-dimmer-fraction))
-      (insert (format "Background color: %s\n" (iota-dimmer--get-background-color)))
-      (insert (format "Last selected window: %s\n" iota-dimmer--last-selected-window))
-      (insert (format "Current selected window: %s\n" (selected-window)))
-      (insert (format "Frame focused: %s\n" (frame-focus-state)))
-      (insert (format "Color cache size: %d\n" (hash-table-count iota-dimmer--dimmed-color-cache)))
-      (insert (format "Dimmed buffers: %d\n" (hash-table-count iota-dimmer--face-remaps)))
-      (insert "\n=== Windows ===\n")
-      (dolist (window (window-list nil 'no-minibuf))
-        (let ((buffer (window-buffer window)))
-          (insert (format "\nWindow: %s\n" window))
-          (insert (format "  Buffer: %s\n" (buffer-name buffer)))
-          (insert (format "  Should dim: %s\n" (iota-dimmer--window-should-dim-p window)))
-          (insert (format "  Buffer dimmed: %s\n"
-                          (buffer-local-value 'iota-dimmer--buffer-dimmed buffer)))
-          (insert (format "  Face remaps: %d\n"
-                          (length (gethash buffer iota-dimmer--face-remaps))))))
-      (insert "\n=== Sample dimmed colors ===\n")
-      (let ((test-colors '("#ff0000" "#00ff00" "#0000ff" "#ffff00" "#ff00ff" "#00ffff")))
-        (dolist (color test-colors)
-          (insert (format "  %s -> %s\n" color (iota-dimmer--dim-color color))))))
-    (display-buffer buf)))
 
 (provide 'iota-dimmer)
 ;;; iota-dimmer.el ends here

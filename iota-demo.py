@@ -16,11 +16,13 @@ import time
 import subprocess
 import sys
 
-# Configuration
-TYPING_DELAY = 0.05  # Speed of typing (slower for readability)
-ACTION_DELAY = 3.0   # Pause between distinct actions
-LONG_PAUSE = 5.0     # Longer pause for viewer to read/observe
-VERY_LONG_PAUSE = 8.0  # Extra long pause for complex visuals
+# Configuration - Timing Constants
+TYPING_DELAY = 0.05       # Speed of typing each character
+KEY_COMBO_DELAY = 0.15    # Delay between keys in a combo (C-x f, M-x)
+SHORT_PAUSE = 1.0         # Brief pause for command completion
+ACTION_DELAY = 3.0        # Pause between distinct actions
+LONG_PAUSE = 5.0          # Longer pause for viewer to read/observe
+VERY_LONG_PAUSE = 8.0     # Extra long pause for complex visuals
 
 # --- Text Automation ---
 
@@ -47,9 +49,9 @@ async def type_comment(session, text, delay=TYPING_DELAY, pause=1.0):
     # Delete the comment (send backspace for each character)
     for _ in text:
         await session.async_send_text("\x7f")  # DEL/Backspace
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(TYPING_DELAY)
 
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(KEY_COMBO_DELAY)
 
 
 async def wait_for_text(session, text, timeout=120, poll_interval=1.0):
@@ -123,11 +125,11 @@ async def main(connection):
     # Clean up previous IOTA state before starting
     print("   🧹 Cleaning up previous IOTA state...")
     await session.async_send_text("rm -rf ~/Development/iota.d/iota-*\n")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(SHORT_PAUSE)
 
     # Ensure clear start
     await session.async_send_text("clear\n")
-    await asyncio.sleep(1)
+    await asyncio.sleep(SHORT_PAUSE)
 
     print("🎬 IOTA Demo Starting...")
 
@@ -176,7 +178,7 @@ async def main(connection):
 
         # Open iota-splash.el using C-x C-f
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("\x06")  # C-f
         await asyncio.sleep(ACTION_DELAY)
 
@@ -187,25 +189,25 @@ async def main(connection):
 
         # Split window vertically: C-x 3
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("3")
         await asyncio.sleep(ACTION_DELAY)
 
         # Balance windows: C-x +
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("+")
         await asyncio.sleep(ACTION_DELAY)
 
         # Move to other window: C-x o
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("o")
         await asyncio.sleep(ACTION_DELAY)
 
         # Open iota-modeline.el
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("\x06")  # C-f
         await asyncio.sleep(ACTION_DELAY)
 
@@ -221,7 +223,7 @@ async def main(connection):
 
         # M-x iota-dispatch then d (Dimmer transient)
         await session.async_send_text("\x1b")  # M-x (Escape then x)
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -237,19 +239,19 @@ async def main(connection):
 
         # Switch to other window to see dimming effect on current window
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("o")
         await asyncio.sleep(LONG_PAUSE)  # Observe subtle dimming
 
         # Switch back
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("o")
         await asyncio.sleep(ACTION_DELAY)
 
         # Apply Strong preset
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -263,19 +265,19 @@ async def main(connection):
 
         # Switch to other window to see strong dimming effect
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("o")
         await asyncio.sleep(LONG_PAUSE)  # Observe strong dimming
 
         # Switch back
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("o")
         await asyncio.sleep(ACTION_DELAY)
 
         # Apply Balanced preset
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -289,12 +291,12 @@ async def main(connection):
 
         # Switch windows to show balanced dimming
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("o")
         await asyncio.sleep(LONG_PAUSE)
 
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("o")
         await asyncio.sleep(ACTION_DELAY)
 
@@ -305,7 +307,7 @@ async def main(connection):
 
         # M-x iota-dispatch m (Modeline transient)
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -321,7 +323,7 @@ async def main(connection):
 
         # Reopen modeline transient
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -335,7 +337,7 @@ async def main(connection):
 
         # Reopen modeline transient
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -358,37 +360,37 @@ async def main(connection):
 
         # Split window vertically: C-x 3
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("3")
         await asyncio.sleep(ACTION_DELAY)
 
         # Balance windows: C-x +
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("+")
         await asyncio.sleep(ACTION_DELAY)
 
         # Move to other window: C-x o
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("o")
         await asyncio.sleep(ACTION_DELAY)
 
         # Split horizontally: C-x 2
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("2")
         await asyncio.sleep(ACTION_DELAY)
 
         # Balance windows: C-x +
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("+")
         await asyncio.sleep(LONG_PAUSE)  # Show the layout
 
         # Start Matrix in current window
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -405,12 +407,12 @@ async def main(connection):
 
         # Move to other window and start Pipes
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("o")
         await asyncio.sleep(ACTION_DELAY)
 
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -427,7 +429,7 @@ async def main(connection):
 
         # Delete other windows: C-x 1
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("1")
         await asyncio.sleep(ACTION_DELAY)
 
@@ -438,7 +440,7 @@ async def main(connection):
 
         # M-x consult-find
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "consult-find")
@@ -454,7 +456,7 @@ async def main(connection):
 
         # M-x consult-ripgrep
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "consult-ripgrep")
@@ -475,7 +477,7 @@ async def main(connection):
 
         # M-x iota-dispatch t (Theme transient)
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -487,13 +489,13 @@ async def main(connection):
 
         # Exit theme menu - send multiple C-g to ensure clean state
         await session.async_send_text("\x07")  # C-g
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(SHORT_PAUSE)
         await session.async_send_text("\x07")  # C-g again to ensure clean
         await asyncio.sleep(LONG_PAUSE)
 
         # Switch to scratch buffer first to avoid inserting into source file
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("b")     # b for switch-buffer
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "*scratch*")
@@ -502,7 +504,7 @@ async def main(connection):
 
         # Browse dark themes with M-x consult-theme
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "consult-theme")
@@ -530,7 +532,7 @@ async def main(connection):
 
         # M-x iota-dispatch ? s (show splash)
         await session.async_send_text("\x1b")  # M-x
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("x")
         await asyncio.sleep(ACTION_DELAY)
         await type_text(session, "iota-dispatch")
@@ -545,13 +547,13 @@ async def main(connection):
 
         # Exit gracefully: C-x C-c
         await session.async_send_text("\x18")  # C-x
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(KEY_COMBO_DELAY)
         await session.async_send_text("\x03")  # C-c
         await asyncio.sleep(ACTION_DELAY)
 
         # Confirm exit if prompted
         await session.async_send_text("y")
-        await asyncio.sleep(1)
+        await asyncio.sleep(SHORT_PAUSE)
 
         print("✅ Demo Complete!")
 

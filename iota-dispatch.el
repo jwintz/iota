@@ -56,7 +56,7 @@
 (declare-function iota-modeline--teardown "iota-modeline")
 (declare-function iota-modeline--setup "iota-modeline")
 (declare-function iota-dimmer-apply-preset "iota-dimmer")
-(declare-function iota-dimmer--update-all "iota-dimmer")
+(declare-function iota-dimmer-refresh "iota-dimmer")
 (declare-function iota-theme-transparent-diagnose "iota-theme-transparent")
 (declare-function iota-theme-transparent-remove-backgrounds "iota-theme-transparent")
 (declare-function iota-popup-cycle-style "iota-popup")
@@ -417,18 +417,63 @@
   (iota-dimmer-apply-preset 'balanced)
   (message "Applied dimmer preset: balanced"))
 
+(transient-define-suffix iota-dispatch--dimmer-muted ()
+  "Apply muted preset."
+  :key "3"
+  :description "Muted"
+  (interactive)
+  (require 'iota-dimmer)
+  (iota-dimmer-apply-preset 'muted)
+  (message "Applied dimmer preset: muted"))
+
 (transient-define-suffix iota-dispatch--dimmer-strong ()
   "Apply strong preset."
-  :key "3"
+  :key "4"
   :description "Strong"
   (interactive)
   (require 'iota-dimmer)
   (iota-dimmer-apply-preset 'strong)
   (message "Applied dimmer preset: strong"))
 
+(transient-define-suffix iota-dispatch--dimmer-desaturated ()
+  "Apply desaturated preset."
+  :key "5"
+  :description "Desaturated"
+  (interactive)
+  (require 'iota-dimmer)
+  (iota-dimmer-apply-preset 'desaturated)
+  (message "Applied dimmer preset: desaturated"))
+
+(transient-define-suffix iota-dispatch--dimmer-fade-only ()
+  "Apply fade-only preset."
+  :key "6"
+  :description "Fade Only"
+  (interactive)
+  (require 'iota-dimmer)
+  (iota-dimmer-apply-preset 'fade-only)
+  (message "Applied dimmer preset: fade-only"))
+
+(transient-define-suffix iota-dispatch--dimmer-washed ()
+  "Apply washed preset."
+  :key "7"
+  :description "Washed"
+  (interactive)
+  (require 'iota-dimmer)
+  (iota-dimmer-apply-preset 'washed)
+  (message "Applied dimmer preset: washed"))
+
+(transient-define-suffix iota-dispatch--dimmer-grayscale ()
+  "Apply grayscale preset."
+  :key "8"
+  :description "Grayscale"
+  (interactive)
+  (require 'iota-dimmer)
+  (iota-dimmer-apply-preset 'grayscale)
+  (message "Applied dimmer preset: grayscale"))
+
 (transient-define-suffix iota-dispatch--dimmer-high-contrast ()
   "Apply high-contrast preset."
-  :key "4"
+  :key "9"
   :description "High Contrast"
   (interactive)
   (require 'iota-dimmer)
@@ -442,7 +487,7 @@
   (interactive)
   (require 'iota-dimmer)
   (setq iota-dimmer-fraction (min 0.9 (+ (or iota-dimmer-fraction 0.3) 0.05)))
-  (when iota-dimmer-mode (iota-dimmer--update-all))
+  (when iota-dimmer-mode (iota-dimmer-refresh))
   (message "Dimmer fraction: %.0f%%" (* 100 iota-dimmer-fraction)))
 
 (transient-define-suffix iota-dispatch--dimmer-decrease ()
@@ -452,7 +497,7 @@
   (interactive)
   (require 'iota-dimmer)
   (setq iota-dimmer-fraction (max 0.1 (- (or iota-dimmer-fraction 0.3) 0.05)))
-  (when iota-dimmer-mode (iota-dimmer--update-all))
+  (when iota-dimmer-mode (iota-dimmer-refresh))
   (message "Dimmer fraction: %.0f%%" (* 100 iota-dimmer-fraction)))
 
 ;;;###autoload (autoload 'iota-dimmer-transient "iota-dispatch" nil t)
@@ -482,10 +527,17 @@
    ["Toggle"
     (iota-dispatch--dimmer-toggle)]
    
-   ["Presets"
+   ["Presets (Basic)"
     (iota-dispatch--dimmer-subtle)
     (iota-dispatch--dimmer-balanced)
-    (iota-dispatch--dimmer-strong)
+    (iota-dispatch--dimmer-muted)
+    (iota-dispatch--dimmer-strong)]
+   
+   ["Presets (Advanced)"
+    (iota-dispatch--dimmer-desaturated)
+    (iota-dispatch--dimmer-fade-only)
+    (iota-dispatch--dimmer-washed)
+    (iota-dispatch--dimmer-grayscale)
     (iota-dispatch--dimmer-high-contrast)]
    
    ["Adjust"
