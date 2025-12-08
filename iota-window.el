@@ -174,7 +174,7 @@ This is intentionally lightweight to avoid lag on window switches."
         (dolist (win (window-list nil 'no-minibuf))
           (set-window-parameter win 'iota-active nil))
         (set-window-parameter current-window 'iota-active t)
-        
+
         (setq iota-window--last-selected current-window)
         ;; Update only the affected windows for better performance
         ;; This avoids re-rendering all windows on every switch
@@ -221,6 +221,10 @@ When enabled, tracks window active/inactive state for visual distinction."
         ;; (outline-minor-mode and others create display tables in mode hooks)
         (add-hook 'after-change-major-mode-hook
                   #'iota-window--fix-current-buffer-display-table)
+        ;; Re-apply divider settings after window configuration changes
+        ;; This fixes the issue where dividers briefly appear during splits
+        (add-hook 'window-configuration-change-hook
+                  #'iota-window--on-window-config-change)
         ;; Re-apply divider settings after theme loads (themes can override face settings)
         (advice-add 'load-theme :after #'iota-window--on-theme-load)
         ;; Force modeline update
@@ -232,6 +236,8 @@ When enabled, tracks window active/inactive state for visual distinction."
                  #'iota-window--on-buffer-change)
     (remove-hook 'after-change-major-mode-hook
                  #'iota-window--fix-current-buffer-display-table)
+    (remove-hook 'window-configuration-change-hook
+                 #'iota-window--on-window-config-change)
     (advice-remove 'load-theme #'iota-window--on-theme-load)
     ;; Restore original divider settings
     (iota-window--restore-dividers)
@@ -247,6 +253,13 @@ Themes can override face settings, so we need to re-apply our configuration."
   (when iota-window-mode
     ;; Small delay to let iota-theme-transparent process first
     (run-with-timer 0.1 nil #'iota-window--configure-dividers)))
+
+(defun iota-window--on-window-config-change ()
+  "Re-apply divider configuration after window configuration changes.
+This ensures dividers remain hidden/styled correctly during window splits."
+  (when iota-window-mode
+    ;; Immediately re-apply divider settings to prevent visible flashes
+    (iota-window--configure-dividers)))
 
 (defun iota-window--on-buffer-change (frame-or-window)
   "Handle buffer change in FRAME-OR-WINDOW.
