@@ -51,6 +51,7 @@
 (require 'iota-logos)
 (require 'iota-window)
 (require 'iota-screens)
+(require 'iota-modes)
 (require 'iota-config)
 (require 'iota-dispatch)
 
@@ -140,8 +141,11 @@ This is the easiest way to start using IOTA."
 
   ;; Enable window mode for active/inactive distinction
   (iota-window-mode 1)
+  
+  ;; Enable mode-specific enhancements
+  (iota-modes-mode 1)
 
-  (message "IOTA quickstart complete! Modeline, popup, and window tracking enabled."))
+  (message "IOTA quickstart complete! Modeline, popup, window tracking, and mode enhancements enabled."))
 
 ;;; Quick Commands
 
@@ -203,16 +207,19 @@ When enabled, line number modes will be permanently disabled."
     (iota-modeline-mode -1))
   (when (bound-and-true-p iota-popup-mode)
     (iota-popup-mode -1))
+  (when (bound-and-true-p iota-modes-mode)
+    (iota-modes-mode -1))
   (mapc (lambda (feature)
           (when (featurep feature)
             (unload-feature feature t)))
         '(iota-config iota-window iota-logos iota-icons
           iota-splash iota-faces iota-popup iota-modeline
           iota-theme-transparent iota-theme
-          iota-box iota))
+          iota-box iota-modes iota))
   (require 'iota)
   (iota-modeline-mode 1)
   (iota-popup-mode 1)
+  (iota-modes-mode 1)
   (message "I O T Λ reloaded"))
 
 ;;; Hooks for Integration
@@ -228,6 +235,7 @@ When enabled, line number modes will be permanently disabled."
 (iota-modeline-mode 1)
 (iota-popup-mode 1)
 (iota-window-mode 1)
+(iota-modes-mode 1)
 
 (provide 'iota)
 ;;; iota.el ends here

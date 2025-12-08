@@ -10,6 +10,7 @@ A minimal terminal interface framework for Emacs with box-drawing modeline, them
 ## Features
 
 - **Box-Drawing Modeline**: Header-line modeline with Unicode box-drawing characters (╭─╮ │ ╰─╯)
+- **Mode Enhancements**: Visual decorations for major modes (markdown code blocks)
 - **Theme Transparency**: Automatic background removal for transparent terminals
 - **Window Management**: Active/inactive window distinction
 - **Inactive Window Dimming**: Dim inactive windows while preserving syntax highlighting
@@ -41,6 +42,7 @@ IOTA automatically enables its modes when loaded:
 - `iota-modeline-mode` — Box-drawing modeline and separator lines
 - `iota-popup-mode` — Popup window decorations (which-key, transient, etc.)
 - `iota-window-mode` — Window tracking and divider styling
+- `iota-modes-mode` — Mode-specific visual enhancements (markdown, etc.)
 
 ## Configuration
 
@@ -167,6 +169,36 @@ IOTA can prevent line numbers from being enabled:
 (setq iota-prevent-line-numbers t)
 ```
 
+### Mode Enhancements
+
+IOTA provides visual enhancements for specific major modes:
+
+**Markdown Mode:**
+
+Code blocks are decorated with horizontal line borders showing the language:
+
+```
+── elisp ─────────────────────────────────────────
+(use-package iota
+  :load-path "~/path/to/iota")
+──────────────────────────────────────────────────
+```
+
+```elisp
+;; Enable/disable markdown code block decorations (default: t)
+(setq iota-modes-markdown-box-code-blocks t)
+
+;; Toggle mode enhancements
+(iota-modes-mode 1)   ; Enable
+(iota-modes-mode -1)  ; Disable
+```
+
+Features:
+- Shows language identifier in the top border
+- Uses overlays (does not modify buffer content)
+- Does not affect cursor movement or line numbers
+- Works with any color theme
+
 ### Icons
 
 IOTA provides an icon system with automatic fallback when `nerd-icons` is unavailable:
@@ -268,6 +300,7 @@ p Popup                    ? Splash
 | `M-x iota-popup-cycle-style` | Cycle popup decoration styles |
 | `M-x iota-window-mode` | Toggle window tracking |
 | `M-x iota-window-cycle-divider-style` | Cycle between hidden/plain dividers |
+| `M-x iota-modes-mode` | Toggle mode enhancements (markdown, etc.) |
 | `M-x iota-splash-screen` | Show splash screen |
 | `M-x iota-config-info` | Show current configuration |
 
@@ -284,6 +317,7 @@ iota/
 ├── iota-faces.el            # Face definitions
 ├── iota-icons.el            # Icon support with nerd-icons fallback
 ├── iota-logos.el            # ASCII art logos
+├── iota-modes.el            # Mode-specific enhancements
 ├── iota-modeline.el         # Modeline and separator lines
 ├── iota-popup.el            # Popup window decorations
 ├── iota-screens.el          # Screen saver system
