@@ -183,13 +183,13 @@
           (concat (iota-dispatch--format-value "Theme"
                                                 (mapconcat #'symbol-name custom-enabled-themes ", ")) "\n"))
         (iota-dispatch--separator) "\n")))
-   
+
    ["Presets"
     (iota-dispatch--config-minimal)
     (iota-dispatch--config-standard)
     (iota-dispatch--config-modern)
     (iota-dispatch--config-cyberpunk)]
-   
+
    ["Options"
     (iota-dispatch--toggle-transparency)]])
 
@@ -265,24 +265,24 @@
       "\n" (iota-dispatch--separator) "\n"
       (iota-dispatch--format-toggle "Idle Mode" (bound-and-true-p iota-screens-mode)) "\n"
       (when (boundp 'iota-screens-idle-timeout)
-        (concat (iota-dispatch--format-value "Timeout" 
+        (concat (iota-dispatch--format-value "Timeout"
                                               (format "%ds" (or iota-screens-idle-timeout 0))) "\n"))
       (when (boundp 'iota-screens-default-animation)
-        (concat (iota-dispatch--format-value "Default" 
+        (concat (iota-dispatch--format-value "Default"
                                               (symbol-name iota-screens-default-animation)) "\n"))
       (let ((active (when (boundp 'iota-screens--instances)
                       (hash-table-count iota-screens--instances))))
         (when (and active (> active 0))
           (concat (iota-dispatch--format-value "Active" active) "\n")))
       (iota-dispatch--separator) "\n"))
-   
+
    ["Animations"
     (iota-dispatch--screens-matrix)
     (iota-dispatch--screens-alien)
     (iota-dispatch--screens-life)
     (iota-dispatch--screens-clock)
     (iota-dispatch--screens-pipes)]
-   
+
    ["Control"
     (iota-dispatch--screens-toggle-mode)
     (iota-dispatch--screens-stop)]])
@@ -360,6 +360,17 @@
   (iota-modeline-refresh)
   (message "Modeline refreshed"))
 
+(transient-define-suffix iota-dispatch--modeline-toggle-window ()
+  "Toggle modeline box in current window."
+  :key "t"
+  :description (lambda ()
+                 (format "Window Modeline: %s"
+                         (if (window-parameter nil 'iota-modeline-hidden)
+                             "OFF" "ON")))
+  (interactive)
+  (require 'iota-modeline)
+  (iota-modeline-toggle-current-window))
+
 ;;;###autoload (autoload 'iota-modeline-transient "iota-dispatch" nil t)
 (transient-define-prefix iota-modeline-transient ()
   "IOTA Modeline"
@@ -374,12 +385,13 @@
       (when (boundp 'iota-modeline-box-style)
         (concat (iota-dispatch--format-value "Style" (symbol-name iota-modeline-box-style)) "\n"))
       (iota-dispatch--separator) "\n"))
-   
+
    ["Toggle"
     (iota-dispatch--modeline-toggle)
     (iota-dispatch--modeline-position)
-    (iota-dispatch--modeline-style)]
-   
+    (iota-dispatch--modeline-style)
+    (iota-dispatch--modeline-toggle-window)]
+
    ["Options"
     (iota-dispatch--modeline-separators)
     (iota-dispatch--modeline-inactive)
@@ -510,36 +522,36 @@
       "\n" (iota-dispatch--separator) "\n"
       (iota-dispatch--format-toggle "Mode" (bound-and-true-p iota-dimmer-mode)) "\n"
       (when (boundp 'iota-dimmer-fraction)
-        (concat (iota-dispatch--format-value "Fraction" 
+        (concat (iota-dispatch--format-value "Fraction"
                                               (format "%.0f%%" (* 100 iota-dimmer-fraction))) "\n"))
       (when (boundp 'iota-dimmer-saturation-fraction)
-        (concat (iota-dispatch--format-value "Saturation" 
+        (concat (iota-dispatch--format-value "Saturation"
                                               (if iota-dimmer-saturation-fraction
                                                   (format "%.0f%%" (* 100 iota-dimmer-saturation-fraction))
                                                 "auto")) "\n"))
       (when (boundp 'iota-dimmer-luminance-fraction)
-        (concat (iota-dispatch--format-value "Luminance" 
+        (concat (iota-dispatch--format-value "Luminance"
                                               (if iota-dimmer-luminance-fraction
                                                   (format "%.0f%%" (* 100 iota-dimmer-luminance-fraction))
                                                 "auto")) "\n"))
       (iota-dispatch--separator) "\n"))
-   
+
    ["Toggle"
     (iota-dispatch--dimmer-toggle)]
-   
+
    ["Presets (Basic)"
     (iota-dispatch--dimmer-subtle)
     (iota-dispatch--dimmer-balanced)
     (iota-dispatch--dimmer-muted)
     (iota-dispatch--dimmer-strong)]
-   
+
    ["Presets (Advanced)"
     (iota-dispatch--dimmer-desaturated)
     (iota-dispatch--dimmer-fade-only)
     (iota-dispatch--dimmer-washed)
     (iota-dispatch--dimmer-grayscale)
     (iota-dispatch--dimmer-high-contrast)]
-   
+
    ["Adjust"
     (iota-dispatch--dimmer-increase)
     (iota-dispatch--dimmer-decrease)]])
@@ -588,9 +600,9 @@
                          (if (bound-and-true-p iota-theme-transparent-verbose-logging) "ON" "OFF")))
   (interactive)
   (require 'iota-theme-transparent)
-  (setq iota-theme-transparent-verbose-logging 
+  (setq iota-theme-transparent-verbose-logging
         (not iota-theme-transparent-verbose-logging))
-  (message "Verbose logging: %s" 
+  (message "Verbose logging: %s"
            (if iota-theme-transparent-verbose-logging "enabled" "disabled")))
 
 ;;;###autoload (autoload 'iota-theme-transient "iota-dispatch" nil t)
@@ -609,12 +621,12 @@
       (unless (display-graphic-p)
         (concat (iota-dispatch--format-value "Colors" (or (tty-display-color-cells) "N/A")) "\n"))
       (iota-dispatch--separator) "\n"))
-   
+
    ["Transparency"
     (iota-dispatch--theme-transparency)
     (iota-dispatch--theme-reapply)
     (iota-dispatch--theme-diagnose)]
-   
+
    ["Debug"
     (iota-dispatch--theme-verbose)]])
 
@@ -654,10 +666,10 @@
       "\n" (iota-dispatch--separator) "\n"
       (iota-dispatch--format-toggle "Mode" (bound-and-true-p iota-popup-mode)) "\n"
       (when (boundp 'iota-popup-decoration-style)
-        (concat (iota-dispatch--format-value "Style" 
+        (concat (iota-dispatch--format-value "Style"
                                               (symbol-name iota-popup-decoration-style)) "\n"))
       (iota-dispatch--separator) "\n"))
-   
+
    ["Options"
     (iota-dispatch--popup-toggle)
     (iota-dispatch--popup-style)]])
@@ -769,15 +781,15 @@
       "  "
       (propertize "(hjkl to resize, = to balance)" 'face 'shadow)
       "\n" (iota-dispatch--separator) "\n"))
-   
+
    ["Vertical"
     (iota-dispatch--resize-taller)
     (iota-dispatch--resize-shorter)]
-   
+
    ["Horizontal"
     (iota-dispatch--resize-wider)
     (iota-dispatch--resize-narrower)]
-   
+
    ["Quick"
     (iota-dispatch--resize-balance)
     (iota-dispatch--resize-maximize)
@@ -793,10 +805,10 @@
       "\n" (iota-dispatch--separator) "\n"
       (iota-dispatch--format-toggle "Mode" (bound-and-true-p iota-window-mode)) "\n"
       (when (boundp 'iota-window-divider-style)
-        (concat (iota-dispatch--format-value "Dividers" 
+        (concat (iota-dispatch--format-value "Dividers"
                                               (symbol-name iota-window-divider-style)) "\n"))
       (iota-dispatch--separator) "\n"))
-   
+
    ["Options"
     (iota-dispatch--window-toggle)
     (iota-dispatch--window-divider)
@@ -858,16 +870,16 @@
       (iota-dispatch--format-toggle "Hints" (bound-and-true-p iota-splash-show-hints)) "\n"
       (iota-dispatch--format-toggle "Random" (bound-and-true-p iota-splash-hints-random)) "\n"
       (when (boundp 'iota-splash-animation-interval)
-        (concat (iota-dispatch--format-value "Animation" 
+        (concat (iota-dispatch--format-value "Animation"
                                               (if iota-splash-animation-interval
                                                   (format "%.1fs" iota-splash-animation-interval)
                                                 "disabled")) "\n"))
       (iota-dispatch--separator) "\n"))
-   
+
    ["Actions"
     (iota-dispatch--splash-show)
     (iota-dispatch--splash-refresh)]
-   
+
    ["Options"
     (iota-dispatch--splash-hints)
     (iota-dispatch--splash-random)]])
@@ -897,19 +909,19 @@ Or with vanilla Emacs:
       "\n"
       (propertize "Not one iota more than needed." 'face 'shadow)
       "\n" (iota-dispatch--separator) "\n"))
-   
+
    ["Configuration"
     ("c" "Config" iota-config-transient)
     ("t" "Theme" iota-theme-transient)]
-   
+
    ["Display"
     ("m" "Modeline" iota-modeline-transient)
     ("d" "Dimmer" iota-dimmer-transient)]
-   
+
    ["Windows"
     ("w" "Window" iota-window-transient)
     ("p" "Popup" iota-popup-transient)]
-   
+
    ["Extras"
     ("s" "Screens" iota-screens-transient)
     ("?" "Splash" iota-splash-transient)]])

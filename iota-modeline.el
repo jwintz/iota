@@ -496,20 +496,20 @@ Keycast segments are identified and dropped first when space is tight."
          (total-needed (+ left-width
                           (if (and (> left-width 0) (> right-width 0)) min-gap 0)
                           right-width)))
-    
+
     ;; If everything fits, return as-is
     (if (<= total-needed available)
         (cons left-segments right-segments)
-      
+
       ;; Content doesn't fit - need to drop/truncate segments
       ;; Priority order for dropping (lowest priority first):
       ;; 1. Keycast segments from right side
       ;; 2. Other segments from right side (from end)
       ;; 3. Truncate remaining segments
-      
+
       (let ((new-right right-segments)
             (new-left left-segments))
-        
+
         ;; First, try dropping keycast segments from right
         (when (> total-needed available)
           (setq new-right (cl-remove-if #'iota-modeline--is-keycast-segment-p new-right))
@@ -517,7 +517,7 @@ Keycast segments are identified and dropped first when space is tight."
           (setq total-needed (+ left-width
                                 (if (and (> left-width 0) (> right-width 0)) min-gap 0)
                                 right-width)))
-        
+
         ;; Then try dropping keycast segments from left
         (when (> total-needed available)
           (setq new-left (cl-remove-if #'iota-modeline--is-keycast-segment-p new-left))
@@ -525,7 +525,7 @@ Keycast segments are identified and dropped first when space is tight."
           (setq total-needed (+ left-width
                                 (if (and (> left-width 0) (> right-width 0)) min-gap 0)
                                 right-width)))
-        
+
         ;; If still doesn't fit, drop right segments one by one (from end)
         (while (and (> total-needed available) (> (length new-right) 1))
           (setq new-right (butlast new-right))
@@ -533,7 +533,7 @@ Keycast segments are identified and dropped first when space is tight."
           (setq total-needed (+ left-width
                                 (if (and (> left-width 0) (> right-width 0)) min-gap 0)
                                 right-width)))
-        
+
         ;; If still doesn't fit, drop left segments one by one (from end)
         (while (and (> total-needed available) (> (length new-left) 1))
           (setq new-left (butlast new-left))
@@ -541,13 +541,13 @@ Keycast segments are identified and dropped first when space is tight."
           (setq total-needed (+ left-width
                                 (if (and (> left-width 0) (> right-width 0)) min-gap 0)
                                 right-width)))
-        
+
         ;; If still doesn't fit, truncate remaining segments
         (when (> total-needed available)
           (let* ((left-available (max 10 (- available right-width min-gap)))
                  (truncated-left (iota-modeline--fit-segments-to-width new-left left-available style)))
             (setq new-left truncated-left)))
-        
+
         (cons new-left new-right)))))
 
 (defun iota-modeline--render-box (&optional window truly-selected-window)
@@ -566,7 +566,7 @@ TRULY-SELECTED-WINDOW is the actual selected window for active/inactive detectio
          ;; CRITICAL: doom-modeline--active checks:
          ;;   (eq (doom-modeline--selected-window) doom-modeline-current-window)
          ;; where doom-modeline--selected-window calls (frame-selected-window)
-         ;; 
+         ;;
          ;; We need to make both values match for the active window:
          ;; - Set doom-modeline-current-window to the window we're rendering
          ;; - Override doom-modeline--selected-window to return the same value
@@ -663,18 +663,21 @@ If WINDOW is nil, use selected window.
 OVERRIDE-BOX-FACE can override the box face.
 TRULY-SELECTED-WINDOW is the actual selected window for active/inactive detection.
 Returns complete box: top border + content + bottom border."
-  (if (not (iota-modeline--should-show-p))
-      "" ; Return empty string for minibuffer
-    (let* ((target-window (or window (selected-window)))
-           (iota-modeline--current-window target-window)
-           (selected-win-value (or truly-selected-window
-                                  (if (and (boundp 'iota-modeline--selected-window)
-                                           iota-modeline--selected-window)
-                                      iota-modeline--selected-window
-                                    (selected-window))))
-           (iota-modeline--selected-window selected-win-value))
-      ;; Use new box rendering function
-      (iota-modeline--render-box target-window selected-win-value))))
+  (let ((target-window (or window (selected-window))))
+    ;; Check if user has hidden modeline in this window
+    (if (window-parameter target-window 'iota-modeline-hidden)
+        "" ; Return empty string if hidden
+      (if (not (iota-modeline--should-show-p))
+          "" ; Return empty string for minibuffer
+        (let* ((iota-modeline--current-window target-window)
+               (selected-win-value (or truly-selected-window
+                                      (if (and (boundp 'iota-modeline--selected-window)
+                                               iota-modeline--selected-window)
+                                          iota-modeline--selected-window
+                                        (selected-window))))
+               (iota-modeline--selected-window selected-win-value))
+          ;; Use new box rendering function
+          (iota-modeline--render-box target-window selected-win-value))))))
 
 (defun iota-modeline--top-border (&optional window)
   "Render top border for WINDOW."
@@ -1048,7 +1051,7 @@ Note: Splash screen is handled separately by iota-splash.el."
              (buf-name (buffer-name buf))
              ;; Skip splash/screen buffers - they handle their own separator
              (is-splash-or-screen (or (string-match-p "\\*I O T Λ splash\\*" buf-name)
-                                    (string-match-p "\\*I O T Λ screen-[0-9]+\\*" buf-name))))
+                                      (string-match-p "\\*I O T Λ screen-[0-9]+\\*" buf-name))))
         (unless is-splash-or-screen
           (let ((is-bottom (iota-modeline--window-is-at-bottom-p window))
                 (should-show (with-current-buffer buf
@@ -1122,27 +1125,27 @@ Note: Splash screen is handled separately by iota-splash.el."
   (unless iota-modeline--original-header-line-format
     (setq iota-modeline--original-header-line-format
           (default-value 'header-line-format)))
-  
+
   ;; Save face attributes
   (iota-modeline--save-face-attributes)
-  
+
   ;; Remove backgrounds from modeline faces for transparency
-  (set-face-attribute 'mode-line nil 
-                      :background 'unspecified 
+  (set-face-attribute 'mode-line nil
+                      :background 'unspecified
                       :box nil
                       :underline nil
                       :overline nil)
-  (set-face-attribute 'mode-line-inactive nil 
-                      :background 'unspecified 
+  (set-face-attribute 'mode-line-inactive nil
+                      :background 'unspecified
                       :box nil
                       :underline nil
                       :overline nil)
-  (set-face-attribute 'header-line nil 
-                      :background 'unspecified 
+  (set-face-attribute 'header-line nil
+                      :background 'unspecified
                       :box nil
                       :underline nil
                       :overline nil)
-  
+
   ;; Apply IOTA modeline based on position
   (pcase iota-modeline-position
     ('header
@@ -1171,27 +1174,27 @@ Note: Splash screen is handled separately by iota-splash.el."
   (when (featurep 'iota-update)
     (iota-update-register-component :modeline #'iota-modeline--do-update)
     (iota-update-install-hooks))
-  
+
   ;; Set up hooks
   (unless (featurep 'iota-update)
     (add-hook 'buffer-list-update-hook #'iota-modeline--buffer-list-update))
-  
+
   ;; Add post-command-hook for immediate keycast updates
   (add-hook 'post-command-hook #'iota-modeline--post-command)
-  
+
   ;; Add focus change function for proper rendering when terminal focus changes
   (add-function :after after-focus-change-function #'iota-modeline--on-focus-change)
-  
+
   (add-hook 'after-change-major-mode-hook #'iota-modeline--after-change-major-mode)
   (add-hook 'minibuffer-setup-hook #'iota-modeline--minibuffer-setup)
   (add-hook 'minibuffer-exit-hook #'iota-modeline--minibuffer-exit)
   (add-hook 'window-configuration-change-hook #'iota-modeline--window-configuration-change)
   ;; Handle buffer content changes within same window (e.g., info-mode navigation)
   (add-hook 'window-buffer-change-functions #'iota-modeline--on-window-buffer-change)
-  
+
   (unless (featurep 'iota-update)
     (add-hook 'window-size-change-functions #'iota-modeline--window-size-change))
-  
+
   ;; Apply to all existing buffers
   (dolist (buffer (buffer-list))
     (with-current-buffer buffer
@@ -1200,7 +1203,7 @@ Note: Splash screen is handled separately by iota-splash.el."
             (kill-local-variable 'header-line-format)
             (kill-local-variable 'mode-line-format))
         (setq-local mode-line-format nil))))
-  
+
   ;; Disable mode-line in minibuffer buffers
   (dolist (buffer (buffer-list))
     (when (string-match-p "\\` \\*Minibuf-[0-9]+\\*\\'" (buffer-name buffer))
@@ -1213,7 +1216,7 @@ Note: Splash screen is handled separately by iota-splash.el."
     (let ((minibuf-win (minibuffer-window frame)))
       (when (window-live-p minibuf-win)
         (set-window-parameter minibuf-win 'mode-line-format nil))))
-  
+
   ;; Initial update
   (iota-modeline--update))
 
@@ -1222,7 +1225,7 @@ Note: Splash screen is handled separately by iota-splash.el."
   ;; Unregister from centralized update system
   (when (featurep 'iota-update)
     (iota-update-unregister-component :modeline))
-  
+
   ;; Remove hooks
   (remove-hook 'buffer-list-update-hook #'iota-modeline--buffer-list-update)
   (remove-hook 'post-command-hook #'iota-modeline--post-command)
@@ -1252,7 +1255,7 @@ Note: Splash screen is handled separately by iota-splash.el."
 
   ;; Restore face attributes
   (iota-modeline--restore-face-attributes)
-  
+
   ;; Clear saved state
   (setq iota-modeline--original-mode-line-format nil)
   (setq iota-modeline--original-header-line-format nil)
@@ -1308,6 +1311,24 @@ decorated TUI-style box drawing."
           (_ 'rounded)))
   (iota-modeline-refresh)
   (message "I O T Λ modeline style: %s" iota-modeline-box-style))
+
+(defun iota-modeline-toggle-current-window ()
+  "Toggle modeline box visibility in current window only.
+Uses window parameters to hide/show the modeline box without affecting the separator line.
+This is window-specific and does not affect other windows showing the same buffer."
+  (interactive)
+  (let ((hidden (window-parameter nil 'iota-modeline-hidden)))
+    (if hidden
+        ;; Currently hidden - show it
+        (progn
+          (set-window-parameter nil 'iota-modeline-hidden nil)
+          (iota-modeline--update-overlay (selected-window))
+          (message "Modeline shown in current window"))
+      ;; Currently shown - hide it
+      (progn
+        (set-window-parameter nil 'iota-modeline-hidden t)
+        (iota-modeline--update-overlay (selected-window))
+        (message "Modeline hidden in current window")))))
 
 (provide 'iota-modeline)
 ;;; iota-modeline.el ends here
