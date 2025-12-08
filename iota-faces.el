@@ -55,9 +55,9 @@ Adapts to current theme via inheritance from vertical-border."
   :group 'iota-faces)
 
 (defface iota-active-box-face
-  '((t :inherit font-lock-comment-face :underline nil :overline nil :strike-through nil))
+  '((t :inherit mode-line :underline nil :overline nil :strike-through nil))
   "Face for box borders in active window.
-Inherits from font-lock-comment-face for theme-appropriate muted color.
+Inherits from mode-line for theme-appropriate color.
 Explicitly disables underline/overline to prevent artifacts."
   :group 'iota-faces)
 
