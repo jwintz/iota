@@ -36,6 +36,7 @@
 ;; Only require what's absolutely needed at load time
 (require 'iota-timers)
 (require 'iota-faces)
+(require 'iota-utils)  ; For iota-modeline-effective-width
 
 ;; Declare functions from modules loaded on-demand
 (declare-function iota-box-horizontal-line "iota-box")
@@ -60,15 +61,21 @@ Set to nil to disable automatic activation."
   "Default animation to use for idle screen.
 Available options:
   'matrix - Matrix rain (cmatrix-style)
-  'alien  - Alien-life inspired particle flow
+  'lava   - Lava lamp simulation (metaballs)
   'life   - Conway's Game of Life
   'clock  - Digital clock
-  'pipes  - 3D Pipes"
+  'pipes  - 3D Pipes
+  'plasma - Plasma effect (sinusoidal patterns)
+  'stars  - Starfield (parallax stars)
+  'earth  - Rotating Earth globe"
   :type '(choice (const :tag "Matrix Rain" matrix)
-                 (const :tag "Particle Flow" alien)
+                 (const :tag "Lava Lamp" lava)
                  (const :tag "Game of Life" life)
                  (const :tag "Digital Clock" clock)
-                 (const :tag "3D Pipes" pipes))
+                 (const :tag "3D Pipes" pipes)
+                 (const :tag "Plasma Effect" plasma)
+                 (const :tag "Starfield" stars)
+                 (const :tag "Earth Globe" earth))
   :group 'iota-screens)
 
 ;;; State Management
@@ -432,7 +439,7 @@ Separator is shown when:
   "Get a separator line string for WINDOW."
   (require 'iota-box)
   (let* ((width (if (window-live-p window)
-                    (1- (window-body-width window))
+                    (iota-modeline-effective-width window)
                   79))
          (style (if (boundp 'iota-modeline-box-style)
                     iota-modeline-box-style
@@ -451,7 +458,7 @@ Matches the behavior of iota-splash--update-separator."
         (when (window-live-p win)
           (if (iota-screens--should-show-separator-p)
               ;; Show separator line when minibuffer/popup is active
-              (let ((width (1- (window-body-width win))))
+              (let ((width (iota-modeline-effective-width win)))
                 (with-current-buffer buffer
                   (setq-local mode-line-format
                               `(:eval (iota-screens--get-separator-line ,win))))
@@ -528,9 +535,9 @@ Matches the behavior of iota-splash--update-separator."
       ('matrix
        (require 'iota-screens-matrix)
        (iota-screens-matrix-start instance-id))
-      ('alien
-       (require 'iota-screens-alien)
-       (iota-screens-alien-start instance-id))
+      ('lava
+       (require 'iota-screens-lava)
+       (iota-screens-lava-start instance-id))
       ('life
        (require 'iota-screens-life)
        (iota-screens-life-start instance-id))
@@ -540,6 +547,15 @@ Matches the behavior of iota-splash--update-separator."
       ('pipes
        (require 'iota-screens-pipes)
        (iota-screens-pipes-start instance-id))
+      ('plasma
+       (require 'iota-screens-plasma)
+       (iota-screens-plasma-start instance-id))
+      ('stars
+       (require 'iota-screens-stars)
+       (iota-screens-stars-start instance-id))
+      ('earth
+       (require 'iota-screens-earth)
+       (iota-screens-earth-start instance-id))
       (_ (error "Unknown animation type: %s" animation-type)))))
 
 (defun iota-screens--stop-animation ()
@@ -584,11 +600,11 @@ seconds of idle time."
 ;;;###autoload
 (defun iota-screens-preview (animation-type)
   "Preview ANIMATION-TYPE immediately without waiting for idle timeout.
-Available animations: matrix, alien, life, clock, pipes.
+Available animations: matrix, lava, life, clock, pipes, plasma, stars, earth.
 Returns the instance-id of the created screen."
   (interactive
    (list (intern (completing-read "Animation: "
-                                  '("matrix" "alien" "life" "clock" "pipes")
+                                  '("matrix" "lava" "life" "clock" "pipes" "plasma" "stars" "earth")
                                   nil t))))
   (iota-screens-activate animation-type))
 
@@ -598,7 +614,7 @@ Returns the instance-id of the created screen."
 This allows viewing multiple screens side by side."
   (interactive
    (list (intern (completing-read "Animation: "
-                                  '("matrix" "alien" "life" "clock" "pipes")
+                                  '("matrix" "lava" "life" "clock" "pipes" "plasma" "stars" "earth")
                                   nil t))))
   (split-window-right)
   (other-window 1)

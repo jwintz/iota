@@ -159,6 +159,31 @@ Ignores popup buffers (which-key, transient, etc.) detected by iota-popup."
                 (throw 'found-window-below nil)))))
         t))))
 
+;;; Modeline Width Calculation
+
+(defun iota-modeline-effective-width (&optional window)
+  "Calculate the effective width for modeline box rendering in WINDOW.
+This accounts for:
+- Window body width (text area)
+- Subtract 1 to prevent line wrapping
+
+IOTA is terminal-centric - fringes don't exist in terminal mode.
+
+Returns the width to use for rendering modeline boxes."
+  (let* ((win (or window (selected-window)))
+         (body-width (window-body-width win)))
+    ;; Subtract 1 to prevent line wrapping
+    (max 10 (1- body-width))))
+
+;; Fringe functions are no-ops for terminal-centric IOTA
+(defun iota-configure-fringes ()
+  "No-op. IOTA is terminal-centric where fringes don't exist."
+  nil)
+
+(defun iota-restore-fringes ()
+  "No-op. IOTA is terminal-centric where fringes don't exist."
+  nil)
+
 ;;; String Utilities
 
 (defun iota-string-truncate (string max-length &optional ellipsis)

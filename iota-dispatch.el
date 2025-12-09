@@ -86,6 +86,7 @@
 
 (defun iota-dispatch--separator ()
   "Return a horizontal separator line spanning the window width."
+  (require 'iota-utils)
   (let* ((transient-window
           ;; Find the window displaying a transient buffer
           (or (get-buffer-window " *transient*")
@@ -94,8 +95,8 @@
                                           (buffer-name (window-buffer w))))
                           (window-list))))
          (width (if transient-window
-                    (1- (window-body-width transient-window))
-                  ;; Fall back to frame width minus 1 if no transient window found
+                    (iota-modeline-effective-width transient-window)
+                  ;; Fall back to frame width if no transient window found
                   (1- (frame-width)))))
     (propertize (make-string width ?─) 'face 'shadow)))
 
@@ -205,13 +206,13 @@
   (require 'iota-screens)
   (iota-screens-preview 'matrix))
 
-(transient-define-suffix iota-dispatch--screens-alien ()
-  "Preview Alien animation."
+(transient-define-suffix iota-dispatch--screens-lava ()
+  "Preview Lava animation."
   :key "a"
-  :description "Alien Flow"
+  :description "Lava Lamp"
   (interactive)
   (require 'iota-screens)
-  (iota-screens-preview 'alien))
+  (iota-screens-preview 'lava))
 
 (transient-define-suffix iota-dispatch--screens-life ()
   "Preview Life animation."
@@ -236,6 +237,30 @@
   (interactive)
   (require 'iota-screens)
   (iota-screens-preview 'pipes))
+
+(transient-define-suffix iota-dispatch--screens-plasma ()
+  "Preview Plasma animation."
+  :key "P"
+  :description "Plasma Effect"
+  (interactive)
+  (require 'iota-screens)
+  (iota-screens-preview 'plasma))
+
+(transient-define-suffix iota-dispatch--screens-stars ()
+  "Preview Stars animation."
+  :key "S"
+  :description "Starfield"
+  (interactive)
+  (require 'iota-screens)
+  (iota-screens-preview 'stars))
+
+(transient-define-suffix iota-dispatch--screens-earth ()
+  "Preview Earth animation."
+  :key "e"
+  :description "Earth Globe"
+  (interactive)
+  (require 'iota-screens)
+  (iota-screens-preview 'earth))
 
 (transient-define-suffix iota-dispatch--screens-stop ()
   "Stop all screens."
@@ -278,10 +303,15 @@
 
    ["Animations"
     (iota-dispatch--screens-matrix)
-    (iota-dispatch--screens-alien)
+    (iota-dispatch--screens-lava)
     (iota-dispatch--screens-life)
-    (iota-dispatch--screens-clock)
-    (iota-dispatch--screens-pipes)]
+    (iota-dispatch--screens-clock)]
+
+   ["More"
+    (iota-dispatch--screens-pipes)
+    (iota-dispatch--screens-plasma)
+    (iota-dispatch--screens-stars)
+    (iota-dispatch--screens-earth)]
 
    ["Control"
     (iota-dispatch--screens-toggle-mode)

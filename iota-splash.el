@@ -22,6 +22,7 @@
 
 ;; Only require what's absolutely needed at load time
 (require 'iota-faces)  ; Defines faces used in splash
+(require 'iota-utils)  ; For iota-modeline-effective-width
 (require 'color)       ; For color-lighten-name
 
 ;; Declare functions from modules loaded on-demand
@@ -503,7 +504,7 @@ Uses the configured box style from iota-modeline if available.
 Uses inactive face since popup/minibuffer is active when this is called."
   (require 'iota-box)  ; Load on demand
   (let* ((width (if (window-live-p window)
-                    (1- (window-body-width window))
+                    (iota-modeline-effective-width window)
                   79))
          (style (if (boundp 'iota-modeline-box-style)
                     iota-modeline-box-style
@@ -522,7 +523,7 @@ Shows separator when minibuffer or popup is active."
         (when (window-live-p win)
           (if (iota-splash--should-show-separator-p)
               ;; Show separator line when minibuffer/popup is active
-              (let ((width (1- (window-body-width win))))
+              (let ((width (iota-modeline-effective-width win)))
                 (with-current-buffer buffer
                   (setq-local mode-line-format
                               `(:eval (iota-splash--get-separator-line ,win))))

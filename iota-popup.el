@@ -36,6 +36,7 @@
 (require 'cl-lib)
 (require 'iota-box)
 (require 'iota-faces)
+(require 'iota-utils)  ; For iota-modeline-effective-width
 
 ;;; Customization
 
@@ -223,7 +224,7 @@ Returns the overlay."
 Only draws bottom line since the window above provides the top separator."
   (when (and (window-live-p window)
              (iota-popup--window-popup-p window))
-    (let* ((width (1- (window-body-width window)))
+    (let* ((width (iota-modeline-effective-width window))
            (style iota-popup-decoration-style))
       (with-current-buffer (window-buffer window)
         ;; Bottom decoration only (top comes from window above's separator)

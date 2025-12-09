@@ -206,42 +206,30 @@ the face definition and set explicitly to prevent color inheritance."
                (setq normalized (append normalized (list :underline nil))))
              (unless (plist-member normalized :inverse-video)
                (setq normalized (append normalized (list :inverse-video nil))))
-             ;; CRITICAL: If foreground isn't explicitly set, resolve it from inherited face
-             (when (not (plist-member normalized :foreground))
-               (if (plist-member normalized :inherit)
-                   (let* ((inherited-face (plist-get normalized :inherit))
-                          (fg (iota-modeline--resolve-face-color inherited-face :foreground)))
-                     (if fg
-                         (setq normalized (append normalized (list :foreground fg)))
-                       ;; No color found - use mode-line default to prevent inheritance
-                       (let ((default-fg (face-attribute 'mode-line :foreground nil t)))
-                         (when iota-modeline-debug-faces
-                           (message "IOTA:   No foreground found, using mode-line default: %S" default-fg))
-                         (when (and default-fg (not (eq default-fg 'unspecified)))
-                           (setq normalized (append normalized (list :foreground default-fg)))))))
-                 ;; No inherit - use mode-line default
-                 (let ((default-fg (face-attribute 'mode-line :foreground nil t)))
-                   (when (and default-fg (not (eq default-fg 'unspecified)))
-                     (setq normalized (append normalized (list :foreground default-fg)))))))
+             ;; Don't resolve foreground/background from inheritance
+             ;; If the plist has :inherit, let Emacs handle color inheritance naturally
+             ;; Only add explicit colors if they're already in the plist
              normalized))
 
-          ;; Single face symbol - expand it to explicit plist with resolved colors
+          ;; Single face symbol - just set it up for inheritance
           ((facep face)
-           (let* ((fg (face-attribute face :foreground nil t))
-                  (bg (face-attribute face :background nil t))
-                  (base-spec (list :inherit face
-                                  :slant 'normal
-                                  :weight 'normal
-                                  :underline nil
-                                  :inverse-video nil)))
+           (let* ((weight (face-attribute face :weight nil t))
+                  (slant (face-attribute face :slant nil t))
+                  (underline (face-attribute face :underline nil t))
+                  (base-spec (list :inherit face)))
              (when iota-modeline-debug-faces
-               (message "IOTA:   Face %S has fg=%S bg=%S" face fg bg))
-             ;; Add explicit foreground if the face has one
-             (when (and fg (not (eq fg 'unspecified)))
-               (setq base-spec (append base-spec (list :foreground fg))))
-             ;; Add explicit background if the face has one
-             (when (and bg (not (eq bg 'unspecified)))
-               (setq base-spec (append base-spec (list :background bg))))
+               (message "IOTA:   Face %S, preserving inheritance" face))
+             ;; Only set attributes explicitly if they are unspecified
+             ;; This preserves user customizations while preventing inheritance
+             (when (eq slant 'unspecified)
+               (setq base-spec (append base-spec (list :slant 'normal))))
+             (when (eq weight 'unspecified)
+               (setq base-spec (append base-spec (list :weight 'normal))))
+             (when (eq underline 'unspecified)
+               (setq base-spec (append base-spec (list :underline nil))))
+             ;; Always prevent inverse-video inheritance
+             (setq base-spec (append base-spec (list :inverse-video nil)))
+             ;; Don't add explicit foreground/background - let :inherit handle colors
              base-spec))
 
           ;; Fallback for anything else - return default with explicit foreground
@@ -559,7 +547,7 @@ Preserves face properties from the original modeline.
 TRULY-SELECTED-WINDOW is the actual selected window for active/inactive detection."
   (let* ((win (or window (selected-window)))
          (truly-selected (or truly-selected-window (selected-window)))
-         (width (max 10 (1- (window-body-width win))))
+         (width (iota-modeline-effective-width win))
          (style iota-modeline-box-style)
          (face (iota-theme-get-box-face win))
          ;; Render the original modeline content (preserve properties!)
@@ -684,7 +672,7 @@ Returns complete box: top border + content + bottom border."
   (if (not (iota-modeline--should-show-p))
       ""
     (let* ((win (or window (selected-window)))
-           (width (max 10 (1- (window-body-width win))))
+           (width (iota-modeline-effective-width win))
            (style iota-modeline-box-style)
            (face (iota-theme-get-box-face win)))
       (iota-box-top-border width style face))))
@@ -694,7 +682,7 @@ Returns complete box: top border + content + bottom border."
   (if (not (iota-modeline--should-show-p))
       ""
     (let* ((win (or window (selected-window)))
-           (width (max 10 (1- (window-body-width win))))
+           (width (iota-modeline-effective-width win))
            (style iota-modeline-box-style)
            (face (iota-theme-get-box-face win)))
       (iota-box-bottom-border width style face))))
@@ -918,7 +906,7 @@ Uses centralized update system for efficient batching."
           (kill-local-variable 'mode-line-format)))
        ((string= (buffer-name) "*Completions*")
         (setq-local mode-line-format
-                    '(:eval (iota-box-horizontal-line (1- (window-body-width))
+                    '(:eval (iota-box-horizontal-line (iota-modeline-effective-width)
                                                       'single 'iota-muted-face))))
        (t
         (setq-local mode-line-format nil)
@@ -1062,7 +1050,7 @@ Note: Splash screen is handled separately by iota-splash.el."
                   (with-current-buffer buf
                     (setq-local mode-line-format
                                 `(:eval (iota-box-horizontal-line
-                                         (1- (window-body-width))
+                                         (iota-modeline-effective-width)
                                          iota-modeline-box-style
                                          (if ,use-inactive-face
                                              'iota-inactive-box-face
@@ -1128,6 +1116,9 @@ Note: Splash screen is handled separately by iota-splash.el."
 
   ;; Save face attributes
   (iota-modeline--save-face-attributes)
+
+  ;; Configure fringes for proper width calculation
+  (iota-configure-fringes)
 
   ;; Remove backgrounds from modeline faces for transparency
   (set-face-attribute 'mode-line nil
@@ -1260,6 +1251,9 @@ Note: Splash screen is handled separately by iota-splash.el."
   (setq iota-modeline--original-mode-line-format nil)
   (setq iota-modeline--original-header-line-format nil)
   (setq iota-modeline--saved-mode-line-faces nil)
+
+  ;; Restore fringes
+  (iota-restore-fringes)
 
   ;; Force update
   (force-mode-line-update t))
