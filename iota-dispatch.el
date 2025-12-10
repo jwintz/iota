@@ -66,6 +66,7 @@
 (declare-function iota-icon "iota-icons")
 (declare-function iota-icon-get "iota-icons")
 (declare-function iota-icon-get-with-text "iota-icons")
+(declare-function iota-copilot-transient "iota-copilot")
 
 ;;; Helper Functions
 
@@ -954,7 +955,8 @@ Or with vanilla Emacs:
 
    ["Extras"
     ("s" "Screens" iota-screens-transient)
-    ("?" "Splash" iota-splash-transient)]])
+    ("?" "Splash" iota-splash-transient)
+    ("g" "Copilot" iota-copilot-transient)]])
 
 (provide 'iota-dispatch)
 ;;; iota-dispatch.el ends here

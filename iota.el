@@ -53,6 +53,7 @@
 (require 'iota-screens)
 (require 'iota-modes)
 (require 'iota-config)
+(require 'iota-copilot)
 (require 'iota-dispatch)
 
 ;; Optional modules
