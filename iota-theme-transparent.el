@@ -109,6 +109,9 @@ Note: IOTA faces should NOT have backgrounds - only foreground colors."
 (defvar iota-theme-transparent--active nil
   "Whether transparency mode is currently active.")
 
+(defvar iota-theme-transparent--update-timer nil
+  "Timer for debouncing transparency updates.")
+
 ;;; Logging
 
 (defmacro iota-theme-transparent--log (format-string &rest args)
@@ -296,6 +299,23 @@ Only modifies theme specs - does not set user specs."
   (setq iota-theme-transparent--original-specs nil)
   (setq iota-theme-transparent--active nil))
 
+(defun iota-theme-transparent--schedule-update ()
+  "Schedule a transparency update.
+Debounces multiple calls (e.g. from loading multiple files) to run once."
+  (when (timerp iota-theme-transparent--update-timer)
+    (cancel-timer iota-theme-transparent--update-timer))
+  (setq iota-theme-transparent--update-timer
+        (run-with-idle-timer 0.2 nil
+                             (lambda ()
+                               (when iota-theme-transparent-mode
+                                 (iota-theme-transparent-remove-backgrounds))))))
+
+(defun iota-theme-transparent--on-file-load (_file)
+  "Handle file load to update transparency.
+Arguments: _FILE is the file being loaded (ignored)."
+  (when iota-theme-transparent-mode
+    (iota-theme-transparent--schedule-update)))
+
 (defun iota-theme-transparent-advice (theme &optional no-confirm no-enable &rest args)
   "Advice for `load-theme' to apply transparency after theme loads.
 THEME is the theme being loaded, NO-CONFIRM and NO-ENABLE are load-theme args."
@@ -368,6 +388,8 @@ THEME is the theme being enabled.  This supports `consult-theme' previews."
   (advice-add 'load-theme :after #'iota-theme-transparent-advice)
   (iota-theme-transparent--log "  Adding advice to enable-theme (for consult-theme preview)")
   (advice-add 'enable-theme :after #'iota-theme-transparent-enable-theme-advice)
+  (iota-theme-transparent--log "  Adding hook to after-load-functions (for deferred packages)")
+  (add-hook 'after-load-functions #'iota-theme-transparent--on-file-load)
   (iota-theme-transparent--log "  Applying transparency to current faces")
   (iota-theme-transparent-remove-backgrounds)
   (iota-theme-transparent--log ">>> Transparency mode enabled <<<"))
@@ -380,6 +402,11 @@ THEME is the theme being enabled.  This supports `consult-theme' previews."
   (advice-remove 'load-theme #'iota-theme-transparent-advice)
   (iota-theme-transparent--log "  Removing advice from enable-theme")
   (advice-remove 'enable-theme #'iota-theme-transparent-enable-theme-advice)
+  (iota-theme-transparent--log "  Removing hook from after-load-functions")
+  (remove-hook 'after-load-functions #'iota-theme-transparent--on-file-load)
+  (when (timerp iota-theme-transparent--update-timer)
+    (cancel-timer iota-theme-transparent--update-timer)
+    (setq iota-theme-transparent--update-timer nil))
   (iota-theme-transparent--log "  Restoring original backgrounds")
   (iota-theme-transparent-restore-backgrounds)
   (iota-theme-transparent--log ">>> Transparency mode disabled <<<"))
