@@ -187,17 +187,20 @@ Returns a hex color string."
 (defun iota-dimmer--face-should-dim-p (face)
   "Return non-nil if FACE should be dimmed."
   (let ((name (symbol-name face)))
-    (not (or (string-prefix-p "iota-" name)
-             (string-prefix-p "mode-line" name)
-             (string-prefix-p "header-line" name)
-             (string-prefix-p "minibuffer" name)
-             (string-prefix-p "fringe" name)
-             (string-prefix-p "vertical-border" name)
-             (string-prefix-p "window-divider" name)
-             (string-prefix-p "cursor" name)
-             (string-match-p "tooltip" name)
-             (string-match-p "^menu" name)
-             (string-match-p "^tool-bar" name)))))
+    (not (or
+          ;; Exclude iota UI faces (modeline, box, etc.) but NOT screen faces
+          (and (string-prefix-p "iota-" name)
+               (not (string-prefix-p "iota-screens-" name)))
+          (string-prefix-p "mode-line" name)
+          (string-prefix-p "header-line" name)
+          (string-prefix-p "minibuffer" name)
+          (string-prefix-p "fringe" name)
+          (string-prefix-p "vertical-border" name)
+          (string-prefix-p "window-divider" name)
+          (string-prefix-p "cursor" name)
+          (string-match-p "tooltip" name)
+          (string-match-p "^menu" name)
+          (string-match-p "^tool-bar" name)))))
 
 (defun iota-dimmer--create-dimmed-face-spec (face)
   "Create a face specification for a dimmed version of FACE.

@@ -9,13 +9,14 @@ A minimal terminal interface framework for Emacs with box-drawing modeline, them
 
 ## Features
 
-- **Box-Drawing Modeline**: Header-line modeline with Unicode box-drawing characters (╭─╮ │ ╰─╯)
+- **Box-Drawing Modeline**: Header-line modeline with Unicode box-drawing characters
 - **Mode Enhancements**: Visual decorations for major modes (markdown code blocks)
 - **Theme Transparency**: Automatic background removal for transparent terminals
-- **Window Management**: Active/inactive window distinction
-- **Inactive Window Dimming**: Dim inactive windows while preserving syntax highlighting
+- **Window Management**: Active/inactive window distinction with dimming
 - **Popup Handling**: TUI decorations for which-key, transient, and other popups
 - **Splash Screen**: Minimal startup screen with IOTA branding
+- **Screen Savers**: Matrix, pipes, clock, life, plasma, stars, earth, lava
+- **Copilot Usage**: GitHub Copilot premium request tracking (Pro+ plans)
 - **Icon Support**: Nerd-icons with automatic Unicode/ASCII fallback
 
 ## Installation
@@ -244,7 +245,8 @@ t Theme                    d Dimmer
 
 Windows                    Extras
 w Window                   s Screens
-p Popup                    ? Splash
+p Popup                    g Copilot
+                           ? Splash
 ```
 
 ### Binding with use-package and general.el
@@ -308,31 +310,27 @@ p Popup                    ? Splash
 
 ```
 iota/
-├── iota.el                  # Main entry point
-├── iota-box.el              # Box-drawing primitives
-├── iota-cache.el            # Caching utilities
-├── iota-config.el           # Configuration and presets
-├── iota-dimmer.el           # Inactive window dimming
-├── iota-dispatch.el         # Transient dispatch interface
-├── iota-faces.el            # Face definitions
-├── iota-icons.el            # Icon support with nerd-icons fallback
-├── iota-logos.el            # ASCII art logos
-├── iota-modes.el            # Mode-specific enhancements
-├── iota-modeline.el         # Modeline and separator lines
-├── iota-popup.el            # Popup window decorations
-├── iota-screens.el          # Screen saver system
-├── iota-screens-alien.el    # Alien flow animation
-├── iota-screens-clock.el    # Digital clock animation
-├── iota-screens-life.el     # Game of Life animation
-├── iota-screens-matrix.el   # Matrix rain animation
-├── iota-screens-pipes.el    # 3D pipes animation
-├── iota-splash.el           # Splash screen
-├── iota-theme.el            # Theme introspection
-├── iota-theme-transparent.el # Terminal transparency
-├── iota-timers.el           # Timer management
-├── iota-update.el           # Centralized update system
-├── iota-utils.el            # General utilities
-└── iota-window.el           # Window management
+├── iota.el                    # Main entry point
+├── iota-box.el                # Box-drawing primitives
+├── iota-cache.el              # Caching utilities
+├── iota-config.el             # Configuration and presets
+├── iota-copilot.el            # GitHub Copilot usage tracking
+├── iota-dimmer.el             # Inactive window dimming
+├── iota-dispatch.el           # Transient dispatch interface
+├── iota-icons.el              # Icon support with nerd-icons fallback
+├── iota-logos.el              # ASCII art logos
+├── iota-modes.el              # Mode-specific enhancements
+├── iota-modeline.el           # Modeline and separator lines
+├── iota-popup.el              # Popup window decorations
+├── iota-screens.el            # Screen saver system
+├── iota-screens-*.el          # Screen implementations
+├── iota-splash.el             # Splash screen
+├── iota-theme.el              # Theme introspection
+├── iota-theme-transparent.el  # Terminal transparency
+├── iota-timers.el             # Timer management
+├── iota-update.el             # Centralized update system
+├── iota-utils.el              # General utilities
+└── iota-window.el             # Window management
 ```
 
 ## Requirements
@@ -341,7 +339,8 @@ iota/
 - Terminal with Unicode support (for box-drawing characters)
 
 **Optional:**
-- `nerd-icons` — For enhanced icons in transients and modeline (falls back gracefully)
+- `nerd-icons` — For enhanced icons in transients and modeline
+- `gh` CLI — For Copilot usage tracking (requires `user` scope)
 
 ## Philosophy
 
