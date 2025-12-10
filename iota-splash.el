@@ -24,6 +24,7 @@
 (require 'iota-faces)  ; Defines faces used in splash
 (require 'iota-utils)  ; For iota-modeline-effective-width
 (require 'iota-special-buffer)  ; Unified special buffer management
+(require 'iota-popup)  ; For popup detection (which-key, etc.)
 (require 'color)       ; For color-lighten-name
 
 ;; Declare functions from modules loaded on-demand
@@ -31,7 +32,6 @@
 (declare-function iota-timers-cancel "iota-timers")
 (declare-function iota-box-horizontal-line "iota-box")
 (declare-function iota-theme-get-box-face "iota-theme")
-(declare-function iota-popup--popup-visible-p "iota-popup")
 
 (defcustom iota-splash-buffer-name "*I O T Λ splash*"
   "Buffer name for IOTA splash screen."
@@ -653,33 +653,13 @@ Iterates over ALL windows displaying the splash buffer."
               ;; Hide separator line
               (set-window-parameter win 'mode-line-format 'none))))))))
 
-(defun iota-splash--check-resize ()
-  "Check if splash screen needs redraw due to resize.
-Called periodically by idle timer.
-Prioritizes SELECTED window to avoid multi-window flicker loops."
-  (let ((buffer (get-buffer iota-splash-buffer-name)))
-    (when (and buffer (buffer-live-p buffer))
-      ;; Use same prioritization as redraw logic
-      (let ((win (if (eq (window-buffer (selected-window)) buffer)
-                     (selected-window)
-                   (get-buffer-window buffer))))
-        (when (window-live-p win)
-          (with-current-buffer buffer
-            (let ((current-height (window-body-height win))
-                  (current-width (window-width win)))
-              (when (and current-height current-width
-                         (or (not (equal current-height iota-splash--last-window-height))
-                             (not (equal current-width iota-splash--last-window-width))))
-                (iota-splash--log "resize detected: %dx%d -> %dx%d"
-                                  iota-splash--last-window-width iota-splash--last-window-height
-                                  current-width current-height)
-                (iota-splash--redraw-buffer)))))))))
+
 
 (defun iota-splash--start-resize-timer ()
   "Start the resize check timer."
   (iota-splash--stop-resize-timer)
   (setq iota-splash--resize-timer
-        (run-with-idle-timer 0.2 t #'iota-splash--check-resize)))
+        (run-with-idle-timer 0.2 t #'iota-splash--check-and-redraw)))
 
 (defun iota-splash--stop-resize-timer ()
   "Stop the resize check timer."
@@ -721,6 +701,10 @@ Prioritizes SELECTED window to avoid multi-window flicker loops."
 
 
 
+(defun iota-splash--on-window-config-change ()
+  "Handle window configuration changes to update separator and redraw."
+  (iota-splash--check-and-redraw))
+
 (defun iota-splash--cleanup-hooks ()
   "Remove all splash screen hooks and reset state."
   ;; Reset state variables
@@ -731,8 +715,8 @@ Prioritizes SELECTED window to avoid multi-window flicker loops."
   ;; Remove hooks
   (remove-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-setup)
   (remove-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)
-  ;; Legacy hooks (remove if present from older sessions)
   (remove-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
+  ;; Legacy hooks (remove if present from older sessions)
   (remove-hook 'window-size-change-functions #'iota-splash--on-resize)
   (remove-hook 'post-command-hook #'iota-splash--check-and-redraw)
   (remove-hook 'buffer-list-update-hook #'iota-splash--check-buffer-switch)
@@ -902,6 +886,8 @@ Does not display if Emacs was opened with file arguments (unless FORCE is t)."
       ;; Minibuffer hooks for separator line
       (add-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-setup)
       (add-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)
+      ;; Window configuration hook for popups (which-key, etc.)
+      (add-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
 
       ;; Start animations and hint rotation
       (iota-splash--start-animation)

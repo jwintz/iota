@@ -47,19 +47,17 @@
 
 (defcustom iota-popup-buffer-patterns
   '(;; which-key
-    "\\` \\*which-key\\*"
-    "\\`\\*which-key\\*"
+    "\\*which-key\\*"
     ;; transient
-    "\\` \\*transient\\*"
-    "\\`\\*transient\\*"
-    "\\`\\*Transient-Posframe\\*"
+    "\\*transient\\*"
+    "\\*Transient-Posframe\\*"
     ;; Embark
-    "\\`\\*Embark Actions\\*"
-    "\\`\\*Embark Collect\\*"
+    "\\*Embark Actions\\*"
+    "\\*Embark Collect\\*"
     ;; Consult
-    "\\`\\*consult-.*\\*"
+    "\\*consult-.*\\*"
     ;; General completions
-    "\\`\\*Completions\\*")
+    "\\*Completions\\*")
   "List of regexp patterns that match popup buffer names.
 These buffers will receive TUI box decorations when they appear
 at the bottom of the frame."
