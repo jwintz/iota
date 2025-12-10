@@ -171,13 +171,18 @@ FACE is applied to filled portion. WIDTH defaults to `iota-copilot-progress-bar-
   "Call GitHub API ENDPOINT via gh CLI synchronously.
 Returns parsed JSON or nil on error."
   (with-temp-buffer
-    (let ((exit-code (call-process "gh" nil t nil "api" endpoint)))
+    (let* ((err-buf (generate-new-buffer " *iota-copilot-stderr*"))
+           (exit-code (call-process "gh" nil (list t err-buf) nil "api" endpoint)))
       (if (zerop exit-code)
           (progn
+            (kill-buffer err-buf)
             (goto-char (point-min))
             (condition-case nil
                 (json-parse-buffer :object-type 'plist :array-type 'list)
               (error nil)))
+        (with-current-buffer err-buf
+          (message "gh API error: %s" (string-trim (buffer-string))))
+        (kill-buffer err-buf)
         nil))))
 
 ;;; Username Detection
