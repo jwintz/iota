@@ -172,7 +172,7 @@ FACE is applied to filled portion. WIDTH defaults to `iota-copilot-progress-bar-
 Returns parsed JSON or nil on error."
   (with-temp-buffer
     (let* ((err-buf (generate-new-buffer " *iota-copilot-stderr*"))
-           (exit-code (call-process "gh" nil (list t err-buf) nil "api" endpoint)))
+           (exit-code (call-process "gh" nil (list t (buffer-name err-buf)) nil "api" endpoint)))
       (if (zerop exit-code)
           (progn
             (kill-buffer err-buf)
