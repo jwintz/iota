@@ -23,6 +23,7 @@
 ;; Only require what's absolutely needed at load time
 (require 'iota-faces)  ; Defines faces used in splash
 (require 'iota-utils)  ; For iota-modeline-effective-width
+(require 'iota-special-buffer)  ; Unified special buffer management
 (require 'color)       ; For color-lighten-name
 
 ;; Declare functions from modules loaded on-demand
@@ -61,24 +62,30 @@ These prefixes are used to discover commands bound via general.el or other metho
   :type '(repeat string)
   :group 'iota)
 
-(defvar iota-splash--animation-timer nil
-  "Timer for splash screen animation.")
-
 (defvar iota-splash--animation-step 0
   "Current step of the animation cycle.")
 
 (defvar iota-splash--hint-index 0
   "Current index of the hint being displayed.")
 
-(defvar iota-splash--hint-timer nil
-  "Timer for rotating hints.")
-
 (defvar-local iota-splash--last-window-height nil
   "Last known window height for splash screen.")
+
+(defvar-local iota-splash--last-window-width nil
+  "Last known window width for splash screen.")
+
+(defvar-local iota-splash--anim-markers nil
+  "Markers for animated character positions: (marker1 marker2 marker3 marker4).")
 
 (defvar iota-splash--hints nil
   "Dynamically generated hints from commands.
 Populated by `iota-splash-generate-hints' when available.")
+
+(defvar iota-splash--hint-timer nil
+  "Legacy hint rotation timer (deprecated, use iota-timers registry).")
+
+(defvar iota-splash--animation-timer nil
+  "Legacy animation timer (deprecated, use iota-timers registry).")
 
 (defun iota-splash--extract-keymap-commands (keymap)
   "Extract all command symbols from KEYMAP recursively.
@@ -241,31 +248,41 @@ Call this after loading new IOTA modules or changing general.el bindings."
              (truncate-string-to-width (or (nth iota-splash--hint-index hints) "nil") 40))))
 
 (defconst iota-splash--base-colors
-  '("#39bae6" "#52c1e9" "#6ac8ec" "#81cfef" "#99d6f2" "#b0ddf5" "#c8e4f8" "#d9e3fa" "#ffcc66" "#ffd57a" "#ffde8f" "#ffe6a3" "#ffedb8" "#fff6cc" "#fffbe0")
-  "Base palette of colors for the gradient animation.")
+  '("#39bae6" "#7ac5ed" "#b0ddf5" "#d9e3fa" "#ffcc66" "#ffe6a3" "#fffbe0"
+    "#ffe6a3" "#ffcc66" "#d9e3fa" "#b0ddf5" "#7ac5ed" "#39bae6")
+  "Seamless loop palette: cyan→pale-blue→white-yellow→yellow→white-yellow→pale-blue→cyan.")
+
+(defun iota-splash--hex-to-rgb (hex)
+  "Convert HEX color string to (R G B) list with values 0.0-1.0."
+  (let ((hex (if (string-prefix-p "#" hex) (substring hex 1) hex)))
+    (list (/ (string-to-number (substring hex 0 2) 16) 255.0)
+          (/ (string-to-number (substring hex 2 4) 16) 255.0)
+          (/ (string-to-number (substring hex 4 6) 16) 255.0))))
 
 (defun iota-splash--interpolate-color (color1 color2 ratio)
   "Interpolate between COLOR1 and COLOR2 at RATIO (0.0 to 1.0).
 Returns a hex color string."
-  (let* ((rgb1 (color-name-to-rgb color1))
-         (rgb2 (color-name-to-rgb color2))
+  (let* ((rgb1 (iota-splash--hex-to-rgb color1))
+         (rgb2 (iota-splash--hex-to-rgb color2))
          (r (+ (* (nth 0 rgb1) (- 1.0 ratio)) (* (nth 0 rgb2) ratio)))
          (g (+ (* (nth 1 rgb1) (- 1.0 ratio)) (* (nth 1 rgb2) ratio)))
          (b (+ (* (nth 2 rgb1) (- 1.0 ratio)) (* (nth 2 rgb2) ratio))))
     (color-rgb-to-hex r g b 2)))
 
 (defun iota-splash--generate-smooth-palette (base-colors steps-between)
-  "Generate a smooth palette by interpolating STEPS-BETWEEN colors between each pair in BASE-COLORS."
-  (let ((result nil))
-    (dotimes (i (1- (length base-colors)))
+  "Generate a smooth palette by interpolating STEPS-BETWEEN colors between each pair in BASE-COLORS.
+Colors form a seamless loop when first and last are identical."
+  (let ((result nil)
+        (len (length base-colors)))
+    (dotimes (i len)
       (let ((color1 (nth i base-colors))
-            (color2 (nth (1+ i) base-colors)))
-        (push color1 result)
-        (dotimes (step steps-between)
-          (let ((ratio (/ (float (1+ step)) (float (1+ steps-between)))))
-            (push (iota-splash--interpolate-color color1 color2 ratio) result)))))
-    ;; Add the last color
-    (push (car (last base-colors)) result)
+            (color2 (nth (% (1+ i) len) base-colors)))
+        ;; Skip the last color since it equals the first (loop closure)
+        (unless (= i (1- len))
+          (push color1 result)
+          (dotimes (step steps-between)
+            (let ((ratio (/ (float (1+ step)) (float (1+ steps-between)))))
+              (push (iota-splash--interpolate-color color1 color2 ratio) result))))))
     (nreverse result)))
 
 (defconst iota-splash--animation-colors
@@ -273,15 +290,36 @@ Returns a hex color string."
   "A smooth palette of interpolated colors for the gradient animation.")
 
 (defun iota-splash--insert-tertiary ()
-  "Insert the tertiary logo with animation-ready faces."
-  (insert (propertize "ι" 'face 'iota-splash-anim-1))
-  (insert " • ")  ; Use default (brightest) face for dots
-  (insert (propertize "ο" 'face 'iota-splash-anim-2))
-  (insert " • ")  ; Use default (brightest) face for dots
-  (insert (propertize "τ" 'face 'iota-splash-anim-3))
-  (insert " • ")  ; Use default (brightest) face for dots
-  (insert (propertize "α" 'face 'iota-splash-anim-4))
+  "Insert the tertiary logo. Animation markers created AFTER centering."
+  ;; Just insert the logo text - markers will be set after center-region
+  (insert (propertize "ι" 'face `(:foreground ,(nth 0 iota-splash--animation-colors))))
+  (insert " • ")
+  (insert (propertize "ο" 'face `(:foreground ,(nth 2 iota-splash--animation-colors))))
+  (insert " • ")
+  (insert (propertize "τ" 'face `(:foreground ,(nth 4 iota-splash--animation-colors))))
+  (insert " • ")
+  (insert (propertize "α" 'face `(:foreground ,(nth 6 iota-splash--animation-colors))))
   (insert "\n\n"))
+
+(defun iota-splash--fix-animation-markers (start)
+  "Create animation markers by finding Greek letters after START.
+Must be called AFTER center-region to get correct positions."
+  (save-excursion
+    (goto-char start)
+    (let (m1 m2 m3 m4)
+      ;; Find ι
+      (when (re-search-forward "ι" nil t)
+        (setq m1 (copy-marker (match-beginning 0) t)))
+      ;; Find ο
+      (when (re-search-forward "ο" nil t)
+        (setq m2 (copy-marker (match-beginning 0) t)))
+      ;; Find τ
+      (when (re-search-forward "τ" nil t)
+        (setq m3 (copy-marker (match-beginning 0) t)))
+      ;; Find α
+      (when (re-search-forward "α" nil t)
+        (setq m4 (copy-marker (match-beginning 0) t)))
+      (setq iota-splash--anim-markers (list m1 m2 m3 m4)))))
 
 (defun iota-splash--insert-footer ()
   "Insert the footer tagline."
@@ -306,24 +344,55 @@ Returns a hex color string."
          (hint (nth (mod iota-splash--hint-index (length hints)) hints)))
     hint))
 
+(defvar-local iota-splash--hint-start nil
+  "Marker for the start of hint text region.")
+
+(defvar-local iota-splash--hint-end nil
+  "Marker for the end of hint text region.")
+
 (defun iota-splash--insert-hints ()
   "Insert hints section if enabled."
   (when iota-splash-show-hints
     (let ((hint (iota-splash--get-current-hint)))
       (insert "\n\n\n\n")  ; Add spacing to push hints lower
+      ;; Start marker: moves after insertion (t)
+      (setq iota-splash--hint-start (copy-marker (point) nil))
       (insert (propertize hint 'face 'iota-splash-tertiary))
+      ;; End marker: doesn't move on insertion (nil)
+      (setq iota-splash--hint-end (copy-marker (point) t))
       (insert "\n"))))
 
 (defun iota-splash--rotate-hint ()
-  "Rotate to the next hint and update the splash screen buffer."
-  (let ((hints (iota-splash--get-hints)))
-    (when hints
-      (setq iota-splash--hint-index
-            (if iota-splash-hints-random
-                (random (length hints))
-              (mod (1+ iota-splash--hint-index) (length hints))))))
-  ;; Use the centralized redraw function
-  (iota-splash--redraw-buffer))
+  "Rotate to the next hint and update ONLY the hint text in-place."
+  (let ((buf (get-buffer iota-splash-buffer-name)))
+    ;; Early exit if buffer doesn't exist
+    (unless (and buf (buffer-live-p buf))
+      (iota-splash--stop-hint-rotation)
+      (cl-return-from iota-splash--rotate-hint))
+    (with-current-buffer buf
+      (let ((hints (iota-splash--get-hints)))
+        (when hints
+          (setq iota-splash--hint-index
+                (if iota-splash-hints-random
+                    (random (length hints))
+                  (mod (1+ iota-splash--hint-index) (length hints)))))
+        ;; Update hint text in-place without full redraw
+        (when (and iota-splash--hint-start 
+                   iota-splash--hint-end
+                   (marker-position iota-splash--hint-start)
+                   (marker-position iota-splash--hint-end))
+          (let ((inhibit-read-only t)
+                (new-hint (iota-splash--get-current-hint))
+                (start-pos (marker-position iota-splash--hint-start)))
+            (delete-region iota-splash--hint-start iota-splash--hint-end)
+            (goto-char start-pos)
+            (let ((hint-start (point)))
+              (insert (propertize new-hint 'face 'iota-splash-tertiary))
+              ;; Center the hint line
+              (let ((fill-column (window-width (get-buffer-window (current-buffer)))))
+                (center-line))
+              ;; Update end marker to new position after centering
+              (set-marker iota-splash--hint-end (point)))))))))
 
 (defun iota-splash--start-hint-rotation ()
   "Start the hint rotation timer."
@@ -372,22 +441,28 @@ Redraws are debounced to prevent performance issues."
       (with-current-buffer buffer
         (let ((window (get-buffer-window buffer)))
           (when window
-            (let ((current-height (window-body-height window)))
-              (when current-height
+            (let ((current-height (window-body-height window))
+                  (current-width (window-width window)))
+              (when (and current-height current-width)
                 (setq iota-splash--last-window-height current-height)
+                (setq iota-splash--last-window-width current-width)
                 (let ((inhibit-read-only t))
                   ;; Regenerate the entire buffer with new padding
                   (erase-buffer)
                   (let* ((content-lines (+ 6  ; logo + footer + empty line + init-time
                                            (if iota-splash-show-hints 5 0)))
-                         (padding (max 0 (/ (- current-height content-lines) 2))))
+                         ;; Use floor to ensure consistent padding calculation
+                         (padding (max 0 (floor (/ (- current-height content-lines) 2.0)))))
                     (dotimes (_ padding) (insert "\n")))
                   (let ((logo-start (point)))
                     (iota-splash--insert-tertiary)
                     (iota-splash--insert-footer)
                     (iota-splash--insert-init-time)
+                    ;; Center BEFORE saving marker positions (center-region modifies text)
                     (let ((fill-column (window-width window)))
-                      (center-region logo-start (point))))
+                      (center-region logo-start (point)))
+                    ;; NOW find and save the animated character positions after centering
+                    (iota-splash--fix-animation-markers logo-start))
 
                   (let ((hints-start (point)))
                     (iota-splash--insert-hints)
@@ -404,23 +479,27 @@ Redraws are debounced to prevent performance issues."
                   (internal-show-cursor window nil))))))))))
 
 (defun iota-splash--redraw-on-resize ()
-  "Redraw splash screen if window height changed."
+  "Redraw splash screen if window height or width changed."
   (let ((buffer (get-buffer iota-splash-buffer-name)))
     (when (and buffer (buffer-live-p buffer))
       (with-current-buffer buffer
         (let ((window (get-buffer-window buffer)))
           (when window
-            (let ((current-height (window-body-height window)))
-              (when (and current-height
-                         (not (equal current-height iota-splash--last-window-height)))
+            (let ((current-height (window-body-height window))
+                  (current-width (window-width window)))
+              (when (and current-height current-width
+                         (or (not (equal current-height iota-splash--last-window-height))
+                             (not (equal current-width iota-splash--last-window-width))))
                 (iota-splash--redraw-buffer)))))))))
 
 (defun iota-splash--check-and-redraw ()
   "Check if splash screen window height changed and redraw if needed.
-Also updates separator line visibility based on minibuffer/which-key state."
-  (when (get-buffer iota-splash-buffer-name)
-    (iota-splash--update-separator)
-    (iota-splash--redraw-on-resize)))
+Also updates separator line visibility based on minibuffer/which-key state.
+This is a lightweight check that only acts when splash is visible."
+  (let ((buf (get-buffer iota-splash-buffer-name)))
+    (when (and buf (get-buffer-window buf))
+      (iota-splash--update-separator)
+      (iota-splash--redraw-on-resize))))
 
 (defun iota-splash--minibuffer-active-p ()
   "Return t if the minibuffer is currently active."
@@ -540,15 +619,11 @@ Shows separator when minibuffer or popup is active."
 
 (defun iota-splash--on-window-config-change ()
   "Handle window configuration changes (e.g., popup appearing).
-This forces a redraw to ensure the splash screen stays centered."
+Only acts when splash buffer is visible - otherwise exits immediately."
   (let ((buffer (get-buffer iota-splash-buffer-name)))
-    (when (and buffer
-               (buffer-live-p buffer)
-               (get-buffer-window buffer))
-      ;; Update separator line visibility
+    (when (and buffer (get-buffer-window buffer))
       (iota-splash--update-separator)
-      ;; Force redraw on any window configuration change
-      (iota-splash--redraw-buffer))))
+      (iota-splash--redraw-on-resize))))
 
 (defun iota-splash--on-minibuffer-setup ()
   "Handle minibuffer setup to show separator and redraw splash screen."
@@ -582,54 +657,45 @@ This forces a redraw to ensure the splash screen stays centered."
       (iota-splash--update-separator)
       (iota-splash--redraw-buffer))))
 
-(defvar iota-splash--cursor-hidden nil
-  "Track cursor visibility state to avoid redundant calls.")
 
-(defun iota-splash--restore-cursor ()
-  "Restore cursor visibility when leaving splash screen."
-  (when iota-splash--cursor-hidden
-    (let ((win (selected-window)))
-      (when (window-live-p win)
-        (internal-show-cursor win t)
-        (setq iota-splash--cursor-hidden nil)))))
-
-(defun iota-splash--check-buffer-switch ()
-  "Check buffer and manage cursor visibility accordingly.
-Only updates cursor state when it actually changes to reduce flickering."
-  (let ((splash-buf (get-buffer iota-splash-buffer-name))
-        (current-buf (current-buffer))
-        (win (selected-window)))
-    (when (window-live-p win)
-      (let ((should-hide (and splash-buf (eq current-buf splash-buf))))
-        ;; Only call internal-show-cursor when state actually changes
-        (when (not (eq should-hide iota-splash--cursor-hidden))
-          (internal-show-cursor win (not should-hide))
-          (setq iota-splash--cursor-hidden should-hide))))))
 
 (defun iota-splash--cleanup-hooks ()
-  "Remove all splash screen hooks and restore cursor."
-  (remove-hook 'post-command-hook #'iota-splash--check-and-redraw)
+  "Remove all splash screen hooks."
+  ;; Remove hooks
   (remove-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
   (remove-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-setup)
   (remove-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)
+  ;; Legacy hooks (remove if present from older sessions)
+  (remove-hook 'post-command-hook #'iota-splash--check-and-redraw)
   (remove-hook 'buffer-list-update-hook #'iota-splash--check-buffer-switch)
-  (remove-hook 'echo-area-clear-hook #'iota-splash--on-echo-area-clear)
-  ;; Restore cursor when cleaning up
-  (iota-splash--restore-cursor))
+  (remove-hook 'echo-area-clear-hook #'iota-splash--on-echo-area-clear))
 
 
 (defun iota-splash--animate-step ()
-  "Execute one step of the color animation."
-  (let* ((num-colors (length iota-splash--animation-colors))
-         (color1 (nth (% (+ iota-splash--animation-step 0) num-colors) iota-splash--animation-colors))
-         (color2 (nth (% (+ iota-splash--animation-step 2) num-colors) iota-splash--animation-colors))
-         (color3 (nth (% (+ iota-splash--animation-step 4) num-colors) iota-splash--animation-colors))
-         (color4 (nth (% (+ iota-splash--animation-step 6) num-colors) iota-splash--animation-colors)))
-    (set-face-foreground 'iota-splash-anim-1 color1)
-    (set-face-foreground 'iota-splash-anim-2 color2)
-    (set-face-foreground 'iota-splash-anim-3 color3)
-    (set-face-foreground 'iota-splash-anim-4 color4)
-    (setq iota-splash--animation-step (1+ iota-splash--animation-step))))
+  "Execute one step of the color animation.
+Updates text properties at marker positions - buffer-local, no global redisplay."
+  (let ((buf (get-buffer iota-splash-buffer-name)))
+    ;; Early exit if buffer doesn't exist or not visible
+    (unless (and buf (buffer-live-p buf))
+      (iota-splash--stop-animation)
+      (cl-return-from iota-splash--animate-step))
+    (with-current-buffer buf
+      (when (and iota-splash--anim-markers
+                 (cl-every #'marker-position iota-splash--anim-markers))
+        (let* ((inhibit-read-only t)
+               (num-colors (length iota-splash--animation-colors))
+               (colors (list
+                        (nth (% (+ iota-splash--animation-step 0) num-colors) iota-splash--animation-colors)
+                        (nth (% (+ iota-splash--animation-step 2) num-colors) iota-splash--animation-colors)
+                        (nth (% (+ iota-splash--animation-step 4) num-colors) iota-splash--animation-colors)
+                        (nth (% (+ iota-splash--animation-step 6) num-colors) iota-splash--animation-colors))))
+          ;; Update text properties at marker positions
+          (cl-loop for marker in iota-splash--anim-markers
+                   for color in colors
+                   for pos = (marker-position marker)
+                   when pos do
+                   (put-text-property pos (1+ pos) 'face `(:foreground ,color)))
+          (setq iota-splash--animation-step (1+ iota-splash--animation-step)))))))
 
 (defun iota-splash--start-animation ()
   "Start the splash screen animation timer.
@@ -667,14 +733,8 @@ This indicates Emacs was likely started with file arguments."
   (iota-splash--stop-hint-rotation)
   ;; Clean up hooks
   (iota-splash--cleanup-hooks)
-  ;; Restore cursor visibility in the window before killing buffer
-  (when-let ((win (get-buffer-window iota-splash-buffer-name)))
-    (internal-show-cursor win t))
-  ;; Kill the buffer (not just bury it)
-  (when (get-buffer iota-splash-buffer-name)
-    (kill-buffer iota-splash-buffer-name))
-  ;; Restore cursor in the new current window
-  (internal-show-cursor (selected-window) t))
+  ;; Use unified special buffer dismissal (handles cursor restoration)
+  (iota-special-buffer-dismiss iota-splash-buffer-name))
 
 (defun iota-splash-screen (&optional force)
   "Display IOTA splash screen with branding.
@@ -693,28 +753,27 @@ Does not display if Emacs was opened with file arguments (unless FORCE is t)."
     (let ((buffer (get-buffer-create iota-splash-buffer-name)))
       ;; First, switch to the buffer to establish window context
       (switch-to-buffer buffer)
+
+      ;; Setup as special buffer (hides cursor, sets buffer-local vars)
+      (iota-special-buffer-setup buffer
+        :cleanup-fn (lambda ()
+                      (iota-splash--stop-animation)
+                      (iota-splash--stop-hint-rotation)
+                      (iota-splash--cleanup-hooks)))
+
       ;; Now, populate and configure the buffer in the correct window
       (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
-        ;; Store initial window height
+        ;; Store initial window dimensions
         (setq iota-splash--last-window-height (window-body-height))
-
-        ;; Hide cursor IMMEDIATELY (before any content insertion)
-        (setq-local cursor-type nil)
-        (setq-local cursor-in-non-selected-windows nil)
-        (setq-local visible-cursor nil)
-        (internal-show-cursor (selected-window) nil)
-
-        ;; Add hooks to stop timers and cleanup when buffer is killed
-        (add-hook 'kill-buffer-hook #'iota-splash--stop-animation nil t)
-        (add-hook 'kill-buffer-hook #'iota-splash--stop-hint-rotation nil t)
-        (add-hook 'kill-buffer-hook #'iota-splash--cleanup-hooks nil t)
+        (setq iota-splash--last-window-width (window-width))
 
         ;; Layout Calculations (now in correct window context)
         (let* ((content-lines (+ 6  ; logo + footer + empty line + init-time
                                  (if iota-splash-show-hints 5 0)))
-               (padding (max 0 (/ (- (window-body-height) content-lines) 2))))
+               ;; Use floor to ensure consistent padding calculation
+               (padding (max 0 (floor (/ (- (window-body-height) content-lines) 2.0)))))
           (dotimes (_ padding) (insert "\n")))
 
         ;; Insert Content
@@ -724,7 +783,9 @@ Does not display if Emacs was opened with file arguments (unless FORCE is t)."
           (iota-splash--insert-init-time)
           ;; Center logo, tagline, and init time
           (let ((fill-column (window-width)))
-            (center-region logo-start (point))))
+            (center-region logo-start (point)))
+          ;; Create animation markers AFTER centering
+          (iota-splash--fix-animation-markers logo-start))
 
         (let ((hints-start (point)))
           (iota-splash--insert-hints)
@@ -744,11 +805,7 @@ Does not display if Emacs was opened with file arguments (unless FORCE is t)."
         (setq-local mode-line-format nil)
         (setq-local header-line-format nil)
 
-        ;; Hide cursor in splash screen (multiple methods for robustness)
-        (setq-local cursor-type nil)
-        (setq-local cursor-in-non-selected-windows nil)
-        (setq-local visible-cursor nil)
-        ;; Additional cursor hiding methods
+        ;; Disable hl-line in splash buffer
         (setq-local global-hl-line-mode nil)
         (setq-local hl-line-mode nil)
         ;; Move point to beginning for aesthetic consistency
@@ -761,9 +818,6 @@ Does not display if Emacs was opened with file arguments (unless FORCE is t)."
       (set-window-parameter (selected-window) 'mode-line-format 'none)
       (set-window-parameter (selected-window) 'header-line-format nil)
 
-      ;; Hide cursor at window level (more reliable than buffer-local)
-      (internal-show-cursor (selected-window) nil)
-
       ;; Clear echo area and set minibuffer window properties
       (message nil)
       (let ((minibuf-win (minibuffer-window)))
@@ -772,13 +826,12 @@ Does not display if Emacs was opened with file arguments (unless FORCE is t)."
           (with-selected-window minibuf-win
             (setq-local mode-line-format nil))))
 
-      ;; Add hooks to check for window size and configuration changes
-      (add-hook 'post-command-hook #'iota-splash--check-and-redraw)
+      ;; Add hooks for layout/interaction
+      ;; window-configuration-change-hook for resize/layout changes
       (add-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
+      ;; Minibuffer hooks for separator line
       (add-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-setup)
       (add-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)
-      (add-hook 'buffer-list-update-hook #'iota-splash--check-buffer-switch)
-      (add-hook 'echo-area-clear-hook #'iota-splash--on-echo-area-clear)
 
       ;; Start animations and hint rotation
       (iota-splash--start-animation)
