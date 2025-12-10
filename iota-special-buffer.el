@@ -36,7 +36,6 @@ PLIST contains: :window - window where cursor was hidden
 (defun iota-special-buffer--restore-cursor-now (window buffer-name)
   "Immediately restore cursor in WINDOW, unregister BUFFER-NAME."
   (when (window-live-p window)
-    (message "[SPECIAL-BUF] Restoring cursor in window %s" window)
     ;; Fix buffer-local cursor variables in the window's buffer
     (with-current-buffer (window-buffer window)
       (unless cursor-type (setq-local cursor-type t))
@@ -51,7 +50,6 @@ PLIST contains: :window - window where cursor was hidden
     (run-with-idle-timer 0 nil
                          (lambda (win)
                            (when (window-live-p win)
-                             (message "[SPECIAL-BUF] Idle-timer cursor restore for %s" win)
                              (internal-show-cursor win t)
                              (when (eq win (selected-window))
                                (internal-show-cursor (selected-window) t))))
@@ -77,8 +75,7 @@ Restore cursor in windows that switched away from special buffers."
 (defun iota-special-buffer--on-first-command ()
   "Called on first command after startup.
 Ensures cursor restoration works properly for startup splash."
-  (remove-hook 'pre-command-hook #'iota-special-buffer--on-first-command)
-  (message "[SPECIAL-BUF] First command hook - ensuring cursor state"))
+  (remove-hook 'pre-command-hook #'iota-special-buffer--on-first-command))
 
 (defun iota-special-buffer--install-hooks ()
   "Install global hooks for special buffer management."

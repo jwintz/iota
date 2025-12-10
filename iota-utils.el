@@ -228,5 +228,36 @@ PADDING-CHAR defaults to space."
   "Return t if running in a terminal (not GUI)."
   (not (display-graphic-p)))
 
+;;; Global Update Guard
+;; Prevents recursive/cascading updates during window config changes
+
+(defvar iota--inhibit-updates nil
+  "When non-nil, inhibit IOTA update operations to prevent loops.")
+
+(defvar iota--update-pending nil
+  "When non-nil, an update was requested during inhibition period.")
+
+(defun iota-with-inhibited-updates (fn &rest args)
+  "Call FN with ARGS while inhibiting IOTA updates.
+If updates are already inhibited, just call FN.
+Otherwise, inhibit updates, call FN, then schedule any pending updates."
+  (if iota--inhibit-updates
+      (apply fn args)
+    (setq iota--inhibit-updates t
+          iota--update-pending nil)
+    (unwind-protect
+        (apply fn args)
+      (setq iota--inhibit-updates nil)
+      ;; If any update was requested during inhibition, schedule it now
+      (when iota--update-pending
+        (setq iota--update-pending nil)
+        (run-with-timer 0.05 nil #'force-mode-line-update t)))))
+
+(defmacro iota-inhibit-updates (&rest body)
+  "Execute BODY with IOTA updates inhibited."
+  (declare (indent 0) (debug t))
+  `(iota-with-inhibited-updates (lambda () ,@body)))
+
 (provide 'iota-utils)
 ;;; iota-utils.el ends here
+

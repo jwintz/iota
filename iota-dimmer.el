@@ -275,7 +275,8 @@ Returns nil if face cannot be dimmed."
 
 (defun iota-dimmer--update ()
   "Update dimming state for all windows."
-  (unless iota-dimmer--refresh-in-progress
+  (unless (or iota-dimmer--refresh-in-progress
+              (bound-and-true-p iota--inhibit-updates))
     (let ((selected (selected-window))
           (frame-focused (frame-focus-state)))
       ;; First pass: collect which buffers should be dimmed/undimmed

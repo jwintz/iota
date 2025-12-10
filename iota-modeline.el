@@ -947,15 +947,15 @@ Uses centralized update system for efficient batching."
 (defun iota-modeline--window-configuration-change ()
   "Hook for window configuration changes.
 Updates separator lines when popups appear/disappear."
-  (unless iota-modeline--in-window-config-change
+  (unless (or iota-modeline--in-window-config-change
+              (bound-and-true-p iota--inhibit-updates))
     (let ((iota-modeline--in-window-config-change t))
       ;; Update separator lines for popup visibility changes
       (iota-modeline--update-separator-lines)
       (dolist (window (window-list))
         (with-current-buffer (window-buffer window)
-          (when (and (local-variable-p 'header-line-format)
-                     (not (equal header-line-format (default-value 'header-line-format))))
-            (kill-local-variable 'header-line-format))
+          ;; Note: Removed kill-local-variable for header-line-format as it caused
+          ;; visual flicker by momentarily exposing the default header-line.
           (when (and (not (display-graphic-p))
                      (eq iota-modeline-position 'header))
             (iota-modeline--update-overlay window)))))))

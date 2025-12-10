@@ -87,6 +87,32 @@ Populated by `iota-splash-generate-hints' when available.")
 (defvar iota-splash--animation-timer nil
   "Legacy animation timer (deprecated, use iota-timers registry).")
 
+(defvar iota-splash-debug nil
+  "When non-nil, log debug messages for splash screen operations.
+Set to t to enable logging, or a buffer name to log to that buffer.")
+
+(defvar iota-splash--in-update nil
+  "Guard variable to prevent re-entrant hook calls.
+Set to t while update functions are running to break feedback loops.")
+
+(defvar iota-splash--separator-visible nil
+  "Current state of separator visibility.
+Used to avoid unnecessary force-window-update calls.")
+
+(defvar iota-splash--resize-timer nil
+  "Timer for checking window resize.")
+
+(defun iota-splash--log (format-string &rest args)
+  "Log a debug message if `iota-splash-debug' is enabled.
+FORMAT-STRING and ARGS are passed to `format'."
+  (when iota-splash-debug
+    (let ((msg (apply #'format (concat "[splash] " format-string) args)))
+      (if (stringp iota-splash-debug)
+          (with-current-buffer (get-buffer-create iota-splash-debug)
+            (goto-char (point-max))
+            (insert msg "\n"))
+        (message "%s" msg)))))
+
 (defun iota-splash--extract-keymap-commands (keymap)
   "Extract all command symbols from KEYMAP recursively.
 Returns a list of unique command symbols."
@@ -436,19 +462,31 @@ Redraws are debounced to prevent performance issues."
 
 (defun iota-splash--do-redraw ()
   "Actually perform the splash screen redraw."
+  (iota-splash--log "do-redraw called")
   (let ((buffer (get-buffer iota-splash-buffer-name)))
     (when (and buffer (buffer-live-p buffer))
       (with-current-buffer buffer
-        (let ((window (get-buffer-window buffer)))
+        ;; Prioritize selected window for layout calculations
+        (let ((window (if (eq (window-buffer (selected-window)) buffer)
+                          (selected-window)
+                        (get-buffer-window buffer))))
           (when window
             (let ((current-height (window-body-height window))
                   (current-width (window-width window)))
               (when (and current-height current-width)
+                (iota-splash--log "do-redraw: height=%d width=%d" current-height current-width)
                 (setq iota-splash--last-window-height current-height)
                 (setq iota-splash--last-window-width current-width)
-                (let ((inhibit-read-only t))
+                (let ((inhibit-read-only t)
+                      ;; Inhibit redisplay during buffer regeneration
+                      (inhibit-redisplay t))
                   ;; Regenerate the entire buffer with new padding
                   (erase-buffer)
+                  
+                  ;; RE-ASSERT mode-line/header-line hiding to prevent leaks
+                  (setq-local mode-line-format nil)
+                  (setq-local header-line-format nil)
+                  
                   (let* ((content-lines (+ 6  ; logo + footer + empty line + init-time
                                            (if iota-splash-show-hints 5 0)))
                          ;; Use floor to ensure consistent padding calculation
@@ -479,11 +517,16 @@ Redraws are debounced to prevent performance issues."
                   (internal-show-cursor window nil))))))))))
 
 (defun iota-splash--redraw-on-resize ()
-  "Redraw splash screen if window height or width changed."
+  "Redraw splash screen if SELECTED window height or width changed.
+We prioritize the selected window to avoid flicker loops when multiple
+windows have different sizes."
   (let ((buffer (get-buffer iota-splash-buffer-name)))
     (when (and buffer (buffer-live-p buffer))
       (with-current-buffer buffer
-        (let ((window (get-buffer-window buffer)))
+        ;; Prefer selected window if it displays this buffer, otherwise get any
+        (let ((window (if (eq (window-buffer (selected-window)) buffer)
+                          (selected-window)
+                        (get-buffer-window buffer))))
           (when window
             (let ((current-height (window-body-height window))
                   (current-width (window-width window)))
@@ -519,63 +562,63 @@ Uses iota-popup for detection."
       (or (string-match-p "\\*I O T Λ splash\\*" name)
           (string-match-p "\\*I O T Λ screen-[0-9]+\\*" name)))))
 
-(defun iota-splash--has-iota-buffer-below-p ()
-  "Return t if there is an iota splash/screen window directly below this one."
-  (let ((splash-window (get-buffer-window iota-splash-buffer-name)))
-    (when (window-live-p splash-window)
-      (let* ((edges (window-edges splash-window))
-             (bottom (nth 3 edges))
-             (left (nth 0 edges))
-             (right (nth 2 edges)))
-        (catch 'found-iota-below
-          (dolist (w (window-list nil 'no-minibuf))
-            (unless (eq w splash-window)
-              (let* ((w-edges (window-edges w))
-                     (w-top (nth 1 w-edges))
-                     (w-left (nth 0 w-edges))
-                     (w-right (nth 2 w-edges)))
-                ;; Check if w is directly below and overlaps horizontally
-                (when (and (= w-top bottom)
-                           (> (min right w-right) (max left w-left))
-                           (iota-splash--iota-buffer-p (window-buffer w)))
-                  (throw 'found-iota-below t)))))
-          nil)))))
+(defun iota-splash--has-iota-buffer-below-p (window)
+  "Return t if there is an iota splash/screen window directly below WINDOW."
+  (when (window-live-p window)
+    (let* ((edges (window-edges window))
+           (bottom (nth 3 edges))
+           (left (nth 0 edges))
+           (right (nth 2 edges))
+           (frame (window-frame window)))
+      (catch 'found-iota-below
+        (dolist (w (window-list frame 'no-minibuf))
+          (unless (eq w window)
+            (let* ((w-edges (window-edges w))
+                   (w-top (nth 1 w-edges))
+                   (w-left (nth 0 w-edges))
+                   (w-right (nth 2 w-edges)))
+              ;; Check if w is directly below and overlaps horizontally
+              (when (and (= w-top bottom)
+                         (> (min right w-right) (max left w-left))
+                         (iota-splash--iota-buffer-p (window-buffer w)))
+                (throw 'found-iota-below t)))))
+        nil))))
 
-(defun iota-splash--window-at-bottom-p ()
-  "Return t if the splash screen window is at the bottom of the frame.
+(defun iota-splash--window-at-bottom-p (window)
+  "Return t if WINDOW is at the bottom of the frame.
 A window is at bottom if no other non-popup, non-minibuffer window is below it."
-  (let ((splash-window (get-buffer-window iota-splash-buffer-name)))
-    (when (window-live-p splash-window)
-      (let* ((edges (window-edges splash-window))
-             (bottom (nth 3 edges))
-             (left (nth 0 edges))
-             (right (nth 2 edges)))
-        (catch 'found-below
-          (dolist (w (window-list nil 'no-minibuf))
-            (unless (eq w splash-window)
-              (let* ((w-edges (window-edges w))
-                     (w-top (nth 1 w-edges))
-                     (w-left (nth 0 w-edges))
-                     (w-right (nth 2 w-edges)))
-                ;; Check if w is below splash-window and overlaps horizontally
-                ;; Skip popup windows as they are handled separately
-                (when (and (= w-top bottom)
-                           (> (min right w-right) (max left w-left))
-                           (not (and (fboundp 'iota-popup--window-popup-p)
-                                     (iota-popup--window-popup-p w))))
-                  (throw 'found-below nil)))))
-          t)))))
+  (when (window-live-p window)
+    (let* ((edges (window-edges window))
+           (bottom (nth 3 edges))
+           (left (nth 0 edges))
+           (right (nth 2 edges))
+           (frame (window-frame window)))
+      (catch 'found-below
+        (dolist (w (window-list frame 'no-minibuf))
+          (unless (eq w window)
+            (let* ((w-edges (window-edges w))
+                   (w-top (nth 1 w-edges))
+                   (w-left (nth 0 w-edges))
+                   (w-right (nth 2 w-edges)))
+              ;; Check if w is below window and overlaps horizontally
+              ;; Skip popup windows as they are handled separately
+              (when (and (= w-top bottom)
+                         (> (min right w-right) (max left w-left))
+                         (not (and (fboundp 'iota-popup--window-popup-p)
+                                   (iota-popup--window-popup-p w))))
+                (throw 'found-below nil)))))
+        t))))
 
-(defun iota-splash--should-show-separator-p ()
-  "Return t if separator should be shown for splash screen.
+(defun iota-splash--should-show-separator-p (window)
+  "Return t if separator should be shown for WINDOW in splash screen.
 Separator is shown when:
 - Minibuffer is active, OR
 - Popup is visible AND splash screen is at the bottom, OR
 - Another iota splash/screen buffer is directly below."
   (or (iota-splash--minibuffer-active-p)
       (and (iota-splash--popup-visible-p)
-           (iota-splash--window-at-bottom-p))
-      (iota-splash--has-iota-buffer-below-p)))
+           (iota-splash--window-at-bottom-p window))
+      (iota-splash--has-iota-buffer-below-p window)))
 
 (defun iota-splash--get-separator-line (window)
   "Get a separator line string for WINDOW.
@@ -594,36 +637,55 @@ Uses inactive face since popup/minibuffer is active when this is called."
     (iota-box-horizontal-line width style face)))
 
 (defun iota-splash--update-separator ()
-  "Update the separator line visibility for splash screen.
-Shows separator when minibuffer or popup is active."
+  "Update the separator line visibility for splash screen windows.
+Shows separator when minibuffer or popup is active, or if split.
+Iterates over ALL windows displaying the splash buffer."
   (let ((buffer (get-buffer iota-splash-buffer-name)))
     (when (and buffer (buffer-live-p buffer))
-      (let ((win (get-buffer-window buffer)))
+      ;; Iterate over ALL windows displaying the splash buffer
+      (dolist (win (get-buffer-window-list buffer nil t))
         (when (window-live-p win)
-          (if (iota-splash--should-show-separator-p)
-              ;; Show separator line when minibuffer/popup is active
-              (let ((width (iota-modeline-effective-width win)))
-                (with-current-buffer buffer
-                  (setq-local mode-line-format
-                              `(:eval (iota-splash--get-separator-line ,win))))
-                ;; Critical: set window parameter to nil to SHOW mode-line
-                (set-window-parameter win 'mode-line-format nil)
-                ;; Force redisplay
-                (force-mode-line-update t))
-            ;; Hide separator line when not needed
-            (with-current-buffer buffer
-              (setq-local mode-line-format nil))
-            ;; Set window parameter to 'none to HIDE mode-line
-            (set-window-parameter win 'mode-line-format 'none)
-            (force-mode-line-update t)))))))
+          (let ((should-show (iota-splash--should-show-separator-p win)))
+            (if should-show
+                ;; Show separator line (override buffer value with window parameter)
+                (set-window-parameter win 'mode-line-format
+                                    `(:eval (iota-splash--get-separator-line ,win)))
+              ;; Hide separator line
+              (set-window-parameter win 'mode-line-format 'none))))))))
 
-(defun iota-splash--on-window-config-change ()
-  "Handle window configuration changes (e.g., popup appearing).
-Only acts when splash buffer is visible - otherwise exits immediately."
+(defun iota-splash--check-resize ()
+  "Check if splash screen needs redraw due to resize.
+Called periodically by idle timer.
+Prioritizes SELECTED window to avoid multi-window flicker loops."
   (let ((buffer (get-buffer iota-splash-buffer-name)))
-    (when (and buffer (get-buffer-window buffer))
-      (iota-splash--update-separator)
-      (iota-splash--redraw-on-resize))))
+    (when (and buffer (buffer-live-p buffer))
+      ;; Use same prioritization as redraw logic
+      (let ((win (if (eq (window-buffer (selected-window)) buffer)
+                     (selected-window)
+                   (get-buffer-window buffer))))
+        (when (window-live-p win)
+          (with-current-buffer buffer
+            (let ((current-height (window-body-height win))
+                  (current-width (window-width win)))
+              (when (and current-height current-width
+                         (or (not (equal current-height iota-splash--last-window-height))
+                             (not (equal current-width iota-splash--last-window-width))))
+                (iota-splash--log "resize detected: %dx%d -> %dx%d"
+                                  iota-splash--last-window-width iota-splash--last-window-height
+                                  current-width current-height)
+                (iota-splash--redraw-buffer)))))))))
+
+(defun iota-splash--start-resize-timer ()
+  "Start the resize check timer."
+  (iota-splash--stop-resize-timer)
+  (setq iota-splash--resize-timer
+        (run-with-idle-timer 0.2 t #'iota-splash--check-resize)))
+
+(defun iota-splash--stop-resize-timer ()
+  "Stop the resize check timer."
+  (when (timerp iota-splash--resize-timer)
+    (cancel-timer iota-splash--resize-timer)
+    (setq iota-splash--resize-timer nil)))
 
 (defun iota-splash--on-minibuffer-setup ()
   "Handle minibuffer setup to show separator and redraw splash screen."
@@ -660,12 +722,18 @@ Only acts when splash buffer is visible - otherwise exits immediately."
 
 
 (defun iota-splash--cleanup-hooks ()
-  "Remove all splash screen hooks."
+  "Remove all splash screen hooks and reset state."
+  ;; Reset state variables
+  (setq iota-splash--separator-visible nil)
+  (setq iota-splash--in-update nil)
+  ;; Stop resize timer
+  (iota-splash--stop-resize-timer)
   ;; Remove hooks
-  (remove-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
   (remove-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-setup)
   (remove-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)
   ;; Legacy hooks (remove if present from older sessions)
+  (remove-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
+  (remove-hook 'window-size-change-functions #'iota-splash--on-resize)
   (remove-hook 'post-command-hook #'iota-splash--check-and-redraw)
   (remove-hook 'buffer-list-update-hook #'iota-splash--check-buffer-switch)
   (remove-hook 'echo-area-clear-hook #'iota-splash--on-echo-area-clear))
@@ -683,6 +751,8 @@ Updates text properties at marker positions - buffer-local, no global redisplay.
       (when (and iota-splash--anim-markers
                  (cl-every #'marker-position iota-splash--anim-markers))
         (let* ((inhibit-read-only t)
+               ;; Inhibit redisplay during property updates
+               (inhibit-redisplay t)
                (num-colors (length iota-splash--animation-colors))
                (colors (list
                         (nth (% (+ iota-splash--animation-step 0) num-colors) iota-splash--animation-colors)
@@ -827,8 +897,8 @@ Does not display if Emacs was opened with file arguments (unless FORCE is t)."
             (setq-local mode-line-format nil))))
 
       ;; Add hooks for layout/interaction
-      ;; window-configuration-change-hook for resize/layout changes
-      (add-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
+      ;; Use idle timer for resize detection (avoids hook cascade issues)
+      (iota-splash--start-resize-timer)
       ;; Minibuffer hooks for separator line
       (add-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-setup)
       (add-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)

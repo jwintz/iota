@@ -115,9 +115,10 @@ Background handling is delegated to `iota-theme-transparent' for terminal compat
     (set-frame-parameter frame 'display-table standard-display-table))
   ;; Also update all existing buffer-local display tables
   (iota-window--update-buffer-display-tables)
-  ;; Force redisplay to apply changes
-  (force-mode-line-update t)
-  (redraw-display))
+  ;; Note: Removed force-mode-line-update and redraw-display as they cause
+  ;; cascading hook invocations leading to flickering. Emacs will redisplay
+  ;; naturally when the event loop continues.
+  )
 
 (defun iota-window--update-buffer-display-tables ()
   "Update vertical-border slot in all buffer-local display tables.
@@ -254,12 +255,18 @@ Themes can override face settings, so we need to re-apply our configuration."
     ;; Small delay to let iota-theme-transparent process first
     (run-with-timer 0.1 nil #'iota-window--configure-dividers)))
 
+(defvar iota-window--in-config-change nil
+  "Guard to prevent recursive window configuration change handling.")
+
 (defun iota-window--on-window-config-change ()
   "Re-apply divider configuration after window configuration changes.
 This ensures dividers remain hidden/styled correctly during window splits."
-  (when iota-window-mode
-    ;; Immediately re-apply divider settings to prevent visible flashes
-    (iota-window--configure-dividers)))
+  (when (and iota-window-mode
+             (not iota-window--in-config-change)
+             (not (bound-and-true-p iota--inhibit-updates)))
+    (let ((iota-window--in-config-change t))
+      (iota-inhibit-updates
+        (iota-window--configure-dividers)))))
 
 (defun iota-window--on-buffer-change (frame-or-window)
   "Handle buffer change in FRAME-OR-WINDOW.
