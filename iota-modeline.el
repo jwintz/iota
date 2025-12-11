@@ -207,21 +207,29 @@ the face definition and set explicitly to prevent color inheritance."
                (setq normalized (append normalized (list :underline nil))))
              (unless (plist-member normalized :inverse-video)
                (setq normalized (append normalized (list :inverse-video nil))))
-             ;; Don't resolve foreground/background from inheritance
-             ;; If the plist has :inherit, let Emacs handle color inheritance naturally
-             ;; Only add explicit colors if they're already in the plist
+             ;; Explicitly resolve foreground from :inherit if not already set
+             (unless (plist-member normalized :foreground)
+               (let ((fg (iota-modeline--resolve-face-color normalized :foreground)))
+                 (when fg
+                   (setq normalized (append normalized (list :foreground fg))))))
+             ;; Explicitly resolve background from :inherit if not already set
+             (unless (plist-member normalized :background)
+               (let ((bg (iota-modeline--resolve-face-color normalized :background)))
+                 (when bg
+                   (setq normalized (append normalized (list :background bg))))))
              normalized))
 
-          ;; Single face symbol - just set it up for inheritance
+          ;; Single face symbol - resolve all attributes explicitly
           ((facep face)
            (let* ((weight (face-attribute face :weight nil t))
                   (slant (face-attribute face :slant nil t))
                   (underline (face-attribute face :underline nil t))
+                  (fg (face-attribute face :foreground nil t))
+                  (bg (face-attribute face :background nil t))
                   (base-spec (list :inherit face)))
              (when iota-modeline-debug-faces
-               (message "IOTA:   Face %S, preserving inheritance" face))
-             ;; Only set attributes explicitly if they are unspecified
-             ;; This preserves user customizations while preventing inheritance
+               (message "IOTA:   Face %S, resolving attributes explicitly" face))
+             ;; Set attributes explicitly to prevent inheritance
              (when (eq slant 'unspecified)
                (setq base-spec (append base-spec (list :slant 'normal))))
              (when (eq weight 'unspecified)
@@ -230,7 +238,11 @@ the face definition and set explicitly to prevent color inheritance."
                (setq base-spec (append base-spec (list :underline nil))))
              ;; Always prevent inverse-video inheritance
              (setq base-spec (append base-spec (list :inverse-video nil)))
-             ;; Don't add explicit foreground/background - let :inherit handle colors
+             ;; CRITICAL: Explicitly set foreground/background to prevent inheritance
+             (unless (eq fg 'unspecified)
+               (setq base-spec (append base-spec (list :foreground fg))))
+             (unless (eq bg 'unspecified)
+               (setq base-spec (append base-spec (list :background bg))))
              base-spec))
 
           ;; Fallback for anything else - return default with explicit foreground
