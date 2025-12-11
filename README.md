@@ -243,10 +243,13 @@ Configuration              Display
 c Config                   m Modeline
 t Theme                    d Dimmer
 
-Windows                    Extras
-w Window                   s Screens
-p Popup                    g Copilot
-                           ? Splash
+Windows                    Assistant
+w Window                   g Copilot
+p Popup                    
+                           Packages
+Extras                     l Packages
+s Screens                  
+? Splash
 ```
 
 ### Binding with use-package and general.el
@@ -265,6 +268,8 @@ p Popup                    g Copilot
    "t" 'iota-theme-transient
    "p" 'iota-popup-transient
    "w" 'iota-window-transient
+   "g" 'iota-copilot-transient
+   "l" 'iota-package-transient
    "?" 'iota-splash-transient)
   :custom
   (iota-window-divider-style 'hidden)
@@ -291,6 +296,7 @@ p Popup                    g Copilot
 | `M-x iota-popup-transient` | Popup windows settings |
 | `M-x iota-window-transient` | Window settings popup |
 | `M-x iota-splash-transient` | Splash screen popup |
+| `M-x iota-package-transient` | Package management popup |
 | `M-x iota-setup` | Interactive setup wizard |
 | `M-x iota-quickstart` | Enable all features with defaults |
 | `M-x iota-version` | Show version |
@@ -317,14 +323,18 @@ iota/
 ├── iota-copilot.el            # GitHub Copilot usage tracking
 ├── iota-dimmer.el             # Inactive window dimming
 ├── iota-dispatch.el           # Transient dispatch interface
+├── iota-faces.el              # Face definitions
 ├── iota-icons.el              # Icon support with nerd-icons fallback
 ├── iota-logos.el              # ASCII art logos
 ├── iota-modes.el              # Mode-specific enhancements
+├── iota-modes-info.el         # Info mode text reflow commands
+├── iota-modes-markdown.el     # Markdown code block decorations
 ├── iota-modeline.el           # Modeline and separator lines
 ├── iota-popup.el              # Popup window decorations
 ├── iota-screens.el            # Screen saver system
 ├── iota-screens-*.el          # Screen implementations
 ├── iota-splash.el             # Splash screen
+├── iota-special-buffer.el     # Special buffer handling
 ├── iota-theme.el              # Theme introspection
 ├── iota-theme-transparent.el  # Terminal transparency
 ├── iota-timers.el             # Timer management
