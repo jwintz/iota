@@ -107,32 +107,46 @@ Ensures cursor is restored in all visible windows."
                           iota-special-buffer--instances)))
     (internal-show-cursor (selected-window) t)))
 
-(defun iota-special-buffer--on-first-command ()
-  "Called on first command after startup.
-Ensures cursor restoration works properly for startup splash."
-  (remove-hook 'pre-command-hook #'iota-special-buffer--on-first-command)
-  ;; Ensure cursor is visible in selected window unless it's a special buffer
-  (let ((buf (window-buffer (selected-window))))
-    (unless (cl-some (lambda (entry) (eq buf (get-buffer (car entry))))
-                     iota-special-buffer--instances)
-      (internal-show-cursor (selected-window) t))))
+(defun iota-special-buffer--on-post-command ()
+  "Called after each command to check for buffer switches.
+Restores cursor if the selected window switched from a special buffer."
+  ;; Check if any tracked window now shows a non-special buffer
+  (dolist (entry iota-special-buffer--prev-window-buffers)
+    (let* ((window (car entry))
+           (prev-buffer-name (cdr entry)))
+      (when (and (window-live-p window)
+                 prev-buffer-name
+                 (assoc prev-buffer-name iota-special-buffer--instances)
+                 (not (equal (buffer-name (window-buffer window)) prev-buffer-name)))
+        ;; This window switched from special buffer to something else
+        (with-current-buffer (window-buffer window)
+          (kill-local-variable 'cursor-type)
+          (kill-local-variable 'visible-cursor)
+          (kill-local-variable 'cursor-in-non-selected-windows))
+        (internal-show-cursor window t))))
+  
+  ;; Update tracking list
+  (setq iota-special-buffer--prev-window-buffers nil)
+  (dolist (window (window-list nil 'no-minibuf))
+    (when (window-live-p window)
+      (let ((buf-name (buffer-name (window-buffer window))))
+        (when (assoc buf-name iota-special-buffer--instances)
+          (push (cons window buf-name) iota-special-buffer--prev-window-buffers))))))
 
 (defun iota-special-buffer--install-hooks ()
   "Install global hooks for special buffer management."
   (unless iota-special-buffer--hooks-installed
-    (add-hook 'window-buffer-change-functions #'iota-special-buffer--on-buffer-change)
+    ;; Only need window-configuration-change for explicit window changes
     (add-hook 'window-configuration-change-hook #'iota-special-buffer--on-window-config-change)
-    ;; Add one-shot hook for first command (handles startup case)
-    (add-hook 'pre-command-hook #'iota-special-buffer--on-first-command)
     (setq iota-special-buffer--hooks-installed t)))
 
 (defun iota-special-buffer--uninstall-hooks ()
   "Uninstall global hooks when no special buffers remain."
   (when (and iota-special-buffer--hooks-installed
              (null iota-special-buffer--instances))
-    (remove-hook 'window-buffer-change-functions #'iota-special-buffer--on-buffer-change)
     (remove-hook 'window-configuration-change-hook #'iota-special-buffer--on-window-config-change)
-    (setq iota-special-buffer--hooks-installed nil)))
+    (setq iota-special-buffer--hooks-installed nil
+          iota-special-buffer--prev-window-buffers nil)))
 
 (defun iota-special-buffer--register (buffer-name window cleanup-fn)
   "Register BUFFER-NAME as a special buffer.
@@ -219,11 +233,10 @@ This should be called AFTER switching to the buffer or with the buffer current."
         (setq-local header-line-format nil)
         (set-window-parameter (selected-window) 'header-line-format nil))
       
-      ;; Hide cursor at window level (most reliable)
+      ;; Hide cursor at window level and register for restoration
       (when hide-cursor
         (let ((win (selected-window)))
           (internal-show-cursor win nil)
-          ;; Register this buffer with its window
           (iota-special-buffer--register (buffer-name buffer) win cleanup-fn)))
       
       ;; Add cleanup hook (buffer-local)

@@ -694,8 +694,21 @@ Uses iota-separator for centralized handling with olivetti support."
 
 
 
+(defun iota-splash--check-auto-kill ()
+  "Kill splash buffer if it exists but has no visible window.
+This triggers kill-buffer-hook which restores cursor properly."
+  (let ((buffer (get-buffer iota-splash-buffer-name)))
+    (when (and buffer
+               (buffer-live-p buffer)
+               (not (get-buffer-window buffer t)))  ; t = check all frames
+      ;; Splash is no longer visible, kill it
+      (iota-splash-quit))))
+
 (defun iota-splash--on-window-config-change ()
   "Handle window configuration changes to update separator and redraw."
+  ;; First check if splash should be auto-killed (window switched away)
+  (iota-splash--check-auto-kill)
+  ;; Then do normal redraw if splash still exists
   (iota-splash--check-and-redraw))
 
 (defun iota-splash--cleanup-hooks ()
@@ -709,6 +722,7 @@ Uses iota-separator for centralized handling with olivetti support."
   (remove-hook 'minibuffer-setup-hook #'iota-splash--on-minibuffer-setup)
   (remove-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)
   (remove-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
+  (remove-hook 'buffer-list-update-hook #'iota-splash--check-auto-kill)
   ;; Legacy hooks (remove if present from older sessions)
   (remove-hook 'window-size-change-functions #'iota-splash--on-resize)
   (remove-hook 'post-command-hook #'iota-splash--check-and-redraw)
@@ -881,6 +895,8 @@ Does not display if Emacs was opened with file arguments (unless FORCE is t)."
       (add-hook 'minibuffer-exit-hook #'iota-splash--on-minibuffer-exit)
       ;; Window configuration hook for popups (which-key, etc.)
       (add-hook 'window-configuration-change-hook #'iota-splash--on-window-config-change)
+      ;; Buffer list hook for detecting when splash loses window (C-x C-f in same window)
+      (add-hook 'buffer-list-update-hook #'iota-splash--check-auto-kill)
 
       ;; Start animations and hint rotation
       (iota-splash--start-animation)

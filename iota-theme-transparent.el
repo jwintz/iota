@@ -64,10 +64,26 @@ When non-nil, log detailed messages about theme loading and face processing."
   :group 'iota-theme-transparent)
 
 (defcustom iota-theme-transparent-excluded-faces
-  '(tab-bar tab-line fringe
-    highlight region lazy-highlight
+  '(;; Core UI elements
+    tab-bar tab-line fringe
+    ;; Selection and highlighting - MUST keep backgrounds
+    highlight region secondary-selection
+    lazy-highlight isearch isearch-fail
+    match query-replace
+    ;; Completion frameworks
     vertico-current completions-highlight
     corfu-current corfu-default
+    orderless-match-face-0 orderless-match-face-1
+    orderless-match-face-2 orderless-match-face-3
+    ;; Magit - section highlights for staged/unstaged selection
+    magit-section-highlight
+    magit-section-heading-selection
+    magit-diff-file-heading-highlight
+    magit-diff-hunk-heading-highlight
+    magit-diff-context-highlight
+    magit-diff-added-highlight
+    magit-diff-removed-highlight
+    ;; IOTA accent faces
     iota-accent-face iota-success-face
     iota-error-face iota-warning-face)
   "Faces to preserve background colors (UI elements).
@@ -94,8 +110,8 @@ These faces will have backgrounds removed even if the theme doesn't define them.
     (modeline . nil)    ; NO backgrounds allowed
     (header . nil)      ; NO backgrounds allowed
     (fringe . t)        ; Fringe can have background
-    (hl-line . nil)
-    (region . nil))
+    (hl-line . t)       ; hl-line needs background for visibility
+    (region . t))       ; Region MUST have background for selection visibility
   "Control which regions preserve backgrounds in transparency mode.
 Note: IOTA faces should NOT have backgrounds - only foreground colors."
   :type '(alist :key-type symbol :value-type boolean)

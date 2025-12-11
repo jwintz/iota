@@ -260,6 +260,7 @@ Returns the instance-id of the created screen."
       (add-hook 'post-command-hook #'iota-screens--check-and-redraw)
       (add-hook 'window-size-change-functions #'iota-screens--on-resize)
       (add-hook 'window-configuration-change-hook #'iota-screens--on-window-config-change)
+      (add-hook 'buffer-list-update-hook #'iota-screens--check-auto-deactivate)
       (add-hook 'minibuffer-setup-hook #'iota-screens--on-minibuffer-setup)
       (add-hook 'minibuffer-exit-hook #'iota-screens--on-minibuffer-exit)
       (add-hook 'echo-area-clear-hook #'iota-screens--on-echo-area-clear))
@@ -301,6 +302,7 @@ By default, windows created during screen lifetime are preserved."
         (remove-hook 'post-command-hook #'iota-screens--check-and-redraw)
         (remove-hook 'window-size-change-functions #'iota-screens--on-resize)
         (remove-hook 'window-configuration-change-hook #'iota-screens--on-window-config-change)
+        (remove-hook 'buffer-list-update-hook #'iota-screens--check-auto-deactivate)
         (remove-hook 'minibuffer-setup-hook #'iota-screens--on-minibuffer-setup)
         (remove-hook 'minibuffer-exit-hook #'iota-screens--on-minibuffer-exit)
         (remove-hook 'echo-area-clear-hook #'iota-screens--on-echo-area-clear)
@@ -355,6 +357,7 @@ FRAME is ignored but required by hook signature."
       (setq iota-screens--active nil)
       (remove-hook 'post-command-hook #'iota-screens--check-and-redraw)
       (remove-hook 'window-configuration-change-hook #'iota-screens--on-window-config-change)
+      (remove-hook 'buffer-list-update-hook #'iota-screens--check-auto-deactivate)
       (remove-hook 'minibuffer-setup-hook #'iota-screens--on-minibuffer-setup)
       (remove-hook 'minibuffer-exit-hook #'iota-screens--on-minibuffer-exit)
       (remove-hook 'echo-area-clear-hook #'iota-screens--on-echo-area-clear))))
@@ -479,8 +482,28 @@ Uses iota-separator for centralized handling with olivetti support."
                      (iota-screens--update-separator)))))
              iota-screens--instances)))
 
+(defun iota-screens--check-auto-deactivate ()
+  "Deactivate any screen instances whose buffers have no visible window.
+This triggers proper cursor restoration."
+  (when (iota-screens--any-active-p)
+    (let ((to-deactivate '()))
+      ;; Collect instances to deactivate
+      (maphash (lambda (id props)
+                 (let ((buffer-name (plist-get props :buffer)))
+                   (when (and buffer-name
+                              (get-buffer buffer-name)
+                              (not (get-buffer-window buffer-name t)))
+                     (push id to-deactivate))))
+               iota-screens--instances)
+      ;; Deactivate collected instances
+      (dolist (id to-deactivate)
+        (iota-screens-deactivate id)))))
+
 (defun iota-screens--on-window-config-change ()
   "Handle window configuration changes."
+  ;; First check if any screens should auto-deactivate
+  (iota-screens--check-auto-deactivate)
+  ;; Then update remaining screens
   (when (iota-screens--any-active-p)
     (maphash (lambda (_id props)
                (let ((buffer-name (plist-get props :buffer)))

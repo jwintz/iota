@@ -245,10 +245,10 @@ t Theme                    d Dimmer
 
 Windows                    Assistant
 w Window                   g Copilot
-p Popup                    
+p Popup
                            Packages
 Extras                     l Packages
-s Screens                  
+s Screens
 ? Splash
 ```
 
