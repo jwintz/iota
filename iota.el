@@ -45,6 +45,7 @@
 (require 'iota-icons)
 (require 'iota-theme)
 (require 'iota-popup)
+(require 'iota-separator)
 (require 'iota-modeline)
 (require 'iota-dimmer)
 (require 'iota-splash)

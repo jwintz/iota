@@ -52,5 +52,5 @@ desktop.ini
 *-autoloads.el
 
 # AI
-# AGENTS.md
-# TODO.md
+AGENTS.md
+AGENT*.md

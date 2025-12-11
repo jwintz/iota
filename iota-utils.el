@@ -165,15 +165,28 @@ Ignores popup buffers (which-key, transient, etc.) detected by iota-popup."
   "Calculate the effective width for modeline box rendering in WINDOW.
 This accounts for:
 - Window body width (text area)
+- Olivetti-mode margins (if active)
 - Subtract 1 to prevent line wrapping
 
 IOTA is terminal-centric - fringes don't exist in terminal mode.
 
 Returns the width to use for rendering modeline boxes."
   (let* ((win (or window (selected-window)))
-         (body-width (window-body-width win)))
-    ;; Subtract 1 to prevent line wrapping
-    (max 10 (1- body-width))))
+         (body-width (window-body-width win))
+         ;; Account for olivetti-mode margins
+         (margin-width (with-current-buffer (window-buffer win)
+                         (if (and (boundp 'olivetti-mode)
+                                  olivetti-mode
+                                  (boundp 'olivetti-body-width))
+                             ;; Calculate total margin width
+                             (let* ((text-width (or olivetti-body-width 80))
+                                    (total-margin (- body-width text-width)))
+                               (if (> total-margin 0)
+                                   total-margin
+                                 0))
+                           0))))
+    ;; Subtract margins and 1 to prevent line wrapping
+    (max 10 (1- (- body-width margin-width)))))
 
 ;; Fringe functions are no-ops for terminal-centric IOTA
 (defun iota-configure-fringes ()

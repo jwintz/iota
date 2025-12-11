@@ -37,6 +37,7 @@
 (require 'iota-box)
 (require 'iota-faces)
 (require 'iota-utils)  ; For iota-modeline-effective-width
+(require 'iota-separator)  ; For centralized separator handling
 
 ;;; Customization
 
@@ -171,21 +172,21 @@ This is the typical case for which-key and transient popups."
 
 (defun iota-popup--get-box-style ()
   "Return the box style to use for popup decorations."
-  (if (boundp 'iota-modeline-box-style)
-      iota-modeline-box-style
-    'rounded))
+  (if (boundp 'iota-separator-style)
+      iota-separator-style
+    (if (boundp 'iota-modeline-box-style)
+        iota-modeline-box-style
+      'rounded)))
 
-(defun iota-popup--make-top-decoration (width)
-  "Create top decoration string for popup of WIDTH characters."
-  (let ((style (iota-popup--get-box-style))
-        (face (iota-popup--get-decoration-face)))
-    (iota-box-horizontal-line width style face)))
+(defun iota-popup--make-top-decoration (window)
+  "Create top decoration string for popup WINDOW.
+Uses iota-separator for proper olivetti-mode handling."
+  (iota-separator--render window (iota-popup--get-decoration-face)))
 
-(defun iota-popup--make-bottom-decoration (width)
-  "Create bottom decoration string for popup of WIDTH characters."
-  (let ((style (iota-popup--get-box-style))
-        (face (iota-popup--get-decoration-face)))
-    (iota-box-horizontal-line width style face)))
+(defun iota-popup--make-bottom-decoration (window)
+  "Create bottom decoration string for popup WINDOW.
+Uses iota-separator for proper olivetti-mode handling."
+  (iota-separator--render window (iota-popup--get-decoration-face)))
 
 (defun iota-popup--ensure-top-overlay (window)
   "Ensure WINDOW has a top decoration overlay.
@@ -219,16 +220,16 @@ Returns the overlay."
 
 (defun iota-popup--update-decorations (window)
   "Update decorations for popup WINDOW.
-Only draws bottom line since the window above provides the top separator."
+Only draws bottom line since the window above provides the top separator.
+Uses iota-separator for proper olivetti-mode handling."
   (when (and (window-live-p window)
              (iota-popup--window-popup-p window))
-    (let* ((width (iota-modeline-effective-width window))
-           (style iota-popup-decoration-style))
+    (let ((style iota-popup-decoration-style))
       (with-current-buffer (window-buffer window)
         ;; Bottom decoration only (top comes from window above's separator)
         (when (eq style 'bottom-line)
           (let ((bottom-ov (iota-popup--ensure-bottom-overlay window))
-                (bottom-str (iota-popup--make-bottom-decoration width)))
+                (bottom-str (iota-popup--make-bottom-decoration window)))
             (move-overlay bottom-ov (point-max) (point-max))
             (overlay-put bottom-ov 'after-string (concat "\n" bottom-str))))
         ;; Set mode-line-format to nil for popup windows

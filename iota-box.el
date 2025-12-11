@@ -447,10 +447,23 @@ ELLIPSIS defaults to \"...\"."
 
 (defun iota-box--get-current-window-width ()
   "Get the width of the window displaying current buffer.
-Returns the window body width minus 1 for line wrapping margin."
-  (let ((win (selected-window)))
-    (when win
-      (max 1 (1- (window-body-width win))))))
+Returns the window body width minus 1 for line wrapping margin.
+Accounts for olivetti-mode margins if active."
+  (let* ((win (selected-window))
+         (body-width (when win (window-body-width win)))
+         ;; Account for olivetti-mode margins
+         (margin-width (if (and (boundp 'olivetti-mode)
+                                olivetti-mode
+                                (boundp 'olivetti-body-width))
+                           ;; Calculate total margin width
+                           (let* ((text-width (or olivetti-body-width 80))
+                                  (total-margin (- body-width text-width)))
+                             (if (> total-margin 0)
+                                 total-margin
+                               0))
+                         0)))
+    (when body-width
+      (max 1 (1- (- body-width margin-width))))))
 
 (defun iota-box-insert-separator (&optional style face)
   "Insert a full-width separator line in the current buffer.

@@ -37,6 +37,7 @@
 (require 'iota-timers)
 (require 'iota-faces)
 (require 'iota-utils)  ; For iota-modeline-effective-width
+(require 'iota-separator)  ; For centralized separator handling
 
 ;; Declare functions from modules loaded on-demand
 (declare-function iota-box-horizontal-line "iota-box")
@@ -436,21 +437,16 @@ Separator is shown when:
       (iota-screens--has-iota-buffer-below-p)))
 
 (defun iota-screens--get-separator-line (window)
-  "Get a separator line string for WINDOW."
-  (require 'iota-box)
-  (let* ((width (if (window-live-p window)
-                    (iota-modeline-effective-width window)
-                  79))
-         (style (if (boundp 'iota-modeline-box-style)
-                    iota-modeline-box-style
-                  'rounded))
-         (face 'iota-inactive-box-face))
-    (iota-box-horizontal-line width style face)))
+  "Get a separator line string for WINDOW.
+Uses iota-separator for proper olivetti-mode handling."
+  ;; Use the centralized separator module for proper olivetti support
+  (iota-separator--render window 'iota-inactive-box-face))
 
 (defun iota-screens--update-separator ()
   "Update the separator line visibility for screen saver.
 Shows separator when minibuffer or popup is active.
-Matches the behavior of iota-splash--update-separator."
+Matches the behavior of iota-splash--update-separator.
+Uses iota-separator for centralized handling with olivetti support."
   (when-let* ((buffer-name iota-screens--buffer-name)
               (buffer (get-buffer buffer-name)))
     (when (buffer-live-p buffer)
@@ -458,7 +454,7 @@ Matches the behavior of iota-splash--update-separator."
         (when (window-live-p win)
           (if (iota-screens--should-show-separator-p)
               ;; Show separator line when minibuffer/popup is active
-              (let ((width (iota-modeline-effective-width win)))
+              (progn
                 (with-current-buffer buffer
                   (setq-local mode-line-format
                               `(:eval (iota-screens--get-separator-line ,win))))

@@ -25,6 +25,7 @@
 (require 'iota-utils)  ; For iota-modeline-effective-width
 (require 'iota-special-buffer)  ; Unified special buffer management
 (require 'iota-popup)  ; For popup detection (which-key, etc.)
+(require 'iota-separator)  ; For centralized separator handling
 (require 'color)       ; For color-lighten-name
 
 ;; Declare functions from modules loaded on-demand
@@ -622,24 +623,16 @@ Separator is shown when:
 
 (defun iota-splash--get-separator-line (window)
   "Get a separator line string for WINDOW.
-Uses the configured box style from iota-modeline if available.
+Uses iota-separator for proper olivetti-mode handling.
 Uses inactive face since popup/minibuffer is active when this is called."
-  (require 'iota-box)  ; Load on demand
-  (let* ((width (if (window-live-p window)
-                    (iota-modeline-effective-width window)
-                  79))
-         (style (if (boundp 'iota-modeline-box-style)
-                    iota-modeline-box-style
-                  'rounded))
-         ;; Always use inactive face for splash separator
-         ;; (it's only shown when popup/minibuffer is active)
-         (face 'iota-inactive-box-face))
-    (iota-box-horizontal-line width style face)))
+  ;; Use the centralized separator module for proper olivetti support
+  (iota-separator--render window 'iota-inactive-box-face))
 
 (defun iota-splash--update-separator ()
   "Update the separator line visibility for splash screen windows.
 Shows separator when minibuffer or popup is active, or if split.
-Iterates over ALL windows displaying the splash buffer."
+Iterates over ALL windows displaying the splash buffer.
+Uses iota-separator for centralized handling with olivetti support."
   (let ((buffer (get-buffer iota-splash-buffer-name)))
     (when (and buffer (buffer-live-p buffer))
       ;; Iterate over ALL windows displaying the splash buffer
@@ -647,7 +640,7 @@ Iterates over ALL windows displaying the splash buffer."
         (when (window-live-p win)
           (let ((should-show (iota-splash--should-show-separator-p win)))
             (if should-show
-                ;; Show separator line (override buffer value with window parameter)
+                ;; Show separator line using centralized separator module
                 (set-window-parameter win 'mode-line-format
                                     `(:eval (iota-splash--get-separator-line ,win)))
               ;; Hide separator line

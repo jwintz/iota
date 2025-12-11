@@ -38,6 +38,7 @@
 (require 'iota-update)
 (require 'iota-utils)
 (require 'iota-popup)
+(require 'iota-separator)
 
 ;;; Faces
 
@@ -834,7 +835,7 @@ Returns nil if window or buffer is invalid."
                    (iota-modeline--window-is-at-bottom-p window))
               (overlay-put overlay 'after-string
                           (propertize "\n" 'display
-                                     (list 'space :width (window-width window))))
+                                     (list 'space :width (iota-modeline-effective-width window))))
             (overlay-put overlay 'after-string nil)))))))
 
 (defun iota-modeline--remove-separator-overlays ()
@@ -1024,8 +1025,19 @@ Exception: If the window below is the splash screen, return t (show separator)."
   (and (active-minibuffer-window)
        (minibufferp (window-buffer (active-minibuffer-window)))))
 
+(defun iota-modeline--get-separator-face (window)
+  "Get the appropriate face for separator line in WINDOW.
+Returns inactive face when popup/minibuffer is active,
+otherwise returns the window's active/inactive face."
+  (let ((popup-visible (and (fboundp 'iota-popup--popup-visible-p)
+                            (iota-popup--popup-visible-p)))
+        (minibuffer-active (iota-modeline--minibuffer-active-p)))
+    (if (or popup-visible minibuffer-active)
+        'iota-inactive-box-face
+      (iota-theme-get-box-face window))))
+
 (defun iota-modeline--update-separator-lines (&optional _frame)
-  "Update mode-line separator for each window based on position.
+  "Update separator lines for windows based on position.
 
 Separator line logic:
 - Windows AT BOTTOM (adjacent to minibuffer): show separator
@@ -1039,7 +1051,7 @@ Face logic for bottom windows:
 
 Note: Splash screen is handled separately by iota-splash.el."
   (let* ((popup-visible (and (fboundp 'iota-popup--popup-visible-p)
-                             (iota-popup--popup-visible-p)))
+                            (iota-popup--popup-visible-p)))
          (minibuffer-active (iota-modeline--minibuffer-active-p))
          (use-inactive-face (or popup-visible minibuffer-active)))
     ;; Process each window
@@ -1048,24 +1060,25 @@ Note: Splash screen is handled separately by iota-splash.el."
              (buf-name (buffer-name buf))
              ;; Skip splash/screen buffers - they handle their own separator
              (is-splash-or-screen (or (string-match-p "\\*I O T Λ splash\\*" buf-name)
-                                      (string-match-p "\\*I O T Λ screen-[0-9]+\\*" buf-name))))
+                                     (string-match-p "\\*I O T Λ screen-[0-9]+\\*" buf-name))))
         (unless is-splash-or-screen
           (let ((is-bottom (iota-modeline--window-is-at-bottom-p window))
                 (should-show (with-current-buffer buf
-                               (iota-modeline--should-show-p))))
+                              (iota-modeline--should-show-p))))
             (if (and should-show is-bottom)
-                ;; Bottom window: show separator line
+                ;; Bottom window: show separator line via mode-line-format
+                ;; Use iota-separator--render for proper width/padding with olivetti
+                ;; Face is evaluated dynamically on each redisplay
                 (progn
+                  ;; Set mode-line-format to render separator with dynamic face
                   (with-current-buffer buf
                     (setq-local mode-line-format
-                                `(:eval (iota-box-horizontal-line
-                                         (iota-modeline-effective-width)
-                                         iota-modeline-box-style
-                                         (if ,use-inactive-face
-                                             'iota-inactive-box-face
-                                           (iota-theme-get-box-face (selected-window)))))))
+                                '(:eval (iota-separator--render
+                                         (selected-window)
+                                         (iota-modeline--get-separator-face (selected-window))))))
+                  ;; Clear window parameter to allow mode-line to show
                   (set-window-parameter window 'mode-line-format nil))
-              ;; Not at bottom or shouldn't show: hide mode-line
+              ;; Not at bottom or shouldn't show: hide separator
               (set-window-parameter window 'mode-line-format 'none))))))))
 
 ;;; Face Management
@@ -1246,6 +1259,10 @@ Note: Splash screen is handled separately by iota-splash.el."
   ;; Remove overlays
   (iota-modeline--remove-overlay)
   (iota-modeline--remove-separator-overlays)
+  
+  ;; Clean up separator module
+  (when (featurep 'iota-separator)
+    (iota-separator--remove-all))
 
   ;; Restore original formats
   (when iota-modeline--original-header-line-format
