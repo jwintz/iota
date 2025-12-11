@@ -508,14 +508,14 @@ Redraws are debounced to prevent performance issues."
                     (let ((fill-column (window-width window)))
                       (center-region hints-start (point))))
 
-                  ;; Ensure cursor remains hidden after redraw
+                  ;; Ensure cursor remains hidden after redraw via buffer-local settings
+                  ;; Note: Don't use internal-show-cursor here - it prevents cursor
+                  ;; restoration when window switches to another buffer (C-x 2, C-x C-f)
                   (setq-local cursor-type nil)
                   (setq-local cursor-in-non-selected-windows nil)
                   (setq-local visible-cursor nil)
                   ;; Move point to beginning
-                  (goto-char (point-min))
-                  ;; Hide cursor at window level (most reliable method)
-                  (internal-show-cursor window nil))))))))))
+                  (goto-char (point-min)))))))))))
 
 (defun iota-splash--redraw-on-resize ()
   "Redraw splash screen if SELECTED window height or width changed.
