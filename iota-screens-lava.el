@@ -32,8 +32,9 @@
   :type 'float
   :group 'iota-screens)
 
-(defcustom iota-screens-lava-num-balls 8
-  "Number of metaballs in the simulation."
+(defcustom iota-screens-lava-num-balls 5
+  "Number of metaballs in the simulation.
+Lower values improve performance."
   :type 'integer
   :group 'iota-screens)
 
@@ -158,20 +159,54 @@ Higher values indicate closer to blob centers."
 
 ;;; Rendering
 
+(defcustom iota-screens-lava-max-width 80
+  "Maximum effective render width to prevent performance issues.
+Field values are only calculated at this resolution and replicated."
+  :type 'integer
+  :group 'iota-screens)
+
+(defcustom iota-screens-lava-max-height 30
+  "Maximum effective render height to prevent performance issues.
+Field values are only calculated at this resolution and replicated."
+  :type 'integer
+  :group 'iota-screens)
+
 (defun iota-screens-lava--render ()
-  "Render the metaball field to buffer."
+  "Render the metaball field to buffer.
+Uses grid-based rendering with limited resolution for consistent performance."
   (let* ((width iota-screens-lava--width)
          (height iota-screens-lava--height)
          (render-width (max 1 (1- width)))
+         ;; Calculate grid dimensions - limit to max resolution
+         (grid-width (min render-width iota-screens-lava-max-width))
+         (grid-height (min height iota-screens-lava-max-height))
+         ;; Scale factors for mapping grid to screen
+         (x-scale (/ (float render-width) grid-width))
+         (y-scale (/ (float height) grid-height))
          (inhibit-read-only t)
          (char-count (length iota-screens-lava--chars))
-         (threshold iota-screens-lava-threshold))
+         (threshold iota-screens-lava-threshold)
+         ;; Pre-compute grid of field values (the expensive part, now limited)
+         (grid (make-vector grid-height nil)))
+    
+    ;; Step 1: Compute field values on reduced grid
+    (dotimes (gy grid-height)
+      (let ((row (make-vector grid-width nil))
+            (screen-y (* gy y-scale)))
+        (dotimes (gx grid-width)
+          (let* ((screen-x (* gx x-scale))
+                 (field (iota-screens-lava--field-value screen-x screen-y)))
+            (aset row gx field)))
+        (aset grid gy row)))
+    
+    ;; Step 2: Render to buffer using precomputed grid
     (erase-buffer)
     (dotimes (y height)
-      (let ((line (make-string render-width ?\s)))
+      (let ((line (make-string render-width ?\s))
+            (gy (min (1- grid-height) (floor (/ y y-scale)))))
         (dotimes (x render-width)
-          (let* ((field (iota-screens-lava--field-value (float x) (float y)))
-                 ;; Normalize to 0-1 range based on threshold
+          (let* ((gx (min (1- grid-width) (floor (/ x x-scale))))
+                 (field (aref (aref grid gy) gx))
                  (normalized (min 1.0 (/ field (* threshold 4.0)))))
             (when (> field (* threshold 0.3))
               (let* ((char-idx (min (1- char-count)
@@ -201,12 +236,29 @@ Higher values indicate closer to blob centers."
               (with-current-buffer buf
                 (let ((w (window-body-width win))
                       (h (window-body-height win)))
-                  ;; Handle resize
+                  ;; Handle resize - scale existing balls instead of reinitializing
                   (when (or (/= w iota-screens-lava--width)
-                            (/= h iota-screens-lava--height)
-                            (null iota-screens-lava--balls))
+                            (/= h iota-screens-lava--height))
+                    (let ((x-scale (if (> iota-screens-lava--width 0)
+                                       (/ (float w) iota-screens-lava--width)
+                                     1.0))
+                          (y-scale (if (> iota-screens-lava--height 0)
+                                       (/ (float h) iota-screens-lava--height)
+                                     1.0)))
+                      ;; Scale ball positions to new dimensions
+                      (when iota-screens-lava--balls
+                        (setq iota-screens-lava--balls
+                              (mapcar (lambda (ball)
+                                        (list (* (nth 0 ball) x-scale)
+                                              (* (nth 1 ball) y-scale)
+                                              (nth 2 ball)
+                                              (nth 3 ball)
+                                              (nth 4 ball)))
+                                      iota-screens-lava--balls))))
                     (setq iota-screens-lava--width w
-                          iota-screens-lava--height h)
+                          iota-screens-lava--height h))
+                  ;; Initialize if no balls yet
+                  (when (null iota-screens-lava--balls)
                     (iota-screens-lava--init-balls))
                   ;; Update and render
                   (iota-screens-lava--update-balls)
