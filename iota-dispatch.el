@@ -916,6 +916,51 @@
     (iota-dispatch--splash-random)]])
 
 ;;; ═══════════════════════════════════════════════════════════════════════════
+;;; Package Management Transient
+;;; ═══════════════════════════════════════════════════════════════════════════
+
+(transient-define-suffix iota-dispatch--package-list ()
+  "List all packages."
+  :key "l"
+  :description "List Packages"
+  :transient nil
+  (interactive)
+  (list-packages))
+
+(transient-define-suffix iota-dispatch--package-installed ()
+  "List installed packages."
+  :key "i"
+  :description "List Installed"
+  :transient nil
+  (interactive)
+  (list-packages)
+  (package-menu-filter-by-status "installed"))
+
+(transient-define-suffix iota-dispatch--package-upgrade ()
+  "Upgrade all packages."
+  :key "u"
+  :description "Upgrade All"
+  :transient nil
+  (interactive)
+  (if (fboundp 'package-upgrade-all)
+      (package-upgrade-all)
+    (message "package-upgrade-all not available in this Emacs version")))
+
+;;;###autoload (autoload 'iota-package-transient "iota-dispatch" nil t)
+(transient-define-prefix iota-package-transient ()
+  "IOTA Package Management"
+  [:description
+   (lambda ()
+     (concat
+      (propertize "I O T Λ Packages" 'face '(:weight bold))
+      "\n" (iota-dispatch--separator) "\n"))
+
+   ["Actions"
+    (iota-dispatch--package-list)
+    (iota-dispatch--package-installed)
+    (iota-dispatch--package-upgrade)]])
+
+;;; ═══════════════════════════════════════════════════════════════════════════
 ;;; Main Dispatch
 ;;; ═══════════════════════════════════════════════════════════════════════════
 
@@ -953,10 +998,15 @@ Or with vanilla Emacs:
     ("w" "Window" iota-window-transient)
     ("p" "Popup" iota-popup-transient)]
 
+   ["Assistant"
+    ("g" "Copilot" iota-copilot-transient)]
+
+   ["Packages"
+    ("l" "Packages" iota-package-transient)]
+
    ["Extras"
     ("s" "Screens" iota-screens-transient)
-    ("?" "Splash" iota-splash-transient)
-    ("g" "Copilot" iota-copilot-transient)]])
+    ("?" "Splash" iota-splash-transient)]])
 
 (provide 'iota-dispatch)
 ;;; iota-dispatch.el ends here
