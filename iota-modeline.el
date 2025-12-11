@@ -95,7 +95,7 @@ If nil, inactive windows use default modeline."
   :type 'boolean
   :group 'iota-modeline)
 
-(defcustom iota-modeline-excluded-buffers '("\\*Warnings\\*")
+(defcustom iota-modeline-excluded-buffers '("\\*Warnings\\*" "\\*Backtrace\\*")
   "List of buffer names (strings or regexps) to exclude from IOTA modeline."
   :type '(repeat (choice string regexp))
   :group 'iota-modeline)
@@ -893,6 +893,13 @@ Uses centralized update system for efficient batching."
              (cl-find-if (lambda (pattern) (string-match-p pattern buf-name))
                          iota-modeline-excluded-buffers)))))
 
+(defun iota-modeline--buffer-excluded-p (buffer)
+  "Return non-nil if BUFFER is in the excluded buffers list."
+  (when (buffer-live-p buffer)
+    (let ((buf-name (buffer-name buffer)))
+      (cl-find-if (lambda (pattern) (string-match-p pattern buf-name))
+                  iota-modeline-excluded-buffers))))
+
 (defun iota-modeline--ensure-format-in-buffer (buffer)
   "Ensure BUFFER has correct IOTA modeline format."
   (when (buffer-live-p buffer)
@@ -998,8 +1005,10 @@ Exception: If the window below is the splash screen, return t (show separator)."
                        (= top2 bottom1)
                        (> (min right1 right2) (max left1 left2)))
               ;; Skip popup windows - they are handled by iota-popup
-              (when (not (and (fboundp 'iota-popup--window-popup-p)
-                              (iota-popup--window-popup-p w)))
+              ;; Skip excluded buffers - they get separator from window above
+              (when (not (or (and (fboundp 'iota-popup--window-popup-p)
+                                  (iota-popup--window-popup-p w))
+                             (iota-modeline--buffer-excluded-p (window-buffer w))))
                 ;; Check if it's the splash/screen buffer - if so, treat current window as at bottom
                 (let ((buf-name (buffer-name (window-buffer w))))
                   (if (or (string-match-p "\\*I O T Λ splash\\*" buf-name)
