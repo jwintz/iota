@@ -171,18 +171,27 @@ FACE is applied to filled portion. WIDTH defaults to `iota-copilot-progress-bar-
   "Call GitHub API ENDPOINT via gh CLI synchronously.
 Returns parsed JSON or nil on error."
   (with-temp-buffer
-    (let* ((err-buf (generate-new-buffer " *iota-copilot-stderr*"))
-           (exit-code (call-process "gh" nil (list t (buffer-name err-buf)) nil "api" endpoint)))
+    ;; call-process only accepts a filename (string) for stderr, not a buffer.
+    ;; Use a temp file to capture stderr.
+    (let* ((err-file (make-temp-file "iota-copilot-stderr"))
+           (exit-code (unwind-protect
+                          (call-process "gh" nil (list t err-file) nil "api" endpoint)
+                        ;; Ensure cleanup happens even on error
+                        )))
       (if (zerop exit-code)
           (progn
-            (kill-buffer err-buf)
+            (delete-file err-file)
             (goto-char (point-min))
             (condition-case nil
                 (json-parse-buffer :object-type 'plist :array-type 'list)
               (error nil)))
-        (with-current-buffer err-buf
-          (message "gh API error: %s" (string-trim (buffer-string))))
-        (kill-buffer err-buf)
+        ;; Read and display error from temp file
+        (let ((err-msg (with-temp-buffer
+                         (insert-file-contents err-file)
+                         (string-trim (buffer-string)))))
+          (when (> (length err-msg) 0)
+            (message "gh API error: %s" err-msg)))
+        (delete-file err-file)
         nil))))
 
 ;;; Username Detection
