@@ -150,26 +150,34 @@ CHAR-KEY can be: :top-left, :horizontal, :vertical, etc."
 
 (defun iota-box-horizontal-line (width style &optional face)
   "Render horizontal line of WIDTH using STYLE.
-Optional FACE applies text properties."
+Optional FACE applies text properties.
+When FACE is provided, explicitly sets :background nil to prevent
+inheritance from buffer text at the overlay position."
   (let* ((char (iota-box-char style :horizontal))
          (line (make-string width (string-to-char char))))
     (if face
-        (propertize line 'face face)
+        ;; CRITICAL: :background nil prevents buffer backgrounds from bleeding through
+        (propertize line 'face `(:inherit ,face :background nil))
       line)))
 
 (defun iota-box-vertical-line (height style &optional face)
   "Render vertical line of HEIGHT using STYLE.
-Optional FACE applies text properties."
+Optional FACE applies text properties.
+When FACE is provided, explicitly sets :background nil to prevent
+inheritance from buffer text at the overlay position."
   (let* ((char (iota-box-char style :vertical))
          (lines (make-list height char)))
     (if face
-        (mapconcat (lambda (c) (propertize c 'face face)) lines "\n")
+        ;; CRITICAL: :background nil prevents buffer backgrounds from bleeding through
+        (mapconcat (lambda (c) (propertize c 'face `(:inherit ,face :background nil))) lines "\n")
       (mapconcat #'identity lines "\n"))))
 
 (defun iota-box-top-border (width style &optional face dividers)
   "Render top border of WIDTH using STYLE.
 Optional FACE applies text properties.
-DIVIDERS is a list of 0-indexed positions to place connectors."
+DIVIDERS is a list of 0-indexed positions to place connectors.
+When FACE is provided, explicitly sets :background nil to prevent
+inheritance from buffer text at the overlay position."
   (let* ((left (iota-box-char style :top-left))
          (right (iota-box-char style :top-right))
          (t-down (iota-box-char style :t-down))
@@ -184,13 +192,16 @@ DIVIDERS is a list of 0-indexed positions to place connectors."
             (aset line border-pos (string-to-char t-down))))))
     (let ((border (concat left line right)))
       (if face
-          (propertize border 'face face)
+          ;; CRITICAL: :background nil prevents buffer backgrounds from bleeding through
+          (propertize border 'face `(:inherit ,face :background nil))
         border))))
 
 (defun iota-box-bottom-border (width style &optional face dividers)
   "Render bottom border of WIDTH using STYLE.
 Optional FACE applies text properties.
-DIVIDERS is a list of 0-indexed positions to place connectors."
+DIVIDERS is a list of 0-indexed positions to place connectors.
+When FACE is provided, explicitly sets :background nil to prevent
+inheritance from buffer text at the overlay position."
   (let* ((left (iota-box-char style :bottom-left))
          (right (iota-box-char style :bottom-right))
          (t-up (iota-box-char style :t-up))
@@ -205,12 +216,15 @@ DIVIDERS is a list of 0-indexed positions to place connectors."
             (aset line border-pos (string-to-char t-up))))))
     (let ((border (concat left line right)))
       (if face
-          (propertize border 'face face)
+          ;; CRITICAL: :background nil prevents buffer backgrounds from bleeding through
+          (propertize border 'face `(:inherit ,face :background nil))
         border))))
 
 (defun iota-box-content-line (content width style &optional face align)
   "Render CONTENT line within box of WIDTH using STYLE.
-ALIGN can be: left, center, right (default: left)."
+ALIGN can be: left, center, right (default: left).
+When FACE is provided, explicitly sets :background nil to prevent
+inheritance from buffer text at the overlay position."
   (let* ((vert (iota-box-char style :vertical))
          (content-width (- width 4)) ; 2 chars for borders, 2 for padding
          (content-len (length content))
@@ -229,7 +243,8 @@ ALIGN can be: left, center, right (default: left)."
              (concat content (make-string padding ?\s)))))
          (line (concat vert " " aligned-content " " vert)))
     (if face
-        (propertize line 'face face)
+        ;; CRITICAL: :background nil prevents buffer backgrounds from bleeding through
+        (propertize line 'face `(:inherit ,face :background nil))
       line)))
 
 ;;; High-Level Box Rendering
@@ -326,11 +341,13 @@ Returns: String with box decorations."
     ;; If we have center content, split space around it
     ;; Otherwise, all space goes between left and right
     ;; Use explicit face spec to prevent inheritance from buffer
+    ;; CRITICAL: Always set :background nil to prevent buffer backgrounds from bleeding through
     (let ((space-face (if face
                           ;; If we have a box face, apply similar attributes to spacing
-                          `(:inherit ,face :slant normal :weight normal)
+                          ;; Include :background nil to prevent inheritance from overlay position
+                          `(:inherit ,face :slant normal :weight normal :background nil)
                         ;; Otherwise use mode-line with explicit attributes
-                        '(:inherit mode-line :slant normal :weight normal))))
+                        '(:inherit mode-line :slant normal :weight normal :background nil))))
       (cond
        ;; Case 1: We have center content - distribute space around it
        ((> center-len 0)
@@ -373,12 +390,17 @@ Returns: String with box decorations."
     
     (setq dividers (sort dividers #'<))
     (setq content-parts (nreverse content-parts))
-    (let* ((left-border (if face (propertize vert 'face face) vert))
-           (right-border (if face (propertize vert 'face face) vert))
+    (let* (;; Border faces need explicit :background nil to prevent buffer face inheritance
+           (border-face (if face
+                            `(:inherit ,face :background nil)
+                          '(:inherit mode-line :background nil)))
+           (left-border (propertize vert 'face border-face))
+           (right-border (propertize vert 'face border-face))
            ;; Padding spaces need explicit face spec to prevent buffer face inheritance
+           ;; CRITICAL: :background nil prevents magit backgrounds from bleeding through
            (padding-space (propertize " " 'face (if face
-                                                    `(:inherit ,face :slant normal :weight normal)
-                                                  '(:inherit mode-line :slant normal :weight normal))))
+                                                    `(:inherit ,face :slant normal :weight normal :background nil)
+                                                  '(:inherit mode-line :slant normal :weight normal :background nil))))
            (content-str (apply #'concat content-parts))
            ;; SAFETY: Truncate content if it exceeds available width
            ;; This prevents line overflow and broken box rendering
@@ -387,13 +409,14 @@ Returns: String with box decorations."
                             (truncate-string-to-width content-str content-max-width nil nil "…")
                           content-str))
            ;; Pad content if it's shorter than expected (to maintain box width)
+           ;; CRITICAL: :background nil prevents buffer backgrounds from bleeding through
            (content-str (let ((current-width (string-width content-str)))
                           (if (< current-width content-max-width)
                               (concat content-str
                                       (propertize (make-string (- content-max-width current-width) ?\s)
                                                   'face (if face
-                                                            `(:inherit ,face :slant normal :weight normal)
-                                                          '(:inherit mode-line :slant normal :weight normal))))
+                                                            `(:inherit ,face :slant normal :weight normal :background nil)
+                                                          '(:inherit mode-line :slant normal :weight normal :background nil))))
                             content-str)))
            (content-line (concat left-border padding-space content-str padding-space right-border)))
 
@@ -409,13 +432,16 @@ Returns: String with box decorations."
 ;;; Separator Lines
 
 (defun iota-box-separator (width style &optional face)
-  "Render separator line of WIDTH using STYLE."
+  "Render separator line of WIDTH using STYLE.
+When FACE is provided, explicitly sets :background nil to prevent
+inheritance from buffer text at the overlay position."
   (let* ((left (iota-box-char style :t-right))
          (right (iota-box-char style :t-left))
          (line (iota-box-horizontal-line (- width 2) style))
          (sep (concat left line right)))
     (if face
-        (propertize sep 'face face)
+        ;; CRITICAL: :background nil prevents buffer backgrounds from bleeding through
+        (propertize sep 'face `(:inherit ,face :background nil))
       sep)))
 
 ;;; Utility Functions
