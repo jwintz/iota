@@ -89,6 +89,9 @@ Keys are windows, values are plists with :top and :bottom overlays.")
 (defvar iota-popup--active-popups nil
   "List of currently visible popup windows.")
 
+(defvar iota-popup--update-timer nil
+  "Timer for debouncing popup decoration updates.")
+
 ;;; Detection Functions
 
 (defun iota-popup--buffer-popup-p (buffer)
@@ -208,15 +211,34 @@ Returns the overlay."
 Returns the overlay."
   (let* ((overlays (gethash window iota-popup--overlays))
          (bottom-ov (plist-get overlays :bottom)))
+    ;; Clean up if overlay is stale
     (when (and bottom-ov (not (overlay-buffer bottom-ov)))
-      (setq bottom-ov nil))
+      (setq bottom-ov nil)
+      (puthash window (plist-put overlays :bottom nil) iota-popup--overlays))
+    ;; Create new overlay if needed
     (unless bottom-ov
       (with-current-buffer (window-buffer window)
-        (setq bottom-ov (make-overlay (point-max) (point-max)))
+        (setq bottom-ov (make-overlay (point-max) (point-max) (current-buffer) nil t))
         (overlay-put bottom-ov 'priority 200)
         (overlay-put bottom-ov 'window window)
+        (overlay-put bottom-ov 'iota-popup-bottom t)  ; Mark for identification
         (puthash window (plist-put overlays :bottom bottom-ov) iota-popup--overlays)))
     bottom-ov))
+
+(defun iota-popup--cleanup-buffer-overlays (buffer)
+  "Remove any stale iota-popup overlays from BUFFER.
+This prevents duplicate separators when transient re-renders."
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (dolist (ov (overlays-in (point-min) (point-max)))
+        (when (overlay-get ov 'iota-popup-bottom)
+          ;; Check if this overlay belongs to a window that no longer exists
+          ;; or if the window is showing a different buffer
+          (let ((ov-window (overlay-get ov 'window)))
+            (when (or (not ov-window)
+                      (not (window-live-p ov-window))
+                      (not (eq (window-buffer ov-window) buffer)))
+              (delete-overlay ov))))))))
 
 (defun iota-popup--update-decorations (window)
   "Update decorations for popup WINDOW.
@@ -226,12 +248,29 @@ Uses iota-separator for proper olivetti-mode handling."
              (iota-popup--window-popup-p window))
     (let ((style iota-popup-decoration-style))
       (with-current-buffer (window-buffer window)
+        ;; Clean up any stale overlays first
+        (iota-popup--cleanup-buffer-overlays (current-buffer))
         ;; Bottom decoration only (top comes from window above's separator)
-        (when (eq style 'bottom-line)
+        ;; NOTE: For transient windows, we skip the bottom decoration entirely
+        ;; because the transient description already includes separators,
+        ;; and the window above provides the top separator via mode-line.
+        ;; This prevents duplicate separator lines.
+        (when (and (eq style 'bottom-line)
+                   ;; Skip bottom decoration for transient buffers
+                   ;; They handle their own visual structure via description
+                   (not (string-match-p "transient" (buffer-name))))
           (let ((bottom-ov (iota-popup--ensure-bottom-overlay window))
-                (bottom-str (iota-popup--make-bottom-decoration window)))
+                (bottom-str (iota-popup--make-bottom-decoration window))
+                ;; Check if buffer already ends with a newline
+                ;; This prevents double newlines when transient re-renders
+                (needs-newline (not (and (> (point-max) 1)
+                                          (eq (char-before (point-max)) ?\n)))))
             (move-overlay bottom-ov (point-max) (point-max))
-            (overlay-put bottom-ov 'after-string (concat "\n" bottom-str))))
+            ;; Only add leading newline if buffer doesn't already end with one
+            (overlay-put bottom-ov 'after-string
+                         (if needs-newline
+                             (concat "\n" bottom-str)
+                           bottom-str))))
         ;; Set mode-line-format to nil for popup windows
         (setq-local mode-line-format nil)
         (set-window-parameter window 'mode-line-format 'none)))))
@@ -268,10 +307,23 @@ Uses iota-separator for proper olivetti-mode handling."
     (dolist (popup popups)
       (iota-popup--update-decorations popup))))
 
+(defun iota-popup--schedule-update ()
+  "Schedule a popup decoration update with debouncing.
+This prevents multiple rapid updates during transient refresh cycles.
+Uses a very short delay to ensure overlay positions are correct after
+buffer content changes."
+  (when (timerp iota-popup--update-timer)
+    (cancel-timer iota-popup--update-timer))
+  ;; Use run-with-timer (not idle timer) to ensure we run promptly
+  ;; after transient finishes re-rendering
+  (setq iota-popup--update-timer
+        (run-with-timer 0 nil #'iota-popup--update-all)))
+
 (defun iota-popup--on-window-configuration-change ()
   "Handle window configuration changes."
   (when iota-popup-mode
-    (iota-popup--update-all)))
+    ;; Use debounced update to avoid issues with rapid transient re-renders
+    (iota-popup--schedule-update)))
 
 ;;; Mode Definition
 
@@ -293,6 +345,10 @@ Uses iota-separator for proper olivetti-mode handling."
     (remove-hook 'window-configuration-change-hook
                  #'iota-popup--on-window-configuration-change)
     (setq iota-popup--hooks-installed nil))
+  ;; Cancel pending timer
+  (when (timerp iota-popup--update-timer)
+    (cancel-timer iota-popup--update-timer)
+    (setq iota-popup--update-timer nil))
   ;; Clean up all overlays
   (maphash (lambda (window _)
              (iota-popup--remove-decorations window))
