@@ -96,6 +96,10 @@ Subtracts 1 to prevent line wrapping."
       eol)
   "Regex to match markdown code fence lines (both opening and closing).")
 
+(defconst iota-modes-markdown--hrule-regex
+  (rx bol (zero-or-more space) "---" (zero-or-more space) eol)
+  "Regex to match markdown horizontal rules (---).")
+
 (defun iota-modes-markdown--extract-language (fence-text)
   "Extract language identifier from FENCE-TEXT.
 Returns the language string or nil if not found."
@@ -118,6 +122,10 @@ Simple horizontal line with optional language label."
           (propertize (concat lang-display line) 'face 'iota-muted-face))
       ;; Simple line: ──────────────────────────────────────
       (propertize (make-string width (string-to-char horiz)) 'face 'iota-muted-face))))
+
+(defun iota-modes-markdown--make-hrule (width)
+  "Generate full-width dotted horizontal rule with WIDTH."
+  (propertize (make-string width ?·) 'face 'iota-muted-face))
 
 (defun iota-modes-markdown--make-bottom-border (width)
   "Generate bottom border for markdown code block with WIDTH.
@@ -197,7 +205,24 @@ Uses overlays to avoid modifying buffer content."
     (let ((pairs (iota-modes-markdown--find-fence-pairs)))
       (dolist (pair pairs)
         (iota-modes-markdown--apply-fence-overlays 
-         (nth 0 pair) (nth 1 pair) (nth 2 pair) (nth 3 pair) (nth 4 pair))))))
+         (nth 0 pair) (nth 1 pair) (nth 2 pair) (nth 3 pair) (nth 4 pair))))
+    ;; Apply horizontal rule overlays
+    (iota-modes-markdown--apply-hrule-overlays)))
+
+(defun iota-modes-markdown--apply-hrule-overlays ()
+  "Apply dotted line overlays to horizontal rules (---)."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((width (iota-modes-markdown--get-box-width)))
+      (while (re-search-forward iota-modes-markdown--hrule-regex nil t)
+        (let* ((line-beg (match-beginning 0))
+               (line-end (match-end 0))
+               (ov (make-overlay line-beg line-end nil t nil)))
+          (overlay-put ov 'iota-modes-markdown t)
+          (overlay-put ov 'iota-modes-markdown-type 'hrule)
+          (overlay-put ov 'display (iota-modes-markdown--make-hrule width))
+          (overlay-put ov 'evaporate t)
+          (push ov iota-modes-markdown--overlays))))))
 
 (defun iota-modes-markdown--update-overlay-widths ()
   "Update width-dependent overlays when window size changes."
@@ -213,7 +238,10 @@ Uses overlays to avoid modifying buffer content."
                               (iota-modes-markdown--make-top-border width lang))))
               ('bottom-border
                (overlay-put ov 'display
-                            (iota-modes-markdown--make-bottom-border width))))))))))
+                            (iota-modes-markdown--make-bottom-border width)))
+              ('hrule
+               (overlay-put ov 'display
+                            (iota-modes-markdown--make-hrule width))))))))))
 
 (defun iota-modes-markdown--schedule-update ()
   "Schedule a debounced overlay update."
