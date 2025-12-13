@@ -224,11 +224,11 @@ to nil, we prevent this inheritance while maintaining transparency."
                 (let ((fg (iota-modeline--resolve-face-color normalized :foreground)))
                   (setq normalized (append normalized
                                            (list :foreground (or fg default-fg))))))
-              ;; CRITICAL: Always set background to nil to prevent inheritance
+              ;; CRITICAL: Always set background to unspecified to prevent inheritance
               ;; This prevents buffer text backgrounds (e.g., magit diffs) from
               ;; bleeding through the modeline overlay
               (unless (plist-member normalized :background)
-                (setq normalized (append normalized (list :background nil))))
+                (setq normalized (append normalized (list :background 'unspecified))))
               normalized))
 
            ;; Single face symbol - resolve all attributes explicitly
@@ -257,9 +257,9 @@ to nil, we prevent this inheritance while maintaining transparency."
                                             (if (eq fg 'unspecified)
                                                 default-fg
                                               fg))))
-              ;; CRITICAL: Always set background to nil to prevent inheritance
+              ;; CRITICAL: Always set background to unspecified to prevent inheritance
               ;; This is essential for preventing magit backgrounds from showing through
-              (setq base-spec (append base-spec (list :background nil)))
+              (setq base-spec (append base-spec (list :background 'unspecified)))
               base-spec))
 
            ;; Fallback for anything else - return default with explicit colors
@@ -270,7 +270,7 @@ to nil, we prevent this inheritance while maintaining transparency."
                   :underline nil
                   :inverse-video nil
                   :foreground default-fg
-                  :background nil)))))
+                  :background 'unspecified)))))
     (when iota-modeline-debug-faces
       (message "IOTA:   Result: %S" result))
     result))
@@ -318,7 +318,7 @@ Returns a face specification that inherits from mode-line-inactive."
 Applies face normalization to prevent any attribute inheritance from buffer text.
 If INACTIVE is non-nil, dim faces for inactive window appearance.
 
-All text gets normalized faces with explicit :foreground and :background nil
+All text gets normalized faces with explicit :foreground and :background 'unspecified
 to prevent inheritance from the overlay position in the buffer."
   (if (or (null segment) (string-empty-p segment))
       segment
@@ -770,7 +770,7 @@ Returns nil if window or buffer is invalid."
 This prevents inheritance from buffer text at overlay position.
 Parts that already have a face get normalized to prevent attribute inheritance.
 
-IMPORTANT: We apply a normalized plist with explicit :foreground and :background nil
+IMPORTANT: We apply a normalized plist with explicit :foreground and :background 'unspecified
 instead of just the `iota-modeline-default' face symbol, because face symbols can
 still inherit colors from the overlay position context."
   (if (or (null str) (string-empty-p str))

@@ -108,18 +108,18 @@ Uses `iota-separator-style' if set, otherwise falls back to
 (defun iota-separator--render (window face)
   "Render separator line for WINDOW with FACE.
 Returns a string with proper padding for olivetti-mode if active.
-Padding spaces are given explicit :background nil to prevent
+Padding spaces are given explicit :background 'unspecified to prevent
 inheritance from buffer text at the overlay position."
   (when (window-live-p window)
     (let* ((width (iota-separator--effective-width window))
            (padding (iota-separator--calculate-padding window))
            (style (iota-separator--get-style))
            (line (iota-box-horizontal-line width style face))
-           ;; CRITICAL: Padding spaces must have explicit :background nil
+           ;; CRITICAL: Padding spaces must have explicit :background unspecified
            ;; to prevent buffer backgrounds from bleeding through
            (padding-str (when (> padding 0)
                           (propertize (make-string padding ?\s)
-                                      'face `(:inherit ,face :background nil))))
+                                      'face `(:inherit ,face :background unspecified))))
            (padded-line (if padding-str
                             (concat padding-str line)
                           line)))
